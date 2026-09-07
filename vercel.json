@@ -9,7 +9,7 @@
   "crons": [
     {
       "path": "/api/cron/expire-searches",
-      "schedule": "*/2 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
