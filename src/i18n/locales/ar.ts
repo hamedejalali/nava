@@ -1,0 +1,118 @@
+import type { Dictionary } from "../types.js";
+
+// Same policy as en.ts: LOCKED strings are left undefined until the project
+// owner supplies the exact Arabic wording.
+export const ar: Dictionary = {
+  onboarding: {
+    welcome: undefined,
+    genderPrompt: undefined,
+    genderButtonMale: undefined,
+    genderButtonFemale: undefined,
+    guide1: undefined,
+    agePrompt: undefined,
+    provincePrompt: undefined,
+    cityPrompt: undefined,
+    nicknamePrompt: undefined,
+    nicknameInvalid: undefined,
+    completionMessage: undefined,
+    chooseFromMenu: undefined,
+    guideButton: undefined,
+  },
+
+  forceJoin: {
+    messageIntro: undefined,
+    messageOutro: undefined,
+    verifyButton: undefined,
+    verifiedMessage: undefined,
+  },
+
+  matching: {
+    partnerPrompt: undefined,
+    luckySearch: undefined,
+    maleSearch: undefined,
+    femaleSearch: undefined,
+    nearbySearch: undefined,
+    sameAgeSearch: undefined,
+    sameProvinceSearch: undefined,
+    searchingStatus: undefined,
+    foundPartner: undefined,
+    trustWarning: undefined,
+    partnerProfileButton: undefined,
+    safeChatButton: undefined,
+    endChatButton: undefined,
+    endChatConfirm: undefined,
+    continueChatButton: undefined,
+    chatEndedByPartner: undefined,
+    chatCashback: undefined,
+    profileViewNotification: undefined,
+  },
+
+  mainMenu: {
+    connectAnonymous: undefined,
+    nearbyPeople: undefined,
+    searchUsers: undefined,
+    guide: undefined,
+    profile: undefined,
+    relicCoin: undefined,
+    feedback: undefined,
+    myAnonymousLink: undefined,
+    inviteFriends: undefined,
+  },
+
+  languageButtons: {
+    fa: "فارسی",
+    en: "English",
+    ar: "العربية",
+  },
+
+  errors: {
+    invalidAge: "هذا العمر غير صالح. الرجاء إدخال رقم بين 9 و 99.",
+    genderAlreadySet: "تم تسجيل جنسك بالفعل ولا يمكن تغييره.",
+    unknownInput: undefined,
+    generic: "حدث خطأ ما. الرجاء المحاولة مرة أخرى.",
+    exemptConfirmation: "حسنًا، لم تعد بحاجة للانضمام إلى القنوات الراعية ✅",
+    nearbyUnavailable: "لم يتم حفظ موقعك بعد، لذا هذا النوع من البحث غير متاح.",
+    alreadyInChat: "أنت بالفعل في محادثة نشطة.",
+    insufficientBalance: "😔 رصيدك من الريليك غير كافٍ. الاتصال بمحادثة مجهولة يكلف 1 ريليك.",
+    searchTimedOut: "⏳ انتهت مهلة البحث ولم يتم العثور على أحد. يمكنك المحاولة مرة أخرى.",
+    rateLimited: "⚠️ تمهّل قليلاً! الرجاء الانتظار بضع ثوانٍ والمحاولة مرة أخرى.",
+  },
+
+  relic: {
+    transferButton: undefined,
+    amountPrompt: "كم عدد ريليك تريد إرساله؟ أرسل رقمًا فقط.",
+    invalidAmount: "الرقم غير صالح. أرسل رقمًا صحيحًا موجبًا.",
+    cannotTransferToSelf: "لا يمكنك إرسال ريليك لنفسك!",
+    insufficientForTransfer: "😔 رصيدك من الريليك غير كافٍ لهذا التحويل.",
+    transferConfirmMessage: undefined,
+    confirmButton: "✅ تأكيد",
+    cancelTransferButton: "❌ إلغاء",
+    transferSuccess: "✅ تم إرسال الريليك بنجاح.",
+    transferCancelled: "تم إلغاء التحويل.",
+    transferReceived: (amount: number, anonId: string) => `🎉 تم إرسال ${amount} ريليك إليك من ${anonId}!`,
+  },
+
+  photo: {
+    rejected: undefined,
+    submittedForReview: "📸 تم إرسال صورتك للمراجعة. بعد الموافقة عليها ستصبح صورة ملفك الشخصي النشطة.",
+    approved: "✅ تمت الموافقة على صورة ملفك الشخصي وأصبحت نشطة.",
+    supportButton: "الدعم",
+  },
+
+  profile: {
+    labels: undefined,
+    bioLabel: undefined,
+    onlineNowStatus: undefined,
+    idLabel: undefined,
+    distanceLabel: undefined,
+    partnerLocationMissing: undefined,
+    viewerLocationMissing: undefined,
+    likeButton: undefined,
+    chatRequestButton: undefined,
+    directMessageButton: undefined,
+    addContactButton: undefined,
+    blockButton: undefined,
+    reportButton: undefined,
+    notifyOnEndButton: undefined,
+  },
+};

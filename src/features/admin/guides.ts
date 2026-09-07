@@ -1,0 +1,122 @@
+import type { Composer } from "grammy";
+import type { NavaContext } from "../../bot-context.js";
+import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
+import { cancelButton } from "../../ui/cancelButton.js";
+import { getContent, setContent, type ContentKey } from "../../db/models/content.js";
+import { startEdit, getEdit, clearEdit } from "../../db/models/adminSession.js";
+import { fa } from "../../i18n/locales/fa.js";
+import { ADMIN_CALLBACKS, isAdmin } from "./constants.js";
+
+// Default for the general "Guide" content (shown from the main menu's Guide
+// button in a future prompt). Exact wording was not specified by the
+// project owner, so this is a placeholder functional default — freely
+// editable by the admin at any time via "متن راهنما".
+const DEFAULT_GUIDE_TEXT = "به نوا خوش اومدی! هر سوالی داشتی از همینجا یا با ادمین در میون بذار.";
+
+// LOCKED default (Feature 05) — reproduced exactly as supplied. Admin may
+// edit it afterward via the same "ویرایش راهنما ها" workflow.
+const DEFAULT_PINNED_PROMO =
+  "💰 میخوای از تلگرامت درآمد ملیونی داشته باشی؟ 🤔\n\n" +
+  "🧐 شاید باور نکنی ولی اگر بخوای میتونی خیلی راحت از ربات هایپر گپ درآمد داشته باشی!💰\n\n" +
+  "❗️ حتما میگی چطوری؟ مگه میشه!🤔\n\n" +
+  "🔺 بله که میشه چرا نشه!😍\n\n" +
+  "بیا به لینک پایین آموزش ها رو برات گذاشتم! 😍👇\n\n" +
+  "📎 https://t.me/pAd/26\n" +
+  "📎 https://t.me/Hy\n\n" +
+  "👌 بدو بیا که منتظرتما!.. 👆\n\n" +
+  "📢 اسکرین درآمد های پرداخت شده➕نمایش کل درآمد کاربران تا این لحظه 🤑👇\n\n" +
+  "📎 https://t.me/+CnxZ2FmW64I3MGFk\n" +
+  "📎 https://t.me/+CnxZ2FmW64I3MGFk\n\n" +
+  "✅ باور نداری بزن رو لینک بالا اسکرین ها رو ببین!👌👆";
+
+// LOCKED default (Feature "RULES") — reproduced exactly, never paraphrased.
+export const DEFAULT_RULES =
+  "ربات چت ناشناس هایپر گپ:\n" +
+  "🚦🚧 قوانين استفاده از ربات هایپر گپ 🚧🚦\n\n" +
+  "موارد زیر باعث مسدود شدن دائمی کاربر خواهد شد.\n\n" +
+  "1️⃣ تبلیغات سایت ها ربات ها و کانال ها\n\n" +
+  "2️⃣ ارسال هرگونه محتوای غیر اخلاقی\n\n" +
+  "3️⃣ ایجاد مزاحمت برای کاربران\n\n" +
+  "4️⃣ پخش شماره موبایل یا اطلاعات شخصی دیگران\n\n" +
+  "5️⃣ محتوای غیر اخلاقی و یا توهین آمیز در پروفایل هایپر گپ\n\n" +
+  "6️⃣ ثبت جنسیت اشتباه در پروفایل\n\n" +
+  "7️⃣ تهدید و جا زدن خود بعنوان مدیر ربات یا پلیس فتا !\n\n" +
+  "برای گزارش عدم رعایت قوانین می توانید با لمس 《 🚫 گزارش کاربر 》 در پروفایل، کاربر را گزارش کنید.\n\n" +
+  "👈درصورت گزارش صحیح کاربر متخلف 💰 5 سکه بعنوان هدیه دریافت میکنید.\n\n" +
+  "🔸 - ‏ راهنما : /help";
+
+const LABELS: Record<ContentKey, string> = {
+  guideText: "متن راهنما",
+  guide1: "راهنمای شماره یک",
+  pinnedPromo: "پیام پین",
+  rules: "قوانین",
+  supportId: "آیدی پشتیبانی",
+};
+
+function defaultFor(key: ContentKey): string {
+  if (key === "guide1") return fa.onboarding.guide1!;
+  if (key === "pinnedPromo") return DEFAULT_PINNED_PROMO;
+  if (key === "rules") return DEFAULT_RULES;
+  if (key === "supportId") return "";
+  return DEFAULT_GUIDE_TEXT;
+}
+
+export function registerAdminGuides(composer: Composer<NavaContext>) {
+  composer.callbackQuery(ADMIN_CALLBACKS.openGuideMenu, async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    await ctx.answerCallbackQuery();
+    await ctx.reply("کدوم بخش رو ویرایش می‌کنی؟", {
+      reply_markup: inlineKeyboard([
+        [glassButton(LABELS.guideText, ADMIN_CALLBACKS.editGuideText, "primary")],
+        [glassButton(LABELS.guide1, ADMIN_CALLBACKS.editGuide1, "primary")],
+        [glassButton(LABELS.pinnedPromo, ADMIN_CALLBACKS.editPinnedPromo, "primary")],
+        [glassButton(LABELS.rules, ADMIN_CALLBACKS.editRules, "primary")],
+      ]),
+    });
+  });
+
+  const beginEdit = async (ctx: NavaContext, key: ContentKey) => {
+    if (!isAdmin(ctx)) return;
+    await ctx.answerCallbackQuery();
+
+    const current = await getContent(key, defaultFor(key));
+    await ctx.reply(current ? `متن فعلی «${LABELS[key]}»:\n\n${current}` : `«${LABELS[key]}» هنوز تنظیم نشده.`);
+
+    const sent = await ctx.reply("متن جدید رو بفرست:", {
+      reply_markup: inlineKeyboard([[cancelButton("لغو", ADMIN_CALLBACKS.cancelEdit)]]),
+    });
+    await startEdit(ctx.from!.id, key, sent.message_id);
+  };
+
+  composer.callbackQuery(ADMIN_CALLBACKS.editGuideText, (ctx) => beginEdit(ctx, "guideText"));
+  composer.callbackQuery(ADMIN_CALLBACKS.editGuide1, (ctx) => beginEdit(ctx, "guide1"));
+  composer.callbackQuery(ADMIN_CALLBACKS.editPinnedPromo, (ctx) => beginEdit(ctx, "pinnedPromo"));
+  composer.callbackQuery(ADMIN_CALLBACKS.editRules, (ctx) => beginEdit(ctx, "rules"));
+  composer.callbackQuery(ADMIN_CALLBACKS.editSupportId, (ctx) => beginEdit(ctx, "supportId"));
+
+  composer.callbackQuery(ADMIN_CALLBACKS.cancelEdit, async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    await clearEdit(ctx.from!.id);
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("لغو شد.").catch(() => {});
+  });
+
+  // Must run before the generic onboarding/menu text handlers so an admin's
+  // reply while editing is never misread as onboarding input.
+  composer.on("message:text", async (ctx, next) => {
+    if (!isAdmin(ctx)) return next();
+
+    const session = await getEdit(ctx.from!.id);
+    if (!session) return next();
+
+    const newText = ctx.message.text.trim();
+    if (!newText) {
+      await ctx.reply("متن نمی‌تونه خالی باشه. دوباره بفرست یا لغو کن.");
+      return;
+    }
+
+    await setContent(session.editingKey, newText, ctx.from!.id);
+    await clearEdit(ctx.from!.id);
+    await ctx.reply(`✅ «${LABELS[session.editingKey]}» ذخیره شد.`);
+  });
+}
