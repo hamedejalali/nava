@@ -8,15 +8,12 @@ import { getDb } from "../db/connect.js";
  */
 export interface RateLimitResult {
   allowed: boolean;
-  /** True only on the request that FIRST crosses the limit in this
-   *  window, so callers can send exactly one warning instead of spamming
-   *  the user with a warning on every subsequent blocked request. */
   justExceeded: boolean;
 }
 
 export async function checkRateLimit(userId: number, bucket: string, limit: number, windowMs: number): Promise<RateLimitResult> {
   const db = await getDb();
-  const col = db.collection("rate_limits");
+  const col = db.collection<{ _id: string; count: number; expiresAt: Date }>("rate_limits");
 
   const windowStart = Math.floor(Date.now() / windowMs) * windowMs;
   const id = `${userId}:${bucket}:${windowStart}`;
