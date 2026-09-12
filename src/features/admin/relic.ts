@@ -7,21 +7,16 @@ import { adminAdjustBalance } from "../../db/models/relic.js";
 import { getDb } from "../../db/connect.js";
 import { isAdmin } from "./constants.js";
 import { toAsciiDigits } from "../../utils/digits.js";
+import { ADMIN_MENU_LABELS } from "./menu.js";
 
 const CB = { open: "admin:relic", cancel: "admin:relic:cancel" };
 export { CB as RELIC_ADMIN_CALLBACKS };
 
 // Tiny MongoDB-backed step tracker for this two-step admin flow
 // (1: waiting for target Telegram ID, 2: waiting for +/- amount).
-interface AdminRelicFlowDoc {
-  _id: number;
-  stage: "await_user" | "await_amount";
-  targetId?: number;
-}
-
 async function setStep(adminId: number, step: { stage: "await_user" } | { stage: "await_amount"; targetId: number } | null) {
   const db = await getDb();
-  const col = db.collection<AdminRelicFlowDoc>("admin_relic_flow");
+  const col = db.collection("admin_relic_flow");
   if (!step) {
     await col.deleteOne({ _id: adminId });
   } else {
@@ -30,7 +25,7 @@ async function setStep(adminId: number, step: { stage: "await_user" } | { stage:
 }
 async function getStep(adminId: number) {
   const db = await getDb();
-  return db.collection<AdminRelicFlowDoc>("admin_relic_flow").findOne({ _id: adminId });
+  return db.collection("admin_relic_flow").findOne({ _id: adminId });
 }
 
 export function registerAdminRelic(composer: Composer<NavaContext>) {
@@ -52,6 +47,13 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
 
   composer.on("message:text", async (ctx, next) => {
     if (!isAdmin(ctx)) return next();
+
+    if (ctx.message.text.trim() === ADMIN_MENU_LABELS.relic) {
+      await ctx.reply("آیدی عددی تلگرام کاربر مورد نظر رو بفرست:");
+      await setStep(ctx.from!.id, { stage: "await_user" });
+      return;
+    }
+
     const step = await getStep(ctx.from!.id);
     if (!step) return next();
 
@@ -84,7 +86,7 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
         return;
       }
 
-      const result = await adminAdjustBalance(ctx.from!.id, step.targetId!, delta, "manual_admin_adjustment");
+      const result = await adminAdjustBalance(ctx.from!.id, step.targetId, delta, "manual_admin_adjustment");
       await setStep(ctx.from!.id, null);
 
       if (result.status === "insufficient") {
@@ -98,7 +100,7 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
 
       await ctx.reply(`✅ انجام شد. موجودی جدید: ${result.newBalance} رلیک`);
       await ctx.api
-        .sendMessage(step.targetId!, delta > 0 ? `💰 ${delta} رلیک به حساب شما اضافه شد.` : `⚠️ ${-delta} رلیک از حساب شما کسر شد.`)
+        .sendMessage(step.targetId, delta > 0 ? `💰 ${delta} رلیک به حساب شما اضافه شد.` : `⚠️ ${-delta} رلیک از حساب شما کسر شد.`)
         .catch(() => {});
     }
   });

@@ -6,7 +6,7 @@ import { fa } from "../../i18n/locales/fa.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { getOrCreateUser, setUserLanguage } from "../../db/models/user.js";
-import { LANGUAGE_CALLBACK_PREFIX, LANGUAGE_FLAG_FALLBACK, LANGUAGE_EMOJI_ENV_KEY } from "./constants.js";
+import { LANGUAGE_CALLBACK_PREFIX, LANGUAGE_EMOJI_ENV_KEY } from "./constants.js";
 import { showGenderStep } from "./gender.js";
 import { showGuide1AndAge } from "./age.js";
 import { showProvinceStep } from "./province.js";
@@ -14,6 +14,8 @@ import { showCityStep } from "./city.js";
 import { showNicknameStep } from "./nickname.js";
 import { buildMainMenuKeyboard } from "../menu/mainMenu.js";
 import { requireLocked } from "../../i18n/index.js";
+import { isOwner, isAdmin } from "../admin/constants.js";
+import { sendOwnerAdminWelcome } from "../admin/ownerBypass.js";
 
 const LANGUAGES: Language[] = ["fa", "en", "ar"];
 
@@ -24,9 +26,8 @@ export function buildLanguageKeyboard() {
 
   const buttons = LANGUAGES.map((lang, index) => {
     const style = (["primary", "success", "danger"] as const)[index]!;
-    const flag = LANGUAGE_FLAG_FALLBACK[lang];
     const icon = buttonIcon(LANGUAGE_EMOJI_ENV_KEY[lang]);
-    return glassButton(`${flag} ${t.languageButtons[lang]}`, `${LANGUAGE_CALLBACK_PREFIX}${lang}`, style, icon);
+    return glassButton(t.languageButtons[lang], `${LANGUAGE_CALLBACK_PREFIX}${lang}`, style, icon);
   });
 
   return inlineKeyboard([buttons]);
@@ -49,6 +50,13 @@ export function registerLanguageHandlers(composer: Composer<NavaContext>) {
       firstName: ctx.from.first_name,
       username: ctx.from.username,
     });
+
+    // Owner/admin accounts NEVER go through gender/age/province/city/
+    // nickname onboarding — straight to the admin panel every time.
+    if (isOwner(ctx) || isAdmin(ctx)) {
+      await sendOwnerAdminWelcome(ctx, user, ctx.from.first_name);
+      return;
+    }
 
     if (user.onboardingStep === "LANGUAGE_PENDING") {
       await sendWelcome(ctx, ctx.from.first_name);

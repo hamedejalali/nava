@@ -51,7 +51,7 @@ export const fa: Dictionary = {
 
     chooseFromMenu: "از منوی پایین انتخاب کن👇",
 
-    guideButton: `${textEmoji("GUIDE", "📘")} راهنما`,
+    guideButton: "راهنما",
   },
 
   forceJoin: {
@@ -60,7 +60,7 @@ export const fa: Dictionary = {
     messageOutro:
       `⚠️ توجه: درصورتی که در عضویت کانال با خطا مواجه میشوید و یا نمیخواید در کانال های اسپانسری ما عضو شوید دستور ( /Exempt ) را لمس کنید.\n\n` +
       `بعد از عضـــویت « بررسی عضویت و فعال سازی » را لمس کنید تا ربات برای شما فعال شود. 👇`,
-    verifyButton: `${textEmoji("GREEN_CHECK", "✅")} بررسی عضویت و فعال سازی`,
+    verifyButton: "بررسی عضویت و فعال سازی",
     verifiedMessage:
       `${textEmoji("GREEN_CHECK", "✅")} عضویت شما تایید شد ! شما هم اکنون می توانید از امکانات ویژه ربات استفاده کنید !\n` +
       `یکی از گزینه های زیر را لمس کنید 👇`,
@@ -70,12 +70,12 @@ export const fa: Dictionary = {
     partnerPrompt:
       `${textEmoji("COURT", "⚖️")} لطفا قبل از شروع چت قوانین ربات « /ghavanin » را مطالعه کنید.\n\n` +
       `به کی وصلت کنم؟   انتخاب کن👇`,
-    luckySearch: `${textEmoji("DICE", "🎲")} جستجوی شانسی`,
-    maleSearch: `${textEmoji("MALE", "👨")} جستجوی پسر`,
-    femaleSearch: `${textEmoji("FEMALE", "👩")} جستجوی دختر`,
-    nearbySearch: `${textEmoji("LOCATION", "📍")} جستجوی اطراف`,
-    sameAgeSearch: `${textEmoji("PEOPLE", "👥")} جستجوی هم سنی`,
-    sameProvinceSearch: `${textEmoji("HOME", "🏠")} جستجوی هم استانی`,
+    luckySearch: "جستجوی شانسی",
+    maleSearch: "جستجوی پسر",
+    femaleSearch: "جستجوی دختر",
+    nearbySearch: "جستجوی اطراف",
+    sameAgeSearch: "جستجوی هم سنی",
+    sameProvinceSearch: "جستجوی هم استانی",
 
     searchingStatus: (searchTypeLabel: string) =>
       `🔎 درحال جستجوی مخاطب ناشناس شما\n\n` +
@@ -92,8 +92,8 @@ export const fa: Dictionary = {
       "🚫 اخطار: به هیچ کاربری در ربات اعتماد نکنید و اطلاعات شخصیتان را در اختیارشان قرار ندهید\n\n" +
       "⚠️ درصورتی که کاربر در اول چت از شما خواست به پی وی شخصی او بروید چت را قطع کرده و او را گزارش کنید!",
 
-    partnerProfileButton: `${textEmoji("CONTACT", "👤")} پروفایل مخاطب`,
-    safeChatButton: `${textEmoji("LOCK", "🔒")} چت ایمن`,
+    partnerProfileButton: "پروفایل مخاطب",
+    safeChatButton: "چت ایمن",
     endChatButton: "پایان چت",
 
     endChatConfirm: `${textEmoji("BOT", "🤖")} پیام ربات 👇\n\nمطمئنی میخوای چت رو قطع کنی؟`,
@@ -112,15 +112,15 @@ export const fa: Dictionary = {
   },
 
   mainMenu: {
-    connectAnonymous: `${textEmoji("ANONYMOUS", "🎭")} به یه ناشناس وصلم کن`,
-    nearbyPeople: `${textEmoji("LOCATION", "📍")} افراد نزدیک`,
-    searchUsers: `${textEmoji("SEARCH", "🔍")} جستجوی کاربران`,
-    guide: `${textEmoji("GUIDE", "📘")} راهنما`,
-    profile: `${textEmoji("PROFILE", "👤")} پروفایل`,
-    relicCoin: `${textEmoji("CROWN", "👑")} رلیک کوین`,
-    feedback: `${textEmoji("MAILBOX", "📮")} پیشنهادات و انتقادات`,
-    myAnonymousLink: `${textEmoji("LETTER", "✉️")} لینک ناشناس من`,
-    inviteFriends: `${textEmoji("INVITE", "🎁")} دعوت دوستان (رلیک کوین رایگان)`,
+    connectAnonymous: "به یه ناشناس وصلم کن",
+    nearbyPeople: "افراد نزدیک",
+    searchUsers: "جستجوی کاربران",
+    guide: "راهنما",
+    profile: "پروفایل",
+    relicCoin: "رلیک کوین",
+    feedback: "پیشنهادات و انتقادات",
+    myAnonymousLink: "لینک ناشناس من",
+    inviteFriends: "دعوت دوستان (رلیک کوین رایگان)",
   },
 
   languageButtons: {
@@ -143,7 +143,7 @@ export const fa: Dictionary = {
   },
 
   relic: {
-    transferButton: `${textEmoji("CROWN", "💎")} ارسال رلیک`,
+    transferButton: "ارسال رلیک",
     amountPrompt: "چند رلیک می‌خوای بفرستی؟ فقط عدد بفرست.",
     invalidAmount: "عدد واردشده معتبر نیست. یه عدد صحیح و مثبت بفرست.",
     cannotTransferToSelf: "نمی‌تونی به خودت رلیک بفرستی!",
@@ -173,12 +173,12 @@ export const fa: Dictionary = {
     distanceLabel: `${textEmoji("LOCATION", "📍")} فاصله از شهر شما :`,
     partnerLocationMissing: "موقعیت طرف مقابل ثبت نشده",
     viewerLocationMissing: "موقعیت شما ثبت نشده",
-    likeButton: (count: number) => `${textEmoji("HEART", "❤️")} لایک ${count}`,
-    chatRequestButton: `${textEmoji("MESSAGE", "💌")} درخواست چت`,
-    directMessageButton: `${textEmoji("LETTER", "✉️")} پیام دایرکت`,
-    addContactButton: `${textEmoji("PLUS", "➕")} افزودن به مخاطبین`,
-    blockButton: `${textEmoji("LOCK", "🔒")} بلاک کردن کاربر`,
-    reportButton: `${textEmoji("REPORT", "🚫")} گزارش کاربر`,
-    notifyOnEndButton: `${textEmoji("NOTIFICATION", "🔔")} به محض اتمام چت اطلاع بده`,
+    likeButton: (count: number) => `لایک ${count}`,
+    chatRequestButton: "درخواست چت",
+    directMessageButton: "پیام دایرکت",
+    addContactButton: "افزودن به مخاطبین",
+    blockButton: "بلاک کردن کاربر",
+    reportButton: "گزارش کاربر",
+    notifyOnEndButton: "به محض اتمام چت اطلاع بده",
   },
 };

@@ -1,10 +1,8 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
-import { glassButton, inlineKeyboard, styleForIndex, toRows } from "../../ui/keyboard.js";
-import { buttonIcon } from "../../config/emojis.js";
+import { glassReplyButton, replyKeyboard, styleForIndex, toRows } from "../../ui/keyboard.js";
 import { markAgeQuestionShown, setAgeOnce } from "../../db/models/user.js";
-import { AGE_CALLBACK_PREFIX } from "./constants.js";
 import { toAsciiDigits } from "../../utils/digits.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { showProvinceStep } from "./province.js";
@@ -13,12 +11,20 @@ const MIN_AGE = 9;
 const MAX_AGE = 99;
 const COLUMNS = 6;
 
-export function buildAgeKeyboard() {
+/** Reply Keyboard (persistent, docked below the chat input) — per request,
+ *  age/province/city moved from inline "Glass" buttons to Reply Keyboard
+ *  buttons. KeyboardButton got the same Bot API 9.4 `style`/
+ *  `icon_custom_emoji_id` fields as InlineKeyboardButton, so these are
+ *  still genuinely colorful, not plain text. Tapping one just sends its
+ *  number back as a normal text message, which the SAME handler below
+ *  that already accepted manually-typed ages processes — no separate
+ *  "callback" path needed. */
+export function buildAgeReplyKeyboard() {
   const buttons = [];
   for (let age = MIN_AGE; age <= MAX_AGE; age++) {
-    buttons.push(glassButton(String(age), `${AGE_CALLBACK_PREFIX}${age}`, styleForIndex(age - MIN_AGE)));
+    buttons.push(glassReplyButton(String(age), styleForIndex(age - MIN_AGE)));
   }
-  return inlineKeyboard(toRows(buttons, COLUMNS));
+  return replyKeyboard(toRows(buttons, COLUMNS));
 }
 
 /** Feature 03, Step 1 (Guide 1) + Step 2 (age prompt), sent as two separate
@@ -35,7 +41,7 @@ export async function showGuide1AndAge(ctx: NavaContext, lang: Language) {
   await markAgeQuestionShown(userId);
 
   const agePrompt = requireLocked(lang, "onboarding.agePrompt", t.onboarding.agePrompt);
-  const sent = await ctx.reply(agePrompt, { parse_mode: "HTML", reply_markup: buildAgeKeyboard() });
+  const sent = await ctx.reply(agePrompt, { parse_mode: "HTML", reply_markup: buildAgeReplyKeyboard() });
   await recordPrompt(ctx, sent.message_id);
 }
 
@@ -47,32 +53,8 @@ async function finalizeAge(ctx: NavaContext, age: number): Promise<"saved" | "wr
 }
 
 export function registerAgeHandlers(composer: Composer<NavaContext>) {
-  composer.callbackQuery(new RegExp(`^${AGE_CALLBACK_PREFIX}(\\d{1,2})$`), async (ctx) => {
-    const age = Number(ctx.match![1]);
-    const status = await finalizeAge(ctx, age);
-    const t = dictionary(ctx.userLang);
-
-    if (status === "invalid") {
-      await ctx.answerCallbackQuery({ text: t.errors.invalidAge, show_alert: true });
-      return;
-    }
-    if (status === "not_found") {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    if (status === "wrong_step") {
-      // Stale age keyboard from an earlier/duplicate delivery — the age
-      // step has already moved on, so we just acknowledge and do nothing.
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    await ctx.answerCallbackQuery();
-    await deletePreviousPrompt(ctx);
-    await showProvinceStep(ctx, ctx.userLang);
-  });
-
-  // Manual numeric age entry as free text.
+  // Handles BOTH a Reply Keyboard button tap and manually-typed age text —
+  // they arrive identically, as a plain text message.
   composer.on("message:text", async (ctx, next) => {
     const user = ctx.dbUser;
     if (!user || user.onboardingStep !== "AGE_PENDING") {

@@ -20,22 +20,17 @@ export { CB as CHANNEL_ADMIN_CALLBACKS };
 // db connection; kept in its own collection to avoid overloading the
 // generic content-edit session shape used by guides.ts.
 import { getDb } from "../../db/connect.js";
-interface ChannelAddFlowDoc {
-  _id: number;
-  startedAt: Date;
-}
-
 async function setAwaitingChannel(adminId: number, waiting: boolean): Promise<void> {
   const db = await getDb();
   if (waiting) {
-    await db.collection<ChannelAddFlowDoc>("admin_channel_add").updateOne({ _id: adminId }, { $set: { startedAt: new Date() } }, { upsert: true });
+    await db.collection("admin_channel_add").updateOne({ _id: adminId }, { $set: { startedAt: new Date() } }, { upsert: true });
   } else {
-    await db.collection<ChannelAddFlowDoc>("admin_channel_add").deleteOne({ _id: adminId });
+    await db.collection("admin_channel_add").deleteOne({ _id: adminId });
   }
 }
 async function isAwaitingChannel(adminId: number): Promise<boolean> {
   const db = await getDb();
-  const doc = await db.collection<ChannelAddFlowDoc>("admin_channel_add").findOne({ _id: adminId });
+  const doc = await db.collection("admin_channel_add").findOne({ _id: adminId });
   return !!doc;
 }
 
@@ -130,6 +125,7 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
       }
       await ctx.reply(`✅ کانال «${title}» اضافه شد.`);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("[admin/channels] getChat failed:", err);
       await ctx.reply(
         "نتونستم این کانال رو پیدا کنم. مطمئن شو یوزرنیم درسته، کانال عمومیه، و ربات توی اون کانال ادمینه — بعد دوباره بفرست یا لغو کن."

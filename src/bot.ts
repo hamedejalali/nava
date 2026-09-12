@@ -20,6 +20,15 @@ import { checkRateLimit, ensureRateLimitIndexes } from "./utils/rateLimit.js";
 import { registerPhotoUpload, registerImageModerationDecisions } from "./features/photo/moderation.js";
 import { registerChatImageModeration } from "./features/matching/chatImage.js";
 import { ensureImageModerationIndexes } from "./db/models/imageModeration.js";
+import { registerAdminUsers } from "./features/admin/users.js";
+import { registerAdminLevels } from "./features/admin/levels.js";
+import { registerAdminModerators } from "./features/admin/moderators.js";
+import { registerAdminStats } from "./features/admin/stats.js";
+import { registerAdminActivityLog } from "./features/admin/activityLog.js";
+import { registerAdminSettings } from "./features/admin/settingsAdmin.js";
+import { registerAdminReports } from "./features/admin/reportsAdmin.js";
+import { registerAdminBroadcast } from "./features/admin/broadcast.js";
+import { registerOwnerAdminPanelClose } from "./features/admin/ownerBypass.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
@@ -58,6 +67,18 @@ export function createBot(): Bot<NavaContext> {
     await next();
   });
 
+  // ---- Ban enforcement ----
+  // A banned user gets only the ban notice — nothing else in the bot
+  // (including admin/owner accounts, though banning those isn't a normal
+  // scenario, is deliberately not special-cased here for simplicity).
+  bot.use(async (ctx, next) => {
+    if (ctx.dbUser?.banned) {
+      await ctx.reply(`🚫 دسترسی شما به ربات مسدود شده است.${ctx.dbUser.banReason ? `\n\nدلیل: ${ctx.dbUser.banReason}` : ""}`).catch(() => {});
+      return;
+    }
+    await next();
+  });
+
   // ---- Rate limiting / anti-spam ----
   // Persistent (MongoDB), not process-memory — required for correctness
   // across concurrent serverless instances. Separate buckets for text
@@ -91,6 +112,15 @@ export function createBot(): Bot<NavaContext> {
 
   const features = new Composer<NavaContext>();
   registerAdmin(features);
+  registerOwnerAdminPanelClose(features);
+  registerAdminUsers(features);
+  registerAdminLevels(features);
+  registerAdminModerators(features);
+  registerAdminStats(features);
+  registerAdminActivityLog(features);
+  registerAdminSettings(features);
+  registerAdminReports(features);
+  registerAdminBroadcast(features);
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
   registerOnboarding(features);

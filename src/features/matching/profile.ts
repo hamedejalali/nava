@@ -7,18 +7,18 @@ import { getSession, otherParticipant } from "../../db/models/chatSession.js";
 import { getUser, incrementLikes, type UserDoc } from "../../db/models/user.js";
 import { getDb } from "../../db/connect.js";
 import { CHAT_CALLBACKS } from "./constants.js";
+import { levelDisplay } from "../../config/levels.js";
+import { textEmoji } from "../../config/emojis.js";
+import { MENU_CALLBACKS } from "../menu/mainMenu.js";
+import { createReport } from "../../db/models/reports.js";
+import { getAllAdminIds } from "../admin/constants.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 const VIEW_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 
-interface ProfileViewCooldownDoc {
-  _id: string;
-  expiresAt: Date;
-}
-
 async function shouldNotifyProfileView(viewerId: number, targetId: number): Promise<boolean> {
   const db = await getDb();
-  const col = db.collection<ProfileViewCooldownDoc>("profile_view_notify_cooldown");
+  const col = db.collection("profile_view_notify_cooldown");
   try {
     await col.insertOne({ _id: `${viewerId}:${targetId}`, expiresAt: new Date(Date.now() + VIEW_NOTIFY_COOLDOWN_MS) });
     return true;
@@ -44,13 +44,15 @@ function buildProfileText(lang: Language, target: UserDoc): string {
 
   const [nameLine, ageLine, genderLine, provinceLine, cityLine] = labels.split("\n");
   const genderText = target.gender ? (GENDER_LABEL[target.gender] ?? target.gender) : "-";
+  const verifiedBadge = target.verified ? ` ${textEmoji("VERIFIED_BADGE", "☑️")}` : "";
 
   const lines = [
-    `${nameLine} ${target.nickname ?? "-"}`,
+    `${nameLine} ${target.nickname ?? "-"}${verifiedBadge}`,
     `${ageLine} ${target.age ?? "-"}`,
     `${genderLine} ${genderText}`,
     `${provinceLine} ${target.province ?? "-"}`,
     `${cityLine} ${target.city ?? "-"}`,
+    `⭐ سطح کاربر: ${levelDisplay(target.level)}`,
   ];
   if (target.bio) lines.push("", `${bioLabel} ${target.bio}`);
   lines.push("", onlineStatus, `${idLabel} @${target.anonId}`, `${distanceLabel} ${locationMissing}`);
@@ -79,13 +81,25 @@ function buildProfileKeyboard(lang: Language, target: UserDoc) {
     [glassButton(addContact, CHAT_CALLBACKS.addContact, "primary", buttonIcon("PLUS"))],
     [
       glassButton(block, CHAT_CALLBACKS.block, "danger", buttonIcon("LOCK")),
-      glassButton(report, CHAT_CALLBACKS.report, "danger", buttonIcon("REPORT")),
+      glassButton(report, `${CHAT_CALLBACKS.report}:${target._id}`, "danger", buttonIcon("REPORT")),
     ],
     [glassButton(notifyOnEnd, CHAT_CALLBACKS.notifyOnEnd, "primary", buttonIcon("NOTIFICATION"))],
   ]);
 }
 
 export function registerProfile(composer: Composer<NavaContext>) {
+  composer.callbackQuery(MENU_CALLBACKS.profile, async (ctx) => {
+    if (!ctx.dbUser) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await ctx.reply(buildProfileText(ctx.userLang, ctx.dbUser), {
+      parse_mode: "HTML",
+      reply_markup: inlineKeyboard([[glassButton("📝 ویرایش پروفایل", "profile:edit", "primary")]]),
+    });
+  });
+
   composer.callbackQuery(CHAT_CALLBACKS.partnerProfile, async (ctx) => {
     const sessionId = ctx.dbUser?.activeChatSessionId;
     if (!sessionId) {
@@ -110,7 +124,10 @@ export function registerProfile(composer: Composer<NavaContext>) {
     }
 
     await ctx.answerCallbackQuery();
-    await ctx.reply(buildProfileText(ctx.userLang, partner), { reply_markup: buildProfileKeyboard(ctx.userLang, partner) });
+    await ctx.reply(buildProfileText(ctx.userLang, partner), {
+      parse_mode: "HTML",
+      reply_markup: buildProfileKeyboard(ctx.userLang, partner),
+    });
 
     if (await shouldNotifyProfileView(ctx.from!.id, partnerId)) {
       const partnerLang: Language = partner.languageCode ?? "fa";
@@ -128,7 +145,7 @@ export function registerProfile(composer: Composer<NavaContext>) {
     }
 
     const db = await getDb();
-    const likesCol = db.collection<{ _id: string; createdAt: Date }>("profile_likes");
+    const likesCol = db.collection("profile_likes");
     try {
       await likesCol.insertOne({ _id: `${ctx.from!.id}:${targetId}`, createdAt: new Date() });
       await incrementLikes(targetId);
@@ -139,6 +156,26 @@ export function registerProfile(composer: Composer<NavaContext>) {
         return;
       }
       throw err;
+    }
+  });
+
+  composer.callbackQuery(new RegExp(`^${CHAT_CALLBACKS.report}:(\\d+)$`), async (ctx) => {
+    const targetId = Number(ctx.match![1]);
+    if (targetId === ctx.from!.id) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const report = await createReport(ctx.from!.id, targetId, ctx.dbUser?.activeChatSessionId);
+    await ctx.answerCallbackQuery({ text: "گزارش ثبت شد، ممنون از همکاریت 🙏" });
+
+    for (const adminId of await getAllAdminIds()) {
+      await ctx.api
+        .sendMessage(
+          adminId,
+          `⚠️ گزارش جدید\n\nگزارش‌دهنده: ${ctx.from!.id}\nگزارش‌شده: ${targetId}\nشناسه‌ی گزارش: ${report._id}`
+        )
+        .catch(() => {});
     }
   });
 }

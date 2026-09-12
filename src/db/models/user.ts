@@ -2,6 +2,9 @@ import type { Collection } from "mongodb";
 import { getDb } from "../connect.js";
 import { grantInitialBalanceIfNeeded } from "./relic.js";
 
+export type UserLevel = "newcomer" | "normal" | "active" | "professional" | "special" | "legend";
+export const USER_LEVELS: UserLevel[] = ["newcomer", "normal", "active", "professional", "special", "legend"];
+
 export type Language = "fa" | "en" | "ar";
 export type Gender = "male" | "female";
 
@@ -49,6 +52,26 @@ export interface UserDoc {
    *  ledger that is the actual source of truth. */
   relicBalance?: number;
   relicInitialized?: boolean;
+
+  /** New-user-quality/reputation level, shown on the profile. Defaults to
+   *  "newcomer" and is only ever changed by the owner via the admin panel
+   *  (see src/features/admin/levels.ts). */
+  level?: UserLevel;
+  /** Verified badge, toggled by an admin. */
+  verified?: boolean;
+  /** Ban state — enforced by middleware (src/bot.ts); a banned user gets
+   *  only the ban notice, nothing else. */
+  banned?: boolean;
+  banReason?: string;
+  /** Dynamically granted admin status (in addition to the static
+   *  ADMIN_IDS env list and OWNER_ID) — set/unset by the owner via
+   *  src/features/admin/moderators.ts. */
+  isAdmin?: boolean;
+
+  /** Which page of the (Reply Keyboard) city list the user is currently
+   *  viewing during onboarding — reply-keyboard buttons have no callback
+   *  data, so pagination state has to live somewhere durable. */
+  cityPageIndex?: number;
 
   languageCode?: Language;
   gender?: Gender;
@@ -130,6 +153,8 @@ export async function getOrCreateUser(input: {
           $setOnInsert: {
             _id: input.telegramId,
             telegramId: input.telegramId,
+            firstName: input.firstName,
+            username: input.username,
             onboardingStep: "LANGUAGE_PENDING",
             anonId: generateAnonId(),
             createdAt: now,
@@ -289,6 +314,18 @@ export async function setPinnedPromoMessageId(telegramId: number, messageId: num
   await col.updateOne({ _id: telegramId }, { $set: { pinnedPromoMessageId: messageId } });
 }
 
+export async function setCityPageIndex(telegramId: number, page: number): Promise<void> {
+  const col = await usersCollection();
+  await col.updateOne({ _id: telegramId }, { $set: { cityPageIndex: page } });
+}
+
+/** Small generic escape hatch for setting arbitrary top-level fields —
+ *  used sparingly (currently only by the owner/admin onboarding bypass). */
+export async function usersCollectionDirectSet(telegramId: number, fields: Partial<UserDoc>): Promise<void> {
+  const col = await usersCollection();
+  await col.updateOne({ _id: telegramId }, { $set: fields });
+}
+
 export async function setActiveChatSession(telegramId: number, sessionId: string | undefined): Promise<void> {
   const col = await usersCollection();
   await col.updateOne({ _id: telegramId }, { $set: { activeChatSessionId: sessionId } });
@@ -302,6 +339,67 @@ export async function incrementLikes(telegramId: number): Promise<void> {
 export async function setProfilePhoto(telegramId: number, fileId: string): Promise<void> {
   const col = await usersCollection();
   await col.updateOne({ _id: telegramId }, { $set: { profilePhotoFileId: fileId } });
+}
+
+export async function setUserLevel(telegramId: number, level: UserLevel): Promise<UserDoc | null> {
+  const col = await usersCollection();
+  return col.findOneAndUpdate({ _id: telegramId }, { $set: { level } }, { returnDocument: "after" });
+}
+
+export async function setVerified(telegramId: number, verified: boolean): Promise<UserDoc | null> {
+  const col = await usersCollection();
+  return col.findOneAndUpdate({ _id: telegramId }, { $set: { verified } }, { returnDocument: "after" });
+}
+
+export async function setBanned(telegramId: number, banned: boolean, reason?: string): Promise<UserDoc | null> {
+  const col = await usersCollection();
+  return col.findOneAndUpdate(
+    { _id: telegramId },
+    { $set: { banned, banReason: banned ? reason : undefined } },
+    { returnDocument: "after" }
+  );
+}
+
+export async function setAdminRole(telegramId: number, isAdminFlag: boolean): Promise<UserDoc | null> {
+  const col = await usersCollection();
+  return col.findOneAndUpdate({ _id: telegramId }, { $set: { isAdmin: isAdminFlag } }, { returnDocument: "after" });
+}
+
+export async function searchUsers(query: string, limit = 10): Promise<UserDoc[]> {
+  const col = await usersCollection();
+  const asNumber = Number(query.replace(/^@/, ""));
+  const conditions: Record<string, unknown>[] = [
+    { anonId: query.replace(/^@/, "") },
+    { nickname: query },
+    { username: query.replace(/^@/, "") },
+  ];
+  if (Number.isInteger(asNumber)) conditions.push({ _id: asNumber });
+  return col.find({ $or: conditions }).limit(limit).toArray();
+}
+
+export async function listUsersPage(skip: number, limit: number): Promise<{ users: UserDoc[]; total: number }> {
+  const col = await usersCollection();
+  const [users, total] = await Promise.all([
+    col.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+    col.countDocuments({}),
+  ]);
+  return { users, total };
+}
+
+export async function getUserStats(): Promise<{
+  totalUsers: number;
+  completedOnboarding: number;
+  bannedUsers: number;
+  activeChatsNow: number;
+}> {
+  const col = await usersCollection();
+  const [totalUsers, completedOnboarding, bannedUsers, activeChatsNow] = await Promise.all([
+    col.countDocuments({}),
+    col.countDocuments({ onboardingStep: "COMPLETED" }),
+    col.countDocuments({ banned: true }),
+    col.countDocuments({ activeChatSessionId: { $exists: true, $ne: undefined } }),
+  ]);
+  return { totalUsers, completedOnboarding, bannedUsers, activeChatsNow: Math.floor(activeChatsNow / 2) };
 }
 
 export async function getUserByAnonId(anonId: string): Promise<UserDoc | null> {

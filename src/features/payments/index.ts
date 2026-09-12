@@ -8,6 +8,10 @@ import { MENU_CALLBACKS } from "../menu/mainMenu.js";
 
 const BUY_CALLBACK_PREFIX = "relic:buy:"; // + package index
 
+/** Payload format: "relic:<packageIndex>". The backend always resolves
+ *  packageIndex -> the actual stars/relic amounts (from env.starsPackages)
+ *  — the client-visible payload is only ever an index, never a trusted
+ *  price, per "never trust client-provided prices". */
 function encodePayload(index: number): string {
   return `relic:${index}`;
 }
@@ -41,21 +45,20 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
     }
 
     await ctx.answerCallbackQuery();
-    await ctx.api.sendInvoice(
-      ctx.chat!.id,
-      `${pkg.relic} رلیک`,
-      `خرید ${pkg.relic} رلیک برای نوا`,
-      encodePayload(index),
-      "XTR",
-      [{ label: `${pkg.relic} رلیک`, amount: pkg.stars }],
-      { provider_token: "" }
-    );
+    await ctx.api.sendInvoice(ctx.chat!.id, {
+      title: `${pkg.relic} رلیک`,
+      description: `خرید ${pkg.relic} رلیک برای نوا`,
+      payload: encodePayload(index),
+      currency: "XTR",
+      prices: [{ label: `${pkg.relic} رلیک`, amount: pkg.stars }],
+      provider_token: "",
+    });
   });
 }
 
 export function registerStarsCheckout(composer: Composer<NavaContext>) {
   composer.on("pre_checkout_query", async (ctx) => {
-    const index = decodePayload(ctx.preCheckoutQuery.invoice_payload);
+    const index = decodePayload(ctx.preCheckoutQuery.payload);
     const pkg = index !== null ? env.starsPackages[index] : undefined;
 
     if (!pkg || ctx.preCheckoutQuery.total_amount !== pkg.stars || ctx.preCheckoutQuery.currency !== "XTR") {
@@ -71,6 +74,9 @@ export function registerStarsCheckout(composer: Composer<NavaContext>) {
     const pkg = index !== null ? env.starsPackages[index] : undefined;
 
     if (!pkg || payment.total_amount !== pkg.stars) {
+      // Should be unreachable given the pre_checkout_query guard, but
+      // never credit an amount we haven't independently verified.
+      // eslint-disable-next-line no-console
       console.error("[payments] successful_payment did not match a known package - not crediting.", payment);
       return;
     }

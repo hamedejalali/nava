@@ -99,6 +99,13 @@ export const env = {
       .filter((n) => Number.isInteger(n));
   },
 
+  get OWNER_ID(): number | undefined {
+    const raw = optional("OWNER_ID");
+    if (!raw) return undefined;
+    const n = Number(raw);
+    return Number.isInteger(n) ? n : undefined;
+  },
+
   // Premium Emoji IDs: intentionally OPTIONAL. Missing config must never
   // crash the bot; it must just be easy to notice during development.
   emoji: {
@@ -138,6 +145,22 @@ export const env = {
     CHAT_STATUS: optional("EMOJI_PREMIUM_CHAT_STATUS"),
     AT_SIGN: optional("EMOJI_PREMIUM_AT_SIGN"),
     SUPPORT: optional("EMOJI_PREMIUM_SUPPORT"),
+    LEVEL_NEWCOMER: optional("EMOJI_PREMIUM_LEVEL_NEWCOMER"),
+    LEVEL_NORMAL: optional("EMOJI_PREMIUM_LEVEL_NORMAL"),
+    LEVEL_ACTIVE: optional("EMOJI_PREMIUM_LEVEL_ACTIVE"),
+    LEVEL_PROFESSIONAL: optional("EMOJI_PREMIUM_LEVEL_PROFESSIONAL"),
+    LEVEL_SPECIAL: optional("EMOJI_PREMIUM_LEVEL_SPECIAL"),
+    LEVEL_LEGEND: optional("EMOJI_PREMIUM_LEVEL_LEGEND"),
+    OWNER_BADGE: optional("EMOJI_PREMIUM_OWNER_BADGE"),
+    ADMIN_BADGE: optional("EMOJI_PREMIUM_ADMIN_BADGE"),
+    VERIFIED_BADGE: optional("EMOJI_PREMIUM_VERIFIED_BADGE"),
+    BAN: optional("EMOJI_PREMIUM_BAN"),
+    UNBAN: optional("EMOJI_PREMIUM_UNBAN"),
+    STATS: optional("EMOJI_PREMIUM_STATS"),
+    LOG: optional("EMOJI_PREMIUM_LOG"),
+    SETTINGS: optional("EMOJI_PREMIUM_SETTINGS"),
+    BROADCAST: optional("EMOJI_PREMIUM_BROADCAST"),
+    USERS: optional("EMOJI_PREMIUM_USERS"),
     P1: optional("EMOJI_PREMIUM_1"),
     P2: optional("EMOJI_PREMIUM_2"),
     P3: optional("EMOJI_PREMIUM_3"),

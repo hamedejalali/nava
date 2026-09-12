@@ -70,3 +70,35 @@ export function toRows<T>(buttons: T[], perRow: number): T[][] {
 export function inlineKeyboard(rows: Array<Array<GlassCallbackButton | GlassUrlButton>>) {
   return { inline_keyboard: rows };
 }
+
+export interface GlassReplyButton {
+  text: string;
+  style?: GlassStyle;
+  icon_custom_emoji_id?: string;
+}
+
+/** A Reply Keyboard (the persistent keyboard docked below the chat input,
+ *  as opposed to an inline keyboard attached to one message) button that
+ *  uses the SAME Bot API 9.4 `style`/`icon_custom_emoji_id` fields as
+ *  glassButton — KeyboardButton got the identical upgrade, so these can be
+ *  genuinely colorful too, not just plain text. Tapping one sends its
+ *  `text` back as an ordinary text message (there is no callback_data for
+ *  reply-keyboard buttons); handlers match on that text. */
+export function glassReplyButton(text: string, style: GlassStyle, iconCustomEmojiId?: string): GlassReplyButton {
+  const button: GlassReplyButton = { text, style };
+  if (iconCustomEmojiId) button.icon_custom_emoji_id = iconCustomEmojiId;
+  return button;
+}
+
+/** Wraps rows of reply-keyboard buttons into a persistent ReplyKeyboardMarkup. */
+export function replyKeyboard(rows: GlassReplyButton[][], options: { oneTime?: boolean } = {}) {
+  return {
+    keyboard: rows,
+    resize_keyboard: true,
+    one_time_keyboard: !!options.oneTime,
+  };
+}
+
+export function removeReplyKeyboard() {
+  return { remove_keyboard: true as const };
+}

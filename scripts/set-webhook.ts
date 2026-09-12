@@ -22,7 +22,7 @@ const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
   }),
 });
 
-const data = (await res.json()) as { ok: boolean; [key: string]: unknown };
+const data = await res.json();
 console.log(JSON.stringify(data, null, 2));
 
 if (!data.ok) {
