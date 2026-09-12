@@ -153,8 +153,6 @@ export async function getOrCreateUser(input: {
           $setOnInsert: {
             _id: input.telegramId,
             telegramId: input.telegramId,
-            firstName: input.firstName,
-            username: input.username,
             onboardingStep: "LANGUAGE_PENDING",
             anonId: generateAnonId(),
             createdAt: now,
