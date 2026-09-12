@@ -29,6 +29,7 @@ import { registerAdminSettings } from "./features/admin/settingsAdmin.js";
 import { registerAdminReports } from "./features/admin/reportsAdmin.js";
 import { registerAdminBroadcast } from "./features/admin/broadcast.js";
 import { registerOwnerAdminPanelClose } from "./features/admin/ownerBypass.js";
+import { getAllAdminIds } from "./features/admin/constants.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
@@ -61,6 +62,27 @@ export function createBot(): Bot<NavaContext> {
       });
       ctx.dbUser = user;
       ctx.userLang = user.languageCode ?? "fa";
+
+      if (user.__isNew) {
+        const from = ctx.from;
+        const usernamePart = from.username ? `@${from.username}` : "-";
+        const notifyText =
+          `👤 کاربر جدید به ربات پیوست\n\n` +
+          `نام: ${from.first_name}${from.last_name ? " " + from.last_name : ""}\n` +
+          `یوزرنیم: ${usernamePart}\n` +
+          `آیدی عددی: ${from.id}\n` +
+          `آیدی ناشناس: @${user.anonId}`;
+
+        void getAllAdminIds().then((adminIds) => {
+          for (const adminId of adminIds) {
+            void ctx.api.sendMessage(adminId, notifyText).catch(() => {
+              // Admin may have blocked the bot or never started a DM with
+              // it — never let a notification failure affect the actual
+              // user's request.
+            });
+          }
+        });
+      }
     } else {
       ctx.userLang = "fa";
     }

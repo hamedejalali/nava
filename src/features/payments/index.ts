@@ -77,6 +77,7 @@ export function registerStarsCheckout(composer: Composer<NavaContext>) {
     if (!pkg || payment.total_amount !== pkg.stars) {
       // Should be unreachable given the pre_checkout_query guard, but
       // never credit an amount we haven't independently verified.
+      // eslint-disable-next-line no-console
       console.error("[payments] successful_payment did not match a known package - not crediting.", payment);
       return;
     }

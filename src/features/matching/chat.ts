@@ -6,6 +6,7 @@ import { getSession, otherParticipant, endSessionOnce } from "../../db/models/ch
 import { setActiveChatSession, getUser } from "../../db/models/user.js";
 import { refundChatCostOnce } from "../../db/models/relic.js";
 import { CHAT_CALLBACKS } from "./constants.js";
+import { buildMainMenuKeyboard } from "../menu/mainMenu.js";
 
 /** Every text message from a user with an active chat session is relayed
  *  verbatim to their partner, never touching any onboarding/admin handler.
@@ -98,6 +99,18 @@ export function registerChatControls(composer: Composer<NavaContext>) {
       const cashbackText = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
       await ctx.api.sendMessage(partnerId, cashbackText).catch(() => {});
     }
+
+    // Ending a chat previously left BOTH sides with no inline keyboard at
+    // all on-screen (the confirm dialog was deleted, and none of the
+    // messages above carry buttons), forcing a fresh /start just to get
+    // any tappable button back. Re-show the main menu keyboard to both
+    // participants so they can immediately act again.
+    const chooseFromMenuText = requireLocked(partnerLang, "onboarding.chooseFromMenu", tPartner.onboarding.chooseFromMenu);
+    await ctx.api.sendMessage(partnerId, chooseFromMenuText, { reply_markup: buildMainMenuKeyboard(partnerLang) }).catch(() => {});
+
+    const tEnder = dictionary(ctx.userLang);
+    const chooseFromMenuTextEnder = requireLocked(ctx.userLang, "onboarding.chooseFromMenu", tEnder.onboarding.chooseFromMenu);
+    await ctx.reply(chooseFromMenuTextEnder, { reply_markup: buildMainMenuKeyboard(ctx.userLang) }).catch(() => {});
   });
 
   // "چت ایمن" — UI stub only, per spec's staged approach; behavior defined

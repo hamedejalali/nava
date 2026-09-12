@@ -16,13 +16,9 @@ import { getAllAdminIds } from "../admin/constants.js";
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 const VIEW_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 
-interface ProfileViewCooldownDoc {
-  _id: string;
-  expiresAt: Date;
-}
-
 async function shouldNotifyProfileView(viewerId: number, targetId: number): Promise<boolean> {
   const db = await getDb();
+  interface ProfileViewCooldownDoc { _id: string; expiresAt: Date; }
   const col = db.collection<ProfileViewCooldownDoc>("profile_view_notify_cooldown");
   try {
     await col.insertOne({ _id: `${viewerId}:${targetId}`, expiresAt: new Date(Date.now() + VIEW_NOTIFY_COOLDOWN_MS) });

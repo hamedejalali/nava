@@ -138,7 +138,7 @@ export async function getOrCreateUser(input: {
   telegramId: number;
   firstName: string;
   username?: string;
-}): Promise<UserDoc> {
+}): Promise<UserDoc & { __isNew?: boolean }> {
   const col = await usersCollection();
   const now = new Date();
 
@@ -147,6 +147,8 @@ export async function getOrCreateUser(input: {
   // already-existing user never hits the catch branch.
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
+      const existedBefore = await col.findOne({ _id: input.telegramId }, { projection: { _id: 1 } });
+
       const result = await col.findOneAndUpdate(
         { _id: input.telegramId },
         {
@@ -166,7 +168,11 @@ export async function getOrCreateUser(input: {
         { upsert: true, returnDocument: "after" }
       );
       await grantInitialBalanceIfNeeded(input.telegramId, col);
-      return result!;
+      // __isNew is a non-persisted marker (never written to the DB) so
+      // callers — specifically the "notify admins of a new user" hook in
+      // src/bot.ts — can tell an insert from an ordinary lookup, without a
+      // second round trip or a fragile timestamp comparison.
+      return { ...(result as UserDoc), __isNew: !existedBefore };
     } catch (err: any) {
       // Duplicate key on anonId's unique index — regenerate and retry.
       if (err?.code === 11000 && String(err?.message ?? "").includes("anonId")) continue;
