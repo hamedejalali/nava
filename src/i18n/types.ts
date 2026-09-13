@@ -71,6 +71,10 @@ export interface Dictionary {
     sameProvinceSearch?: string;
     /** LOCKED (Feature 05). Args: searchTypeLabel (e.g. "🎲جستجوی شانسی") */
     searchingStatus?: (searchTypeLabel: string) => string;
+    /** LOCKED — label for the button under the live search countdown. */
+    cancelSearchButton?: string;
+    /** LOCKED — shown after the user taps "cancel search". */
+    searchCancelled?: string;
     /** LOCKED (Feature 05) */
     foundPartner?: string;
     /** LOCKED (Feature 05) */

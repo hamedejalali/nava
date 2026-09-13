@@ -37,6 +37,8 @@ export const en: Dictionary = {
     sameAgeSearch: undefined,
     sameProvinceSearch: undefined,
     searchingStatus: undefined,
+    cancelSearchButton: undefined,
+    searchCancelled: undefined,
     foundPartner: undefined,
     trustWarning: undefined,
     partnerProfileButton: undefined,

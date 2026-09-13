@@ -12,7 +12,7 @@ import { showGuide1AndAge } from "./age.js";
 import { showProvinceStep } from "./province.js";
 import { showCityStep } from "./city.js";
 import { showNicknameStep } from "./nickname.js";
-import { buildMainMenuKeyboard } from "../menu/mainMenu.js";
+import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { requireLocked } from "../../i18n/index.js";
 import { isOwner, isAdmin } from "../admin/constants.js";
 import { sendOwnerAdminWelcome } from "../admin/ownerBypass.js";
@@ -99,7 +99,7 @@ async function resumeAt(ctx: NavaContext, step: string, lang: Language, province
     default: {
       const t = dictionary(lang);
       const text = requireLocked(lang, "onboarding.chooseFromMenu", t.onboarding.chooseFromMenu);
-      await ctx.reply(text, { reply_markup: buildMainMenuKeyboard(lang) });
+      await ctx.reply(text, { reply_markup: buildMainMenuReplyKeyboard(lang) });
     }
   }
 }

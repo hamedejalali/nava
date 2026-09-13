@@ -21,6 +21,7 @@ export const ADMIN_MENU_LABELS = {
   stats: "📊 آمار ربات",
   activityLog: "🔐 لاگ فعالیت ادمین‌ها",
   settings: "⚙️ تنظیمات ربات",
+  guidesAndChannels: "🛠 راهنما / کانال جوین / پشتیبانی",
   close: "❌ بستن پنل",
 } as const;
 
@@ -45,6 +46,7 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
     { label: ADMIN_MENU_LABELS.stats, icon: buttonIcon("STATS") },
     { label: ADMIN_MENU_LABELS.activityLog, icon: buttonIcon("LOG") },
     { label: ADMIN_MENU_LABELS.settings, icon: buttonIcon("SETTINGS") },
+    { label: ADMIN_MENU_LABELS.guidesAndChannels },
   ].filter((e) => owner || !OWNER_ONLY.includes(e.label));
 
   const rows = [];

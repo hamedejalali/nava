@@ -12,6 +12,9 @@ import { textEmoji } from "../../config/emojis.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
 import { createReport } from "../../db/models/reports.js";
 import { getAllAdminIds } from "../admin/constants.js";
+import { env } from "../../config/env.js";
+import { distanceKm, formatDistanceFa } from "../../utils/geo.js";
+import { formatPresenceFa } from "../../utils/presence.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 const VIEW_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
@@ -34,21 +37,40 @@ export async function ensureProfileViewIndexes(): Promise<void> {
   await db.collection("profile_view_notify_cooldown").createIndexes([{ key: { expiresAt: 1 }, name: "expiresAt_ttl", expireAfterSeconds: 0 }]);
 }
 
-function buildProfileText(lang: Language, target: UserDoc): string {
+/** file_id (or https URL) of the target's own photo, or a gender-based
+ *  default if they haven't uploaded one and a default has been configured
+ *  (see DEFAULT_PHOTO_MALE/FEMALE in .env) — never crashes if neither is
+ *  set, the profile just renders with no photo, same as before. */
+function resolveProfilePhoto(target: UserDoc): string | undefined {
+  if (target.profilePhotoFileId) return target.profilePhotoFileId;
+  if (target.gender === "male") return env.DEFAULT_PHOTO_MALE;
+  if (target.gender === "female") return env.DEFAULT_PHOTO_FEMALE;
+  return undefined;
+}
+
+function buildProfileText(lang: Language, target: UserDoc, viewer?: UserDoc): string {
   const t = dictionary(lang);
   const labels = requireLocked(lang, "profile.labels", t.profile.labels);
   const bioLabel = requireLocked(lang, "profile.bioLabel", t.profile.bioLabel);
-  const onlineStatus = requireLocked(lang, "profile.onlineNowStatus", t.profile.onlineNowStatus);
   const idLabel = requireLocked(lang, "profile.idLabel", t.profile.idLabel);
   const distanceLabel = requireLocked(lang, "profile.distanceLabel", t.profile.distanceLabel);
-  const locationMissing = requireLocked(lang, "profile.partnerLocationMissing", t.profile.partnerLocationMissing);
 
   const [nameLine, ageLine, genderLine, provinceLine, cityLine] = labels.split("\n");
   const genderText = target.gender ? (GENDER_LABEL[target.gender] ?? target.gender) : "-";
-  const verifiedBadge = target.verified ? ` ${textEmoji("VERIFIED_BADGE", "☑️")}` : "";
+
+  // Verified / not-verified — always shown, per owner request, right above
+  // the online/last-seen line.
+  const verifiedLine = target.verified
+    ? `${textEmoji("VERIFIED_BADGE", "☑️")} (کاربر تایید شده از طرف ادمین)`
+    : `${textEmoji("VERIFIED_BADGE", "❌")} (تایید نشده)`;
+
+  // Real online/offline is impossible for a bot to know (Bot API has no
+  // access to Telegram's own presence system) — this is the honest
+  // substitute: activity with THIS bot. See src/utils/presence.ts.
+  const presenceLine = formatPresenceFa(target.lastActivityAt);
 
   const lines = [
-    `${nameLine} ${target.nickname ?? "-"}${verifiedBadge}`,
+    `${nameLine} ${target.nickname ?? "-"}`,
     `${ageLine} ${target.age ?? "-"}`,
     `${genderLine} ${genderText}`,
     `${provinceLine} ${target.province ?? "-"}`,
@@ -56,7 +78,20 @@ function buildProfileText(lang: Language, target: UserDoc): string {
     `⭐ سطح کاربر: ${levelDisplay(target.level)}`,
   ];
   if (target.bio) lines.push("", `${bioLabel} ${target.bio}`);
-  lines.push("", onlineStatus, `${idLabel} @${target.anonId}`, `${distanceLabel} ${locationMissing}`);
+
+  lines.push("", verifiedLine, presenceLine);
+  // Tap-to-copy id: <code> renders as monospace, which Telegram clients
+  // make copyable with a single tap — intentionally with NO "@" prefix so
+  // it isn't mistaken for a tappable mention/link (per owner request).
+  lines.push(`${idLabel} <code>${target.anonId}</code>`);
+
+  // Distance: only ever shown when BOTH sides have shared a location —
+  // never a "location not set" placeholder, just omitted entirely,
+  // per owner request.
+  if (viewer?.location && target.location) {
+    const km = distanceKm(viewer.location, target.location);
+    lines.push(`${distanceLabel} ${formatDistanceFa(km)}`);
+  }
 
   return lines.join("\n");
 }
@@ -88,6 +123,19 @@ function buildProfileKeyboard(lang: Language, target: UserDoc) {
   ]);
 }
 
+export async function showOwnProfile(ctx: NavaContext): Promise<void> {
+  if (!ctx.dbUser) return;
+  const text = buildProfileText(ctx.userLang, ctx.dbUser);
+  const kb = inlineKeyboard([[glassButton("📝 ویرایش پروفایل", "profile:edit", "primary")]]);
+  const photo = resolveProfilePhoto(ctx.dbUser);
+
+  if (photo) {
+    await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
+  } else {
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+  }
+}
+
 export function registerProfile(composer: Composer<NavaContext>) {
   composer.callbackQuery(MENU_CALLBACKS.profile, async (ctx) => {
     if (!ctx.dbUser) {
@@ -95,10 +143,7 @@ export function registerProfile(composer: Composer<NavaContext>) {
       return;
     }
     await ctx.answerCallbackQuery();
-    await ctx.reply(buildProfileText(ctx.userLang, ctx.dbUser), {
-      parse_mode: "HTML",
-      reply_markup: inlineKeyboard([[glassButton("📝 ویرایش پروفایل", "profile:edit", "primary")]]),
-    });
+    await showOwnProfile(ctx);
   });
 
   composer.callbackQuery(CHAT_CALLBACKS.partnerProfile, async (ctx) => {
@@ -125,10 +170,15 @@ export function registerProfile(composer: Composer<NavaContext>) {
     }
 
     await ctx.answerCallbackQuery();
-    await ctx.reply(buildProfileText(ctx.userLang, partner), {
-      parse_mode: "HTML",
-      reply_markup: buildProfileKeyboard(ctx.userLang, partner),
-    });
+    const text = buildProfileText(ctx.userLang, partner, ctx.dbUser);
+    const kb = buildProfileKeyboard(ctx.userLang, partner);
+    const photo = resolveProfilePhoto(partner);
+
+    if (photo) {
+      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
+    } else {
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+    }
 
     if (await shouldNotifyProfileView(ctx.from!.id, partnerId)) {
       const partnerLang: Language = partner.languageCode ?? "fa";

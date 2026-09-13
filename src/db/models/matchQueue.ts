@@ -8,7 +8,7 @@ export type SearchType = "lucky" | "male" | "female" | "same_age" | "same_provin
 // handled entirely client-side (a graceful message, no queue entry) — see
 // src/features/matching/search.ts.
 
-export const SEARCH_TIMEOUT_MS = 2 * 60 * 1000; // "حداکثر تا ۲ دقیقه"
+export const SEARCH_TIMEOUT_MS = 40 * 1000; // "حداکثر تا ۴۰ ثانیه"
 
 export interface MatchQueueDoc {
   _id: number; // telegramId — one active search per user, natural dedup

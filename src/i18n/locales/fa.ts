@@ -80,11 +80,14 @@ export const fa: Dictionary = {
     searchingStatus: (searchTypeLabel: string) =>
       `🔎 درحال جستجوی مخاطب ناشناس شما\n\n` +
       `- ${searchTypeLabel}\n\n` +
-      `⏳ حداکثر تا ۲ دقیقه صبر کنید.\n\n` +
+      `⏳ حداکثر تا ۴۰ ثانیه صبر کنید.\n\n` +
       `⚙️ جستجوی همسن : 📴 غیر فعال\n` +
       `-فعال سازی : /hamseni_on\n\n` +
       `⚙️ جستجوی هم استانی ها : 📴 غیر فعال\n\n` +
       `- فعال سازی : /hamostani_on`,
+
+    cancelSearchButton: "❌ لغو جستجو",
+    searchCancelled: "🚫 جستجو لغو شد.",
 
     foundPartner: "👀 پیدا کردم وصلتون کردم، به مخاطبت سلام کن",
 

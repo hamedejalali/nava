@@ -7,6 +7,15 @@ export const PARTNER_TYPE_CALLBACKS = {
   sameProvince: "match:same_province",
 } as const;
 
+/** The live countdown status message shown while a search is queued. The
+ *  "seconds elapsed" button itself carries `noop` as callback_data — it is
+ *  purely a display, not a real action — which the bot's generic callback
+ *  fallback (src/bot.ts) already safely acknowledges with no side effect. */
+export const SEARCH_CALLBACKS = {
+  cancel: "search:cancel",
+  noop: "search:noop",
+} as const;
+
 export const CHAT_CALLBACKS = {
   partnerProfile: "chat:profile",
   safeChat: "chat:safe", // UI stub only — behavior specified in a future prompt

@@ -10,6 +10,7 @@ import { registerMatchingEntry } from "./features/matching/entry.js";
 import { registerSearch } from "./features/matching/search.js";
 import { registerChatRelay, registerChatControls } from "./features/matching/chat.js";
 import { registerProfile, ensureProfileViewIndexes } from "./features/matching/profile.js";
+import { registerProfileEdit } from "./features/matching/profileEdit.js";
 import { registerRelicTransfer } from "./features/matching/transfer.js";
 import { registerRelicScreen, registerStarsCheckout } from "./features/payments/index.js";
 import { ensureUserIndexes } from "./db/models/user.js";
@@ -18,6 +19,7 @@ import { ensureChatSessionIndexes } from "./db/models/chatSession.js";
 import { registerRulesCommand } from "./features/support/index.js";
 import { checkRateLimit, ensureRateLimitIndexes } from "./utils/rateLimit.js";
 import { registerPhotoUpload, registerImageModerationDecisions } from "./features/photo/moderation.js";
+import { registerFileIdHelper } from "./features/admin/fileIdHelper.js";
 import { registerChatImageModeration } from "./features/matching/chatImage.js";
 import { ensureImageModerationIndexes } from "./db/models/imageModeration.js";
 import { registerAdminUsers } from "./features/admin/users.js";
@@ -30,6 +32,7 @@ import { registerAdminReports } from "./features/admin/reportsAdmin.js";
 import { registerAdminBroadcast } from "./features/admin/broadcast.js";
 import { registerOwnerAdminPanelClose } from "./features/admin/ownerBypass.js";
 import { getAllAdminIds } from "./features/admin/constants.js";
+import { registerMainMenuRouter } from "./features/menu/mainMenuRouter.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
@@ -150,13 +153,16 @@ export function createBot(): Bot<NavaContext> {
   registerRulesCommand(features);
   registerImageModerationDecisions(features);
   registerChatImageModeration(features); // before profile-photo upload: chat images must never be mistaken for profile uploads
+  registerFileIdHelper(features); // must run before registerPhotoUpload — see its doc comment
   registerPhotoUpload(features);
   registerMatchingEntry(features);
   registerSearch(features);
   registerChatControls(features);
   registerProfile(features);
+  registerProfileEdit(features);
   registerRelicScreen(features);
   registerStarsCheckout(features);
+  registerMainMenuRouter(features); // last: only acts on exact main-menu label text, next()s everything else
   bot.use(features);
 
   // ---- Fallback handlers (Feature: UNKNOWN INPUT) ----

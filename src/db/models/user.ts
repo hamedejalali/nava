@@ -43,6 +43,11 @@ export interface UserDoc {
   activeChatSessionId?: string;
 
   bio?: string;
+  /** Optional GPS location, shared once by the user (edit-profile flow) so
+   *  a real distance can be shown on their profile. Never collected during
+   *  onboarding and never required — a user who hasn't shared it simply
+   *  never shows/receives a distance (see buildProfileText). */
+  location?: { lat: number; lng: number; updatedAt: Date };
   likesCount?: number;
   /** Only ever set to an APPROVED photo's file_id — see
    *  src/db/models/photoModeration.ts. Never set directly from a raw
@@ -343,6 +348,11 @@ export async function incrementLikes(telegramId: number): Promise<void> {
 export async function setProfilePhoto(telegramId: number, fileId: string): Promise<void> {
   const col = await usersCollection();
   await col.updateOne({ _id: telegramId }, { $set: { profilePhotoFileId: fileId } });
+}
+
+export async function setUserLocation(telegramId: number, lat: number, lng: number): Promise<void> {
+  const col = await usersCollection();
+  await col.updateOne({ _id: telegramId }, { $set: { location: { lat, lng, updatedAt: new Date() } } });
 }
 
 export async function setUserLevel(telegramId: number, level: UserLevel): Promise<UserDoc | null> {

@@ -58,7 +58,7 @@ async function sendPinnedPromoOnce(ctx: NavaContext): Promise<void> {
   });
 }
 
-async function enterAnonymousMatching(ctx: NavaContext, lang: Language) {
+export async function enterAnonymousMatching(ctx: NavaContext, lang: Language) {
   await sendPinnedPromoOnce(ctx);
 
   const t = dictionary(lang);

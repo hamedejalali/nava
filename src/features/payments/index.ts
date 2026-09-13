@@ -22,18 +22,22 @@ function decodePayload(payload: string): number | null {
   return env.starsPackages[index] ? index : null;
 }
 
+export async function showRelicScreen(ctx: NavaContext): Promise<void> {
+  const balance = ctx.dbUser?.relicBalance ?? 0;
+
+  const buttons = env.starsPackages.map((pkg, index) =>
+    glassButton(`⭐ ${pkg.stars} = 💰 ${pkg.relic}`, `${BUY_CALLBACK_PREFIX}${index}`, "primary", buttonIcon("CROWN"))
+  );
+
+  await ctx.reply(`👑 موجودی رلیک شما: ${balance}\n\nبرای خرید رلیک با Telegram Stars یکی از پکیج‌های زیر رو انتخاب کن:`, {
+    reply_markup: inlineKeyboard(buttons.map((b) => [b])),
+  });
+}
+
 export function registerRelicScreen(composer: Composer<NavaContext>) {
   composer.callbackQuery(MENU_CALLBACKS.relicCoin, async (ctx) => {
     await ctx.answerCallbackQuery();
-    const balance = ctx.dbUser?.relicBalance ?? 0;
-
-    const buttons = env.starsPackages.map((pkg, index) =>
-      glassButton(`⭐ ${pkg.stars} = 💰 ${pkg.relic}`, `${BUY_CALLBACK_PREFIX}${index}`, "primary", buttonIcon("CROWN"))
-    );
-
-    await ctx.reply(`👑 موجودی رلیک شما: ${balance}\n\nبرای خرید رلیک با Telegram Stars یکی از پکیج‌های زیر رو انتخاب کن:`, {
-      reply_markup: inlineKeyboard(buttons.map((b) => [b])),
-    });
+    await showRelicScreen(ctx);
   });
 
   composer.callbackQuery(new RegExp(`^${BUY_CALLBACK_PREFIX}(\\d+)$`), async (ctx) => {

@@ -45,6 +45,18 @@ export const env = {
     return optional("CRON_SECRET");
   },
 
+  /** Optional file_id (or public https URL) of a default profile photo
+   *  shown for a user of that gender who hasn't uploaded their own photo
+   *  yet. If unset, profiles simply show text with no photo (never a
+   *  crash) — set these once you have a real image to use, e.g. by
+   *  sending it to the bot once and reading the file_id from the log. */
+  get DEFAULT_PHOTO_MALE() {
+    return optional("DEFAULT_PHOTO_MALE");
+  },
+  get DEFAULT_PHOTO_FEMALE() {
+    return optional("DEFAULT_PHOTO_FEMALE");
+  },
+
   sightengine: {
     get apiUser() {
       return optional("SIGHTENGINE_API_USER");

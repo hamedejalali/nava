@@ -5,7 +5,7 @@ import { setChannelsExempt } from "../../db/models/user.js";
 import { listActiveChannels } from "../../db/models/channel.js";
 import { isMemberOfAll } from "./guard.js";
 import { FORCE_JOIN_VERIFY_CALLBACK } from "./constants.js";
-import { buildMainMenuKeyboard } from "../menu/mainMenu.js";
+import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 
 export function registerForceJoin(composer: Composer<NavaContext>) {
   composer.callbackQuery(FORCE_JOIN_VERIFY_CALLBACK, async (ctx) => {
@@ -27,7 +27,7 @@ export function registerForceJoin(composer: Composer<NavaContext>) {
 
     const t = dictionary(lang);
     const verifiedText = requireLocked(lang, "forceJoin.verifiedMessage", t.forceJoin.verifiedMessage);
-    await ctx.reply(verifiedText, { parse_mode: "HTML", reply_markup: buildMainMenuKeyboard(lang) });
+    await ctx.reply(verifiedText, { parse_mode: "HTML", reply_markup: buildMainMenuReplyKeyboard(lang) });
   });
 
   composer.command("Exempt", async (ctx) => {
