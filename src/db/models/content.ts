@@ -6,7 +6,7 @@ import { getDb } from "../connect.js";
  * admin panel). Stored in its own collection so it can be changed from the
  * admin panel and take effect immediately, without a new deployment.
  */
-export type ContentKey = "guideText" | "guide1" | "pinnedPromo" | "rules" | "supportId";
+export type ContentKey = "guideText" | "guide1" | "pinnedPromo" | "rules" | "supportId" | "inviteMessage";
 
 export interface ContentDoc {
   _id: ContentKey;

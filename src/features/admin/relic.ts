@@ -8,6 +8,7 @@ import { getDb } from "../../db/connect.js";
 import { isAdmin } from "./constants.js";
 import { toAsciiDigits } from "../../utils/digits.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
+import { isFlowCancelSignal } from "./flowState.js";
 
 const CB = { open: "admin:relic", cancel: "admin:relic:cancel" };
 export { CB as RELIC_ADMIN_CALLBACKS };
@@ -62,6 +63,13 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
 
     const step = await getStep(ctx.from!.id);
     if (!step) return next();
+
+    if (isFlowCancelSignal(ctx.message.text)) {
+      await setStep(ctx.from!.id, null);
+      if (ctx.message.text.trim().startsWith("/")) return next();
+      await ctx.reply("لغو شد.");
+      return;
+    }
 
     const raw = toAsciiDigits(ctx.message.text.trim());
 

@@ -5,6 +5,7 @@ import { cancelButton } from "../../ui/cancelButton.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { listAllChannels, addChannel, toggleChannelActive, removeChannel } from "../../db/models/channel.js";
 import { isAdmin } from "./constants.js";
+import { isFlowCancelSignal } from "./flowState.js";
 
 const CB = {
   open: "admin:channels",
@@ -104,6 +105,14 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
     if (!waiting) return next();
 
     const raw = ctx.message.text.trim();
+
+    if (isFlowCancelSignal(raw)) {
+      await setAwaitingChannel(ctx.from!.id, false);
+      if (raw.startsWith("/")) return next();
+      await ctx.reply("لغو شد.");
+      return;
+    }
+
     const username = raw.replace(/^@/, "").replace(/^https?:\/\/t\.me\//, "");
 
     if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(username)) {

@@ -90,6 +90,13 @@ export interface UserDoc {
    *  hatch. */
   channelsExempt?: boolean;
 
+  /** anonId of whoever invited this user (captured once, at account
+   *  creation, from the /start deep-link payload — never changes after). */
+  referredBy?: string;
+  /** Set once the referral reward has actually been paid out (at THIS
+   *  user's onboarding completion), so it can never be paid twice. */
+  referralRewarded?: boolean;
+
   /** Message ID of the pinned promotional message shown once per user when
    *  they first enter the anonymous-chat section — prevents re-sending and
    *  re-pinning a duplicate on every visit. */
@@ -143,6 +150,10 @@ export async function getOrCreateUser(input: {
   telegramId: number;
   firstName: string;
   username?: string;
+  /** anonId of the referring user, from a fresh /start deep-link payload —
+   *  only ever applied via $setOnInsert, so it's permanently ignored for
+   *  an already-existing user (can't retroactively claim a referral). */
+  referredBy?: string;
 }): Promise<UserDoc & { __isNew?: boolean }> {
   const col = await usersCollection();
   const now = new Date();
@@ -163,6 +174,7 @@ export async function getOrCreateUser(input: {
             onboardingStep: "LANGUAGE_PENDING",
             anonId: generateAnonId(),
             createdAt: now,
+            ...(input.referredBy ? { referredBy: input.referredBy } : {}),
           },
           $set: {
             lastActivityAt: now,
@@ -353,6 +365,53 @@ export async function setProfilePhoto(telegramId: number, fileId: string): Promi
 export async function setUserLocation(telegramId: number, lat: number, lng: number): Promise<void> {
   const col = await usersCollection();
   await col.updateOne({ _id: telegramId }, { $set: { location: { lat, lng, updatedAt: new Date() } } });
+}
+
+/**
+ * Admin-only "reset to zero" — wipes everything onboarding/profile-related
+ * back to exactly what a brand-new user looks like (fresh anonId, fresh
+ * onboarding step), so the next /start walks them through language ->
+ * gender -> age -> province -> city -> nickname from scratch, same as a
+ * user who has never touched the bot. Deliberately does NOT touch
+ * `banned`/`isAdmin` (a reset is not a way to un-ban or de-admin someone —
+ * that stays a separate, explicit action) and does NOT touch
+ * `telegramId`/`_id` (can't change which Telegram account this is).
+ */
+export async function resetUserToZero(telegramId: number): Promise<UserDoc | null> {
+  const col = await usersCollection();
+  const now = new Date();
+  return col.findOneAndUpdate(
+    { _id: telegramId },
+    {
+      $set: {
+        anonId: generateAnonId(),
+        onboardingStep: "LANGUAGE_PENDING",
+        relicBalance: 0,
+        relicInitialized: false,
+        likesCount: 0,
+        lastActivityAt: now,
+      },
+      $unset: {
+        languageCode: "",
+        gender: "",
+        age: "",
+        province: "",
+        city: "",
+        nickname: "",
+        bio: "",
+        profilePhotoFileId: "",
+        location: "",
+        verified: "",
+        level: "",
+        activeChatSessionId: "",
+        channelsExempt: "",
+        cityPageIndex: "",
+        pinnedPromoMessageId: "",
+        lastPromptMessageId: "",
+      },
+    },
+    { returnDocument: "after" }
+  );
 }
 
 export async function setUserLevel(telegramId: number, level: UserLevel): Promise<UserDoc | null> {

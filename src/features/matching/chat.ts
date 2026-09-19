@@ -7,6 +7,7 @@ import { setActiveChatSession, getUser } from "../../db/models/user.js";
 import { refundChatCostOnce } from "../../db/models/relic.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
+import { textEmoji } from "../../config/emojis.js";
 
 /** Every text message from a user with an active chat session is relayed
  *  verbatim to their partner, never touching any onboarding/admin handler.
@@ -91,12 +92,21 @@ export function registerChatControls(composer: Composer<NavaContext>) {
     const partnerLang: Language = partner?.languageCode ?? "fa";
 
     const tPartner = dictionary(partnerLang);
-    const endedText = requireLocked(partnerLang, "matching.chatEndedByPartner", tPartner.matching.chatEndedByPartner)(ender.anonId);
-    await ctx.api.sendMessage(partnerId, endedText, { parse_mode: "HTML" }).catch(() => {});
+    const endedTemplate = requireLocked(partnerLang, "matching.chatEndedByPartner", tPartner.matching.chatEndedByPartner)(ender.anonId);
+    const navaEmoji = textEmoji("NAVA", "🌐");
+    const endedText = endedTemplate.split("{{NAVA_EMOJI}}").join(navaEmoji);
+    await ctx.api
+      .sendMessage(partnerId, endedText, {
+        parse_mode: "HTML",
+        reply_markup: inlineKeyboard([[glassButton("🚫 گزارش کاربر", `${CHAT_CALLBACKS.report}:${ender._id}`, "danger")]]),
+      })
+      .catch(() => {});
 
     const refunded = await refundChatCostOnce(partnerId, sessionId);
     if (refunded) {
-      const cashbackText = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
+      const relicEmoji = textEmoji("RELIC", "💰");
+      const cashbackTemplate = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
+      const cashbackText = cashbackTemplate.split("{{RELIC_EMOJI}}").join(relicEmoji);
       await ctx.api.sendMessage(partnerId, cashbackText).catch(() => {});
     }
 

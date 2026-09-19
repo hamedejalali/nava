@@ -5,6 +5,8 @@ import { enterAnonymousMatching } from "../matching/entry.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { showOwnProfile } from "../matching/profile.js";
 import { showRelicScreen } from "../payments/index.js";
+import { sendInviteScreen } from "./inviteFriends.js";
+import { showContactsList } from "../matching/contacts.js";
 
 /**
  * Routes taps on the persistent (Reply Keyboard) main menu buttons — see
@@ -40,12 +42,17 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
       case "relicCoin":
         await showRelicScreen(ctx);
         return;
+      case "inviteFriends":
+        await sendInviteScreen(ctx);
+        return;
+      case "contacts":
+        await showContactsList(ctx);
+        return;
       case "nearbyPeople":
       case "searchUsers":
       case "guide":
       case "feedback":
       case "myAnonymousLink":
-      case "inviteFriends":
         // Not implemented yet (same as the old inline buttons, which the
         // generic callback fallback silently acknowledged without taking
         // any action) — swallow the tap rather than falling through to the

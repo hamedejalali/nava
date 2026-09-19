@@ -1,9 +1,11 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
-import { setNicknameOnce } from "../../db/models/user.js";
+import { setNicknameOnce, getUserByAnonId } from "../../db/models/user.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { showOnboardingCompletion } from "./completion.js";
+import { grantReferralRewardOnce, grantProfileCompletionRewardOnce } from "../../db/models/relic.js";
+import { textEmoji } from "../../config/emojis.js";
 
 const PERSIAN_NICKNAME_PATTERN = /^[آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی\u200C ]+$/;
 const MAX_NICKNAME_LENGTH = 32;
@@ -43,6 +45,26 @@ export function registerNicknameHandlers(composer: Composer<NavaContext>) {
 
     const result = await setNicknameOnce(ctx.from!.id, raw.trim());
     if (result.status !== "saved") return; // stale/duplicate — already progressed
+
+    // Onboarding just fully completed — pay out the two one-time Relic
+    // bonuses (each independently idempotent, so this is safe even if
+    // this handler somehow re-fires for the same user).
+    await grantProfileCompletionRewardOnce(ctx.from!.id);
+    if (result.user.referredBy) {
+      const referrer = await getUserByAnonId(result.user.referredBy);
+      if (referrer) {
+        const rewarded = await grantReferralRewardOnce(referrer._id, ctx.from!.id);
+        if (rewarded) {
+          const relicEmoji = textEmoji("RELIC", "💰");
+          await ctx.api
+            .sendMessage(
+              referrer._id,
+              `🎉 یکی از دوستانت با لینک دعوتت به نوا پیوست و پروفایلش رو کامل کرد!\n${relicEmoji} ۲۰ رلیک به حساب شما اضافه شد.`
+            )
+            .catch(() => {});
+        }
+      }
+    }
 
     await deletePreviousPrompt(ctx);
     await showOnboardingCompletion(ctx, ctx.userLang);

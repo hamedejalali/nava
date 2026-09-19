@@ -4,7 +4,7 @@ import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { searchUsers, setUserLevel, USER_LEVELS, type UserLevel } from "../../db/models/user.js";
 import { LEVEL_META, levelDisplay } from "../../config/levels.js";
 import { isOwner } from "./constants.js";
-import { setAdminFlow, getAdminFlow } from "./flowState.js";
+import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 
@@ -30,6 +30,13 @@ export function registerAdminLevels(composer: Composer<NavaContext>) {
 
     const flow = await getAdminFlow(ctx.from!.id);
     if (!flow || flow.flow !== "level" || flow.stage !== "await_query") return next();
+
+    if (isFlowCancelSignal(text)) {
+      await setAdminFlow(ctx.from!.id, null);
+      if (text.startsWith("/")) return next();
+      await ctx.reply("لغو شد.");
+      return;
+    }
 
     const results = await searchUsers(text, 5);
     if (results.length === 0) {

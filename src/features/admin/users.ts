@@ -8,6 +8,7 @@ import { isAdmin } from "./constants.js";
 import { setAdminFlow, getAdminFlow } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
+import { isFlowCancelSignal } from "./flowState.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 
@@ -119,6 +120,13 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     const flow = await getAdminFlow(ctx.from!.id);
     if (!flow || flow.stage !== "await_query") return next();
     if (!["user_lookup", "ban", "unban", "verify"].includes(flow.flow)) return next();
+
+    if (isFlowCancelSignal(text)) {
+      await setAdminFlow(ctx.from!.id, null);
+      if (text.startsWith("/")) return next();
+      await ctx.reply("لغو شد.");
+      return;
+    }
 
     const results = await searchUsers(text, 5);
     if (results.length === 0) {

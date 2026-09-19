@@ -5,7 +5,7 @@ import { dictionary } from "../../i18n/index.js";
 import { fa } from "../../i18n/locales/fa.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
-import { getOrCreateUser, setUserLanguage } from "../../db/models/user.js";
+import { getOrCreateUser, setUserLanguage, getUserByAnonId } from "../../db/models/user.js";
 import { LANGUAGE_CALLBACK_PREFIX, LANGUAGE_EMOJI_ENV_KEY } from "./constants.js";
 import { showGenderStep } from "./gender.js";
 import { showGuide1AndAge } from "./age.js";
@@ -45,10 +45,23 @@ export function registerLanguageHandlers(composer: Composer<NavaContext>) {
   composer.command("start", async (ctx) => {
     if (!ctx.from) return;
 
+    // Referral deep link: t.me/<bot>?start=<anonId of the inviter>. Only
+    // meaningful for a user who doesn't exist yet — getOrCreateUser only
+    // ever applies it via $setOnInsert, so re-visiting an old invite link
+    // as an existing user is always a silent no-op, never a retroactive
+    // claim.
+    const referralCode = ctx.match?.trim();
+    let referredBy: string | undefined;
+    if (referralCode) {
+      const referrer = await getUserByAnonId(referralCode);
+      if (referrer && referrer._id !== ctx.from.id) referredBy = referrer.anonId;
+    }
+
     const user = await getOrCreateUser({
       telegramId: ctx.from.id,
       firstName: ctx.from.first_name,
       username: ctx.from.username,
+      referredBy,
     });
 
     // Owner/admin accounts NEVER go through gender/age/province/city/

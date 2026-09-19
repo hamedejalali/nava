@@ -4,7 +4,7 @@ import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { createBroadcastJob, getBroadcastJob } from "../../db/models/broadcast.js";
 import { processBroadcastBatch } from "../../services/broadcastProcessor.js";
 import { isAdmin } from "./constants.js";
-import { setAdminFlow, getAdminFlow } from "./flowState.js";
+import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 
@@ -23,6 +23,13 @@ export function registerAdminBroadcast(composer: Composer<NavaContext>) {
 
     const flow = await getAdminFlow(ctx.from!.id);
     if (!flow || flow.flow !== "broadcast" || flow.stage !== "await_text") return next();
+
+    if (isFlowCancelSignal(text)) {
+      await setAdminFlow(ctx.from!.id, null);
+      if (text.startsWith("/")) return next();
+      await ctx.reply("لغو شد.");
+      return;
+    }
 
     await setAdminFlow(ctx.from!.id, { flow: "broadcast", stage: "confirm", data: { message: text } });
 

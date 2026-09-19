@@ -11,6 +11,10 @@ import { registerSearch } from "./features/matching/search.js";
 import { registerChatRelay, registerChatControls } from "./features/matching/chat.js";
 import { registerProfile, ensureProfileViewIndexes } from "./features/matching/profile.js";
 import { registerProfileEdit } from "./features/matching/profileEdit.js";
+import { registerReportFlow } from "./features/matching/reportFlow.js";
+import { registerContacts } from "./features/matching/contacts.js";
+import { registerProfileLookup } from "./features/matching/profileLookup.js";
+import { registerVerifyFlow } from "./features/matching/verifyFlow.js";
 import { registerRelicTransfer } from "./features/matching/transfer.js";
 import { registerRelicScreen, registerStarsCheckout } from "./features/payments/index.js";
 import { ensureUserIndexes } from "./db/models/user.js";
@@ -25,6 +29,8 @@ import { ensureImageModerationIndexes } from "./db/models/imageModeration.js";
 import { registerAdminUsers } from "./features/admin/users.js";
 import { registerAdminLevels } from "./features/admin/levels.js";
 import { registerAdminModerators } from "./features/admin/moderators.js";
+import { registerAdminResetUser } from "./features/admin/resetUser.js";
+import { registerPricingAdmin } from "./features/admin/pricingAdmin.js";
 import { registerAdminStats } from "./features/admin/stats.js";
 import { registerAdminActivityLog } from "./features/admin/activityLog.js";
 import { registerAdminSettings } from "./features/admin/settingsAdmin.js";
@@ -74,11 +80,11 @@ export function createBot(): Bot<NavaContext> {
           `نام: ${from.first_name}${from.last_name ? " " + from.last_name : ""}\n` +
           `یوزرنیم: ${usernamePart}\n` +
           `آیدی عددی: ${from.id}\n` +
-          `آیدی ناشناس: @${user.anonId}`;
+          `آیدی ناشناس: <code>${user.anonId}</code>`;
 
         void getAllAdminIds().then((adminIds) => {
           for (const adminId of adminIds) {
-            void ctx.api.sendMessage(adminId, notifyText).catch(() => {
+            void ctx.api.sendMessage(adminId, notifyText, { parse_mode: "HTML" }).catch(() => {
               // Admin may have blocked the bot or never started a DM with
               // it — never let a notification failure affect the actual
               // user's request.
@@ -141,6 +147,8 @@ export function createBot(): Bot<NavaContext> {
   registerAdminUsers(features);
   registerAdminLevels(features);
   registerAdminModerators(features);
+  registerAdminResetUser(features);
+  registerPricingAdmin(features);
   registerAdminStats(features);
   registerAdminActivityLog(features);
   registerAdminSettings(features);
@@ -160,6 +168,10 @@ export function createBot(): Bot<NavaContext> {
   registerChatControls(features);
   registerProfile(features);
   registerProfileEdit(features);
+  registerReportFlow(features);
+  registerContacts(features);
+  registerProfileLookup(features);
+  registerVerifyFlow(features);
   registerRelicScreen(features);
   registerStarsCheckout(features);
   registerMainMenuRouter(features); // last: only acts on exact main-menu label text, next()s everything else

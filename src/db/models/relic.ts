@@ -22,6 +22,8 @@ export type RelicTransactionType =
   | "REFUND"
   | "REFERRAL_REWARD"
   | "PROFILE_COMPLETION_REWARD"
+  | "REPORT_REWARD"
+  | "WALLET_MINING"
   | "ADMIN_ADJUSTMENT"
   | "BONUS";
 
@@ -264,10 +266,103 @@ export async function getRelicBalance(userId: number): Promise<number> {
   return doc?.relicBalance ?? 0;
 }
 
+/** Referral reward: +20 Relic to the REFERRER, once per referred user,
+ *  triggered the moment the referred user finishes onboarding (not at
+ *  signup — a referral only "counts" once the invitee actually completes
+ *  their profile, per owner spec). Idempotent via the deterministic
+ *  `referral:<newUserId>` ledger id — safe even if onboarding-completion
+ *  fires twice for the same user for any reason. */
+export async function grantReferralRewardOnce(referrerId: number, newUserId: number): Promise<boolean> {
+  const db = await getDb();
+  const usersCol = db.collection<any>("users");
+  const ledger = await ledgerCollection();
+
+  try {
+    await ledger.insertOne({
+      _id: `referral:${newUserId}`,
+      userId: referrerId,
+      counterpartyUserId: newUserId,
+      amount: 20,
+      type: "REFERRAL_REWARD",
+      status: "completed",
+      reference: String(newUserId),
+      sourceApp: "nava",
+      createdAt: new Date(),
+      completedAt: new Date(),
+    });
+  } catch (err: any) {
+    if (err?.code === 11000) return false; // already rewarded for this invitee
+    throw err;
+  }
+
+  await usersCol.updateOne({ _id: referrerId }, { $inc: { relicBalance: 20 } });
+  return true;
+}
+
+/** Profile-completion bonus: +5 Relic to the user themself, once, the
+ *  moment their own onboarding finishes — independent of whether they
+ *  were referred by anyone. Idempotent via the deterministic
+ *  `profilebonus:<userId>` ledger id. */
+export async function grantProfileCompletionRewardOnce(userId: number): Promise<boolean> {
+  const db = await getDb();
+  const usersCol = db.collection<any>("users");
+  const ledger = await ledgerCollection();
+
+  try {
+    await ledger.insertOne({
+      _id: `profilebonus:${userId}`,
+      userId,
+      amount: 5,
+      type: "PROFILE_COMPLETION_REWARD",
+      status: "completed",
+      sourceApp: "nava",
+      createdAt: new Date(),
+      completedAt: new Date(),
+    });
+  } catch (err: any) {
+    if (err?.code === 11000) return false; // already granted
+    throw err;
+  }
+
+  await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: 5 } });
+  return true;
+}
+
 /** Admin manual balance adjustment (add or remove Relic). `delta` may be
  *  negative; a negative adjustment is guarded so balance can never go below
  *  zero. Always creates an auditable ledger entry — balances are never
  *  changed silently. */
+export async function countReferralRewards(referrerId: number): Promise<number> {
+  const ledger = await ledgerCollection();
+  return ledger.countDocuments({ userId: referrerId, type: "REFERRAL_REWARD" });
+}
+
+export async function grantReportRewardOnce(reporterId: number, reportId: string): Promise<boolean> {
+  const db = await getDb();
+  const usersCol = db.collection<any>("users");
+  const ledger = await ledgerCollection();
+
+  try {
+    await ledger.insertOne({
+      _id: `report:${reportId}`,
+      userId: reporterId,
+      amount: 5,
+      type: "REPORT_REWARD",
+      status: "completed",
+      reference: reportId,
+      sourceApp: "nava",
+      createdAt: new Date(),
+      completedAt: new Date(),
+    });
+  } catch (err: any) {
+    if (err?.code === 11000) return false;
+    throw err;
+  }
+
+  await usersCol.updateOne({ _id: reporterId }, { $inc: { relicBalance: 5 } });
+  return true;
+}
+
 export async function adminAdjustBalance(
   adminId: number,
   targetUserId: number,

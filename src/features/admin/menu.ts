@@ -22,12 +22,15 @@ export const ADMIN_MENU_LABELS = {
   activityLog: "🔐 لاگ فعالیت ادمین‌ها",
   settings: "⚙️ تنظیمات ربات",
   guidesAndChannels: "🛠 راهنما / کانال جوین / پشتیبانی",
+  resetUser: "♻️ ریست اطلاعات کاربر",
+  pricing: "💳 تنظیم قیمت رلیک",
   close: "❌ بستن پنل",
 } as const;
 
-/** Items only the owner should see/use (dynamic admin management, and
- *  granting user levels — both security/reputation-sensitive). */
-const OWNER_ONLY: string[] = [ADMIN_MENU_LABELS.moderators, ADMIN_MENU_LABELS.level];
+/** Items only the owner should see/use (dynamic admin management, granting
+ *  user levels, and fully wiping a user's profile — all irreversible or
+ *  security-sensitive enough to keep away from regular admins). */
+const OWNER_ONLY: string[] = [ADMIN_MENU_LABELS.moderators, ADMIN_MENU_LABELS.level, ADMIN_MENU_LABELS.resetUser];
 
 export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const owner = isOwner(ctx);
@@ -47,6 +50,8 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
     { label: ADMIN_MENU_LABELS.activityLog, icon: buttonIcon("LOG") },
     { label: ADMIN_MENU_LABELS.settings, icon: buttonIcon("SETTINGS") },
     { label: ADMIN_MENU_LABELS.guidesAndChannels },
+    { label: ADMIN_MENU_LABELS.resetUser, icon: buttonIcon("RESET_USER") },
+    { label: ADMIN_MENU_LABELS.pricing },
   ].filter((e) => owner || !OWNER_ONLY.includes(e.label));
 
   const rows = [];

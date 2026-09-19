@@ -61,6 +61,7 @@ export const en: Dictionary = {
     feedback: undefined,
     myAnonymousLink: undefined,
     inviteFriends: undefined,
+    contacts: undefined,
   },
 
   languageButtons: {

@@ -8,6 +8,7 @@ import {
 import { newSessionId, type ChatSessionDoc } from "../../db/models/chatSession.js";
 import type { UserDoc } from "../../db/models/user.js";
 import { chargeChatCost, InsufficientBalanceError } from "../../db/models/relic.js";
+import { getBlockedCounterparts } from "../../db/models/blocks.js";
 
 export type MatchAttemptResult =
   | { status: "matched"; sessionId: string; partnerId: number; partnerStatusMessageId?: number }
@@ -33,12 +34,14 @@ export async function attemptMatchOrQueue(user: UserDoc, searchType: SearchType,
   const queueCol = db.collection<MatchQueueDoc>("match_queue");
   const sessionsCol = db.collection<ChatSessionDoc>("chat_sessions");
 
+  const excludeIds = await getBlockedCounterparts(user._id);
   const query = buildCandidateQuery({
     telegramId: user._id,
     searchType,
     gender: user.gender!,
     age: user.age!,
     province: user.province,
+    excludeIds,
   });
 
   const mongoSession = client.startSession();

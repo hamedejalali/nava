@@ -115,6 +115,8 @@ export interface Dictionary {
     myAnonymousLink?: string;
     /** LOCKED */
     inviteFriends?: string;
+    /** LOCKED */
+    contacts?: string;
   };
   languageButtons: {
     fa: string;

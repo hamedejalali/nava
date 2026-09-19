@@ -44,6 +44,15 @@ export const env = {
   get CRON_SECRET() {
     return optional("CRON_SECRET");
   },
+  get WALLET_BOT_TOKEN() {
+    return optional("WALLET_BOT_TOKEN");
+  },
+  get WALLET_WEBHOOK_SECRET() {
+    return optional("WALLET_WEBHOOK_SECRET");
+  },
+  get WALLET_MINIAPP_URL() {
+    return optional("WALLET_MINIAPP_URL");
+  },
 
   /** Optional file_id (or public https URL) of a default profile photo
    *  shown for a user of that gender who hasn't uploaded their own photo
@@ -55,6 +64,18 @@ export const env = {
   },
   get DEFAULT_PHOTO_FEMALE() {
     return optional("DEFAULT_PHOTO_FEMALE");
+  },
+  get INVITE_BANNER_PHOTO() {
+    return optional("INVITE_BANNER_PHOTO");
+  },
+  get VERIFY_PHOTOS(): string[] {
+    return [1, 2, 3, 4, 5].map((n) => optional(`VERIFY_PHOTO_${n}`)).filter((v): v is string => !!v);
+  },
+  get VERIFY_APPROVED_PHOTO() {
+    return optional("VERIFY_APPROVED_PHOTO");
+  },
+  get VERIFY_REJECTED_PHOTO() {
+    return optional("VERIFY_REJECTED_PHOTO");
   },
 
   sightengine: {
@@ -135,6 +156,7 @@ export const env = {
     ANONYMOUS: optional("EMOJI_PREMIUM_ANONYMOUS"),
     LOCATION: optional("EMOJI_PREMIUM_LOCATION"),
     SEARCH: optional("EMOJI_PREMIUM_SEARCH"),
+    TIMER: optional("EMOJI_PREMIUM_TIMER"),
     PROFILE: optional("EMOJI_PREMIUM_PROFILE"),
     CROWN: optional("EMOJI_PREMIUM_CROWN"),
     MAILBOX: optional("EMOJI_PREMIUM_MAILBOX"),
@@ -178,5 +200,21 @@ export const env = {
     P3: optional("EMOJI_PREMIUM_3"),
     P4: optional("EMOJI_PREMIUM_4"),
     P5: optional("EMOJI_PREMIUM_5"),
+    RESET_USER: optional("EMOJI_PREMIUM_RESET_USER"),
+    RELIC: optional("EMOJI_PREMIUM_RELIC"),
+    NAVA: optional("EMOJI_PREMIUM_NAVA"),
+    VERIFY_REQUEST: optional("EMOJI_PREMIUM_VERIFY_REQUEST"),
+    CONTACTS: optional("EMOJI_PREMIUM_CONTACTS"),
+    LIKE: optional("EMOJI_PREMIUM_LIKE"),
+    INVITE_INTRO: optional("EMOJI_PREMIUM_INVITE_INTRO"),
+    INVITE_ANON: optional("EMOJI_PREMIUM_INVITE_ANON"),
+    INVITE_FEATURES: optional("EMOJI_PREMIUM_INVITE_FEATURES"),
+    INVITE_CTA: optional("EMOJI_PREMIUM_INVITE_CTA"),
+    INVITE_LINK: optional("EMOJI_PREMIUM_INVITE_LINK"),
+    INVITE_VERIFIED: optional("EMOJI_PREMIUM_INVITE_VERIFIED"),
+    INVITE_PROFILE_BONUS: optional("EMOJI_PREMIUM_INVITE_PROFILE_BONUS"),
+    INVITE_REFERRAL_BONUS: optional("EMOJI_PREMIUM_INVITE_REFERRAL_BONUS"),
+    INVITE_BANNER_READY: optional("EMOJI_PREMIUM_INVITE_BANNER_READY"),
+    INVITE_COUNT: optional("EMOJI_PREMIUM_INVITE_COUNT"),
   },
 };

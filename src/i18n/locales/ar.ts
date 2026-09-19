@@ -59,6 +59,7 @@ export const ar: Dictionary = {
     feedback: undefined,
     myAnonymousLink: undefined,
     inviteFriends: undefined,
+    contacts: undefined,
   },
 
   languageButtons: {

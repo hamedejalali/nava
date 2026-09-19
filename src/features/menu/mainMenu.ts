@@ -17,6 +17,7 @@ export const MENU_CALLBACKS = {
   feedback: "menu:feedback",
   myAnonymousLink: "menu:my_anonymous_link",
   inviteFriends: "menu:invite_friends",
+  contacts: "menu:contacts",
 } as const;
 
 export function buildMainMenuKeyboard(lang: Language) {
@@ -61,6 +62,7 @@ export function buildMainMenuReplyKeyboard(lang: Language) {
     [glassReplyButton(label("connectAnonymous", "mainMenu.connectAnonymous"), "success", buttonIcon("ANONYMOUS"))],
     [
       glassReplyButton(label("nearbyPeople", "mainMenu.nearbyPeople"), "primary", buttonIcon("LOCATION")),
+      glassReplyButton(label("contacts", "mainMenu.contacts"), "primary", buttonIcon("CONTACTS")),
       glassReplyButton(label("searchUsers", "mainMenu.searchUsers"), "primary", buttonIcon("SEARCH")),
     ],
     [

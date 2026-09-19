@@ -9,9 +9,7 @@ import { getDb } from "../../db/connect.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { levelDisplay } from "../../config/levels.js";
 import { textEmoji } from "../../config/emojis.js";
-import { MENU_CALLBACKS } from "../menu/mainMenu.js";
-import { createReport } from "../../db/models/reports.js";
-import { getAllAdminIds } from "../admin/constants.js";
+import { MENU_CALLBACKS, buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { env } from "../../config/env.js";
 import { distanceKm, formatDistanceFa } from "../../utils/geo.js";
 import { formatPresenceFa } from "../../utils/presence.js";
@@ -19,7 +17,7 @@ import { formatPresenceFa } from "../../utils/presence.js";
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 const VIEW_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 
-async function shouldNotifyProfileView(viewerId: number, targetId: number): Promise<boolean> {
+export async function shouldNotifyProfileView(viewerId: number, targetId: number): Promise<boolean> {
   const db = await getDb();
   interface ProfileViewCooldownDoc { _id: string; expiresAt: Date; }
   const col = db.collection<ProfileViewCooldownDoc>("profile_view_notify_cooldown");
@@ -41,14 +39,14 @@ export async function ensureProfileViewIndexes(): Promise<void> {
  *  default if they haven't uploaded one and a default has been configured
  *  (see DEFAULT_PHOTO_MALE/FEMALE in .env) — never crashes if neither is
  *  set, the profile just renders with no photo, same as before. */
-function resolveProfilePhoto(target: UserDoc): string | undefined {
+export function resolveProfilePhoto(target: UserDoc): string | undefined {
   if (target.profilePhotoFileId) return target.profilePhotoFileId;
   if (target.gender === "male") return env.DEFAULT_PHOTO_MALE;
   if (target.gender === "female") return env.DEFAULT_PHOTO_FEMALE;
   return undefined;
 }
 
-function buildProfileText(lang: Language, target: UserDoc, viewer?: UserDoc): string {
+export function buildProfileText(lang: Language, target: UserDoc, viewer?: UserDoc): string {
   const t = dictionary(lang);
   const labels = requireLocked(lang, "profile.labels", t.profile.labels);
   const bioLabel = requireLocked(lang, "profile.bioLabel", t.profile.bioLabel);
@@ -96,29 +94,45 @@ function buildProfileText(lang: Language, target: UserDoc, viewer?: UserDoc): st
   return lines.join("\n");
 }
 
-function buildProfileKeyboard(lang: Language, target: UserDoc) {
+type ProfileViewContext = "chat" | "lookup";
+
+export type { ProfileViewContext };
+export function buildProfileKeyboard(lang: Language, target: UserDoc, viewContext: ProfileViewContext) {
   const t = dictionary(lang);
   const like = requireLocked(lang, "profile.likeButton", t.profile.likeButton)(target.likesCount ?? 0);
-  const chatRequest = requireLocked(lang, "profile.chatRequestButton", t.profile.chatRequestButton);
-  const directMessage = requireLocked(lang, "profile.directMessageButton", t.profile.directMessageButton);
   const addContact = requireLocked(lang, "profile.addContactButton", t.profile.addContactButton);
   const block = requireLocked(lang, "profile.blockButton", t.profile.blockButton);
   const report = requireLocked(lang, "profile.reportButton", t.profile.reportButton);
-  const notifyOnEnd = requireLocked(lang, "profile.notifyOnEndButton", t.profile.notifyOnEndButton);
   const transfer = requireLocked(lang, "relic.transferButton", t.relic.transferButton);
 
+  const likeRow = [glassButton(like, `${CHAT_CALLBACKS.like}:${target._id}`, "danger", buttonIcon("HEART"))];
+  const transferRow = [glassButton(transfer, `${CHAT_CALLBACKS.transfer}:${target._id}`, "primary", buttonIcon("CROWN"))];
+  const contactRow = [glassButton(addContact, `${CHAT_CALLBACKS.addContact}:${target._id}`, "primary", buttonIcon("PLUS"))];
+  const moderationRow = [
+    glassButton(block, `${CHAT_CALLBACKS.block}:${target._id}`, "danger", buttonIcon("LOCK")),
+    glassButton(report, `${CHAT_CALLBACKS.report}:${target._id}`, "danger", buttonIcon("REPORT")),
+  ];
+
+  // While actively connected in a chat, per owner spec, ONLY these 5
+  // actions are ever shown — chat-request/direct-message/notify-on-end
+  // (below) only make sense for someone you are NOT already talking to.
+  if (viewContext === "chat") {
+    return inlineKeyboard([likeRow, transferRow, contactRow, moderationRow]);
+  }
+
+  const chatRequest = requireLocked(lang, "profile.chatRequestButton", t.profile.chatRequestButton);
+  const directMessage = requireLocked(lang, "profile.directMessageButton", t.profile.directMessageButton);
+  const notifyOnEnd = requireLocked(lang, "profile.notifyOnEndButton", t.profile.notifyOnEndButton);
+
   return inlineKeyboard([
-    [glassButton(like, `${CHAT_CALLBACKS.like}:${target._id}`, "danger", buttonIcon("HEART"))],
-    [glassButton(transfer, `${CHAT_CALLBACKS.transfer}:${target._id}`, "primary", buttonIcon("CROWN"))],
+    likeRow,
+    transferRow,
     [
       glassButton(chatRequest, CHAT_CALLBACKS.chatRequest, "primary", buttonIcon("MESSAGE")),
       glassButton(directMessage, CHAT_CALLBACKS.directMessage, "primary", buttonIcon("LETTER")),
     ],
-    [glassButton(addContact, CHAT_CALLBACKS.addContact, "primary", buttonIcon("PLUS"))],
-    [
-      glassButton(block, CHAT_CALLBACKS.block, "danger", buttonIcon("LOCK")),
-      glassButton(report, `${CHAT_CALLBACKS.report}:${target._id}`, "danger", buttonIcon("REPORT")),
-    ],
+    contactRow,
+    moderationRow,
     [glassButton(notifyOnEnd, CHAT_CALLBACKS.notifyOnEnd, "primary", buttonIcon("NOTIFICATION"))],
   ]);
 }
@@ -171,7 +185,7 @@ export function registerProfile(composer: Composer<NavaContext>) {
 
     await ctx.answerCallbackQuery();
     const text = buildProfileText(ctx.userLang, partner, ctx.dbUser);
-    const kb = buildProfileKeyboard(ctx.userLang, partner);
+    const kb = buildProfileKeyboard(ctx.userLang, partner, "chat");
     const photo = resolveProfilePhoto(partner);
 
     if (photo) {
@@ -183,8 +197,10 @@ export function registerProfile(composer: Composer<NavaContext>) {
     if (await shouldNotifyProfileView(ctx.from!.id, partnerId)) {
       const partnerLang: Language = partner.languageCode ?? "fa";
       const t = dictionary(partnerLang);
-      const notifyText = requireLocked(partnerLang, "matching.profileViewNotification", t.matching.profileViewNotification);
-      await ctx.api.sendMessage(partnerId, notifyText).catch(() => {});
+      const notifyTemplate = requireLocked(partnerLang, "matching.profileViewNotification", t.matching.profileViewNotification);
+      const navaEmoji = textEmoji("NAVA", "🌐");
+      const notifyText = notifyTemplate.split("{{NAVA_EMOJI}}").join(navaEmoji);
+      await ctx.api.sendMessage(partnerId, notifyText, { parse_mode: "HTML" }).catch(() => {});
     }
   });
 
@@ -200,33 +216,26 @@ export function registerProfile(composer: Composer<NavaContext>) {
     try {
       await likesCol.insertOne({ _id: `${ctx.from!.id}:${targetId}`, createdAt: new Date() });
       await incrementLikes(targetId);
-      await ctx.answerCallbackQuery({ text: "❤️" });
+      await ctx.answerCallbackQuery({ text: "❤️ لایک شد" });
+
+      // Reflect the new count on the button itself, not just the toast —
+      // otherwise the number the user is looking at never visibly changes.
+      const target = await getUser(targetId);
+      if (target) {
+        const inChatWithTarget = ctx.dbUser?.activeChatSessionId
+          ? (await getSession(ctx.dbUser.activeChatSessionId).then((s) => (s ? otherParticipant(s, ctx.from!.id) : undefined))) === targetId
+          : false;
+        await ctx.editMessageReplyMarkup({
+          reply_markup: buildProfileKeyboard(ctx.userLang, target, inChatWithTarget ? "chat" : "lookup"),
+        }).catch(() => {});
+      }
     } catch (err: any) {
       if (err?.code === 11000) {
-        await ctx.answerCallbackQuery(); // already liked — no double-count
+        await ctx.answerCallbackQuery({ text: "قبلاً لایک کرده بودی 👍" });
         return;
       }
       throw err;
     }
   });
 
-  composer.callbackQuery(new RegExp(`^${CHAT_CALLBACKS.report}:(\\d+)$`), async (ctx) => {
-    const targetId = Number(ctx.match![1]);
-    if (targetId === ctx.from!.id) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const report = await createReport(ctx.from!.id, targetId, ctx.dbUser?.activeChatSessionId);
-    await ctx.answerCallbackQuery({ text: "گزارش ثبت شد، ممنون از همکاریت 🙏" });
-
-    for (const adminId of await getAllAdminIds()) {
-      await ctx.api
-        .sendMessage(
-          adminId,
-          `⚠️ گزارش جدید\n\nگزارش‌دهنده: ${ctx.from!.id}\nگزارش‌شده: ${targetId}\nشناسه‌ی گزارش: ${report._id}`
-        )
-        .catch(() => {});
-    }
-  });
 }

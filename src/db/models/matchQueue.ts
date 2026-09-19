@@ -76,6 +76,7 @@ export function buildCandidateQuery(me: {
   gender: Gender;
   age: number;
   province?: string;
+  excludeIds?: number[];
 }) {
   const iAccept: Record<string, unknown>[] =
     me.searchType === "lucky"
@@ -96,8 +97,10 @@ export function buildCandidateQuery(me: {
     ...(me.province ? [{ searchType: "same_province", provinceSnapshot: me.province }] : []),
   ];
 
+  const excludeIds = [me.telegramId, ...(me.excludeIds ?? [])];
+
   return {
-    _id: { $ne: me.telegramId },
+    _id: { $nin: excludeIds },
     expiresAt: { $gt: new Date() },
     $and: [{ $or: iAccept }, { $or: theyAccept }],
   };
