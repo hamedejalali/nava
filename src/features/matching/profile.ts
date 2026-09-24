@@ -6,23 +6,24 @@ import { buttonIcon } from "../../config/emojis.js";
 import { getSession, otherParticipant } from "../../db/models/chatSession.js";
 import { getUser, incrementLikes, type UserDoc } from "../../db/models/user.js";
 import { getDb } from "../../db/connect.js";
-import { CHAT_CALLBACKS } from "./constants.js";
+import { CHAT_CALLBACKS, VERIFY_REQUEST_CALLBACK } from "./constants.js";
 import { levelDisplay } from "../../config/levels.js";
 import { textEmoji } from "../../config/emojis.js";
 import { MENU_CALLBACKS, buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { env } from "../../config/env.js";
 import { distanceKm, formatDistanceFa } from "../../utils/geo.js";
 import { formatPresenceFa } from "../../utils/presence.js";
+import { escapeHtml } from "../../utils/html.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 const VIEW_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 
-export async function shouldNotifyProfileView(viewerId: number, targetId: number): Promise<boolean> {
+export async function shouldNotifyProfileView(viewerId: number, targetId: number, scope: "chat" | "lookup" = "chat"): Promise<boolean> {
   const db = await getDb();
   interface ProfileViewCooldownDoc { _id: string; expiresAt: Date; }
   const col = db.collection<ProfileViewCooldownDoc>("profile_view_notify_cooldown");
   try {
-    await col.insertOne({ _id: `${viewerId}:${targetId}`, expiresAt: new Date(Date.now() + VIEW_NOTIFY_COOLDOWN_MS) });
+    await col.insertOne({ _id: scope === "chat" ? `${viewerId}:${targetId}` : `${scope}:${viewerId}:${targetId}`, expiresAt: new Date(Date.now() + VIEW_NOTIFY_COOLDOWN_MS) });
     return true;
   } catch (err: any) {
     if (err?.code === 11000) return false; // notified recently, skip spamming
@@ -58,24 +59,33 @@ export function buildProfileText(lang: Language, target: UserDoc, viewer?: UserD
 
   // Verified / not-verified — always shown, per owner request, right above
   // the online/last-seen line.
+  // (The premium badge is used ONLY for verified users — an unverified user
+  // must never be shown a blue tick, so ❌ stays a plain emoji.)
+  const verifiedBadge = textEmoji("VERIFIED_BADGE", "🔵");
   const verifiedLine = target.verified
-    ? `${textEmoji("VERIFIED_BADGE", "☑️")} (کاربر تایید شده از طرف ادمین)`
-    : `${textEmoji("VERIFIED_BADGE", "❌")} (تایید نشده)`;
+    ? `${verifiedBadge} (کاربر تایید شده از طرف ادمین)`
+    : `❌ (تایید نشده)`;
 
   // Real online/offline is impossible for a bot to know (Bot API has no
   // access to Telegram's own presence system) — this is the honest
   // substitute: activity with THIS bot. See src/utils/presence.ts.
   const presenceLine = formatPresenceFa(target.lastActivityAt);
 
+  // Blue tick right next to the name for verified users.
+  const nameBadge = target.verified ? ` ${verifiedBadge}` : "";
+
+  // Every user-controlled value is HTML-escaped: this message is sent with
+  // parse_mode HTML, and one stray "<" or "&" in a bio used to make
+  // Telegram reject the whole profile.
   const lines = [
-    `${nameLine} ${target.nickname ?? "-"}`,
-    `${ageLine} ${target.age ?? "-"}`,
-    `${genderLine} ${genderText}`,
-    `${provinceLine} ${target.province ?? "-"}`,
-    `${cityLine} ${target.city ?? "-"}`,
+    `${nameLine} ${escapeHtml(target.nickname ?? "-")}${nameBadge}`,
+    `${ageLine} ${escapeHtml(target.age ?? "-")}`,
+    `${genderLine} ${escapeHtml(genderText)}`,
+    `${provinceLine} ${escapeHtml(target.province ?? "-")}`,
+    `${cityLine} ${escapeHtml(target.city ?? "-")}`,
     `⭐ سطح کاربر: ${levelDisplay(target.level)}`,
   ];
-  if (target.bio) lines.push("", `${bioLabel} ${target.bio}`);
+  if (target.bio) lines.push("", `${bioLabel} ${escapeHtml(target.bio)}`);
 
   lines.push("", verifiedLine, presenceLine);
   // Tap-to-copy id: <code> renders as monospace, which Telegram clients
@@ -137,17 +147,34 @@ export function buildProfileKeyboard(lang: Language, target: UserDoc, viewContex
   ]);
 }
 
+
+/** Sends a profile card (photo + caption, or text-only). If the photo can't
+ *  be sent (a file_id from another bot, deleted file, ...) the profile is
+ *  sent as plain text instead of the whole screen failing. */
+export async function replyWithProfile(ctx: NavaContext, target: UserDoc, viewer: UserDoc | undefined, kb: ReturnType<typeof buildProfileKeyboard> | ReturnType<typeof inlineKeyboard>): Promise<void> {
+  const text = buildProfileText(ctx.userLang, target, viewer);
+  const photo = resolveProfilePhoto(target);
+  if (photo) {
+    try {
+      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
+      return;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[profile] photo could not be sent, falling back to text:", err);
+    }
+  }
+  await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+}
+
 export async function showOwnProfile(ctx: NavaContext): Promise<void> {
   if (!ctx.dbUser) return;
-  const text = buildProfileText(ctx.userLang, ctx.dbUser);
-  const kb = inlineKeyboard([[glassButton("📝 ویرایش پروفایل", "profile:edit", "primary")]]);
-  const photo = resolveProfilePhoto(ctx.dbUser);
-
-  if (photo) {
-    await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
-  } else {
-    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+  const rows = [[glassButton("ویرایش پروفایل", "profile:edit", "primary", buttonIcon("BIOGRAPHY"))]];
+  // Right under "ویرایش پروفایل": the glass "درخواست وریفای" button (hidden
+  // once the user is already verified — nothing left to request).
+  if (!ctx.dbUser.verified) {
+    rows.push([glassButton("درخواست وریفای", VERIFY_REQUEST_CALLBACK, "primary", buttonIcon("VERIFY_REQUEST"))]);
   }
+  await replyWithProfile(ctx, ctx.dbUser, undefined, inlineKeyboard(rows));
 }
 
 export function registerProfile(composer: Composer<NavaContext>) {
@@ -184,15 +211,8 @@ export function registerProfile(composer: Composer<NavaContext>) {
     }
 
     await ctx.answerCallbackQuery();
-    const text = buildProfileText(ctx.userLang, partner, ctx.dbUser);
     const kb = buildProfileKeyboard(ctx.userLang, partner, "chat");
-    const photo = resolveProfilePhoto(partner);
-
-    if (photo) {
-      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
-    } else {
-      await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
-    }
+    await replyWithProfile(ctx, partner, ctx.dbUser, kb);
 
     if (await shouldNotifyProfileView(ctx.from!.id, partnerId)) {
       const partnerLang: Language = partner.languageCode ?? "fa";

@@ -12,6 +12,7 @@ import { showGuide1AndAge } from "./age.js";
 import { showProvinceStep } from "./province.js";
 import { showCityStep } from "./city.js";
 import { showNicknameStep } from "./nickname.js";
+import { escapeHtml } from "../../utils/html.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { requireLocked } from "../../i18n/index.js";
 import { isOwner, isAdmin } from "../admin/constants.js";
@@ -37,7 +38,7 @@ export function buildLanguageKeyboard() {
  *  always shown in Persian exactly as supplied by the project owner —
  *  the user hasn't chosen a language yet at this point. */
 export async function sendWelcome(ctx: NavaContext, firstName: string) {
-  const text = fa.onboarding.welcome!(firstName);
+  const text = fa.onboarding.welcome!(escapeHtml(firstName));
   await ctx.reply(text, { parse_mode: "HTML", reply_markup: buildLanguageKeyboard() });
 }
 

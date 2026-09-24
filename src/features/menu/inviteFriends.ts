@@ -46,11 +46,21 @@ export async function sendInviteScreen(ctx: NavaContext): Promise<void> {
   const template = await getContent("inviteMessage", defaultInviteMessageTemplate());
   const inviteText = template.split("{{link}}").join(link);
 
-  if (env.INVITE_BANNER_PHOTO) {
-    await ctx.replyWithPhoto(env.INVITE_BANNER_PHOTO, { caption: inviteText });
-  } else {
-    await ctx.reply(inviteText);
+  // (premium emoji tags inside inviteText are turned into real HTML by
+  // src/ui/telegramSafety.ts — this was the raw "<tg-emoji ...>" banner bug)
+  let sentAsPhoto = false;
+  // Telegram caps a photo caption at 1024 VISIBLE characters (tags don't count).
+  const visibleLength = inviteText.replace(/<\/?tg-emoji[^>]*>/g, "").length;
+  if (env.INVITE_BANNER_PHOTO && visibleLength <= 1024) {
+    try {
+      await ctx.replyWithPhoto(env.INVITE_BANNER_PHOTO, { caption: inviteText });
+      sentAsPhoto = true;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[invite] banner photo could not be sent (wrong file_id for this bot?):", err);
+    }
   }
+  if (!sentAsPhoto) await ctx.reply(inviteText);
 
   const count = await countReferralRewards(user._id);
   const bannerReadyEmoji = textEmoji("INVITE_BANNER_READY", "⚡️");

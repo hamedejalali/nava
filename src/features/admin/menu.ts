@@ -1,6 +1,8 @@
-import { glassReplyButton, replyKeyboard } from "../../ui/keyboard.js";
+import { glassReplyButton, replyKeyboard, iconIdOnly, type IconInput } from "../../ui/keyboard.js";
+import { VERSION_BUTTON_LABEL } from "../../config/version.js";
 import { buttonIcon } from "../../config/emojis.js";
-import { isOwner } from "./constants.js";
+import type { Composer } from "grammy";
+import { isOwner, isAdmin } from "./constants.js";
 import type { NavaContext } from "../../bot-context.js";
 
 /** Plain-text labels for the admin Reply Keyboard — Reply Keyboard buttons
@@ -9,6 +11,7 @@ import type { NavaContext } from "../../bot-context.js";
 export const ADMIN_MENU_LABELS = {
   broadcast: "📢 پیام همگانی",
   verify: "☑️ وریفای / تیک تأیید",
+  verifiedUsers: "✅ کاربران وریفای",
   userList: "👥 لیست کاربران",
   ban: "🚫 بن کاربر",
   unban: "🔓 آن‌بن کاربر",
@@ -27,6 +30,17 @@ export const ADMIN_MENU_LABELS = {
   close: "❌ بستن پنل",
 } as const;
 
+/** Silently swallows taps on the version button (and removes the echoed
+ *  message from the chat so literally nothing visible happens). Must be
+ *  registered before any generic admin text handler. */
+export function registerAdminVersionButton(composer: Composer<NavaContext>) {
+  composer.on("message:text", async (ctx, next) => {
+    if (ctx.message.text.trim() !== VERSION_BUTTON_LABEL) return next();
+    if (!isAdmin(ctx)) return next();
+    await ctx.deleteMessage().catch(() => {});
+  });
+}
+
 /** Items only the owner should see/use (dynamic admin management, granting
  *  user levels, and fully wiping a user's profile — all irreversible or
  *  security-sensitive enough to keep away from regular admins). */
@@ -34,9 +48,10 @@ const OWNER_ONLY: string[] = [ADMIN_MENU_LABELS.moderators, ADMIN_MENU_LABELS.le
 
 export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const owner = isOwner(ctx);
-  const entries: Array<{ label: string; icon?: string }> = [
+  const entries: Array<{ label: string; icon?: IconInput }> = [
     { label: ADMIN_MENU_LABELS.broadcast, icon: buttonIcon("BROADCAST") },
     { label: ADMIN_MENU_LABELS.verify, icon: buttonIcon("VERIFIED_BADGE") },
+    { label: ADMIN_MENU_LABELS.verifiedUsers, icon: buttonIcon("VERIFIED_BADGE") },
     { label: ADMIN_MENU_LABELS.userList, icon: buttonIcon("USERS") },
     { label: ADMIN_MENU_LABELS.ban, icon: buttonIcon("BAN") },
     { label: ADMIN_MENU_LABELS.unban, icon: buttonIcon("UNBAN") },
@@ -57,8 +72,11 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const rows = [];
   for (let i = 0; i < entries.length; i += 2) {
     const chunk = entries.slice(i, i + 2);
-    rows.push(chunk.map((e, j) => glassReplyButton(e.label, (i + j) % 2 === 0 ? "primary" : "success", e.icon)));
+    rows.push(chunk.map((e, j) => glassReplyButton(e.label, (i + j) % 2 === 0 ? "primary" : "success", iconIdOnly(e.icon))));
   }
+  // Version button: does nothing when tapped (see registerAdminVersionButton)
+  // — it only exists to show which build is deployed.
+  rows.push([glassReplyButton(VERSION_BUTTON_LABEL, "primary")]);
   rows.push([glassReplyButton(ADMIN_MENU_LABELS.close, "danger")]);
 
   return replyKeyboard(rows);

@@ -459,6 +459,16 @@ export async function listUsersPage(skip: number, limit: number): Promise<{ user
   return { users, total };
 }
 
+export async function countVerifiedUsers(): Promise<number> {
+  const col = await usersCollection();
+  return col.countDocuments({ verified: true });
+}
+
+export async function listVerifiedUsersPage(skip: number, limit: number): Promise<UserDoc[]> {
+  const col = await usersCollection();
+  return col.find({ verified: true }).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
+}
+
 export async function getUserStats(): Promise<{
   totalUsers: number;
   completedOnboarding: number;

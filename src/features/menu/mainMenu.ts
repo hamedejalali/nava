@@ -82,21 +82,28 @@ type MenuAction = keyof typeof MENU_CALLBACKS;
 const LOCALES: Language[] = ["fa", "en", "ar"];
 
 /** text (in ANY supported language) -> which main-menu action it means.
- *  Built once at module load from the same locked i18n strings the
- *  keyboard itself is rendered with, so it can never drift out of sync. */
+ *  Built once at module load from the same dictionaries the keyboard is
+ *  rendered with. Languages whose labels are not supplied yet (en/ar) are
+ *  simply skipped — they must never crash the bot or collide with each
+ *  other. */
 const LABEL_TO_ACTION: Map<string, MenuAction> = (() => {
   const map = new Map<string, MenuAction>();
   for (const lang of LOCALES) {
-    const t = dictionary(lang);
-    const m = t.mainMenu;
+    const m = dictionary(lang).mainMenu as Record<string, string | undefined>;
     for (const key of Object.keys(MENU_CALLBACKS) as MenuAction[]) {
-      const label = requireLocked(lang, `mainMenu.${key}`, m[key]);
-      map.set(label, key);
+      const label = m[key];
+      if (label) map.set(label, key);
     }
   }
   return map;
 })();
 
+/** Drops leading emoji/symbols/spaces, so a tap on "🎭 <label>" (the plain
+ *  emoji that replaces a removed premium icon) still matches "<label>". */
+function stripLeadingSymbols(text: string): string {
+  return text.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+}
+
 export function matchMainMenuAction(text: string): MenuAction | undefined {
-  return LABEL_TO_ACTION.get(text);
+  return LABEL_TO_ACTION.get(text) ?? LABEL_TO_ACTION.get(stripLeadingSymbols(text));
 }

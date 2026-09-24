@@ -10,8 +10,9 @@ import { createEditRequest, decideEditRequest, getEditRequest } from "../../db/m
 import { getAllAdminIds } from "../admin/constants.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { showOwnProfile } from "./profile.js";
-import { textEmoji } from "../../config/emojis.js";
+import { buttonIcon } from "../../config/emojis.js";
 import { startVerifyRequest } from "./verifyFlow.js";
+import { VERIFY_REQUEST_CALLBACK } from "./constants.js";
 
 const MIN_AGE = 9;
 const MAX_AGE = 99;
@@ -48,7 +49,7 @@ const EDIT_CALLBACKS = {
   location: "profile:edit:location",
   requestNickname: "profile:edit:req_nickname",
   requestAge: "profile:edit:req_age",
-  requestVerify: "profile:edit:req_verify",
+  requestVerify: VERIFY_REQUEST_CALLBACK,
   cancel: "profile:edit:cancel",
 };
 
@@ -68,7 +69,9 @@ function editMenuKeyboard() {
     [glassButton("📍 ثبت موقعیت مکانی", EDIT_CALLBACKS.location, "primary")],
     [glassButton("✏️ درخواست تغییر نام", EDIT_CALLBACKS.requestNickname, "danger")],
     [glassButton("✏️ درخواست تغییر سن", EDIT_CALLBACKS.requestAge, "danger")],
-    [glassButton(`درخواست وریفای ${textEmoji("VERIFY_REQUEST", "🔵")}`, EDIT_CALLBACKS.requestVerify, "primary")],
+    // Emoji on a BUTTON must go through the icon field (never a <tg-emoji>
+    // tag in the label — that was the raw-HTML-on-button bug).
+    [glassButton("درخواست وریفای", EDIT_CALLBACKS.requestVerify, "primary", buttonIcon("VERIFY_REQUEST"))],
     [glassButton("❌ انصراف", EDIT_CALLBACKS.cancel, "danger")],
   ]);
 }

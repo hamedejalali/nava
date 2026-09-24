@@ -1,5 +1,6 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
+import { escapeHtml } from "../../utils/html.js";
 import { textEmoji } from "../../config/emojis.js";
 import { isOwner, isAdmin } from "./constants.js";
 import { buildAdminReplyKeyboard, ADMIN_MENU_LABELS } from "./menu.js";
@@ -21,7 +22,7 @@ export async function sendOwnerAdminWelcome(ctx: NavaContext, user: UserDoc, fir
     await usersCollectionDirectSet(user._id, { onboardingStep: "COMPLETED" });
   }
 
-  await ctx.reply(`سلام ${firstName} ${badge}\n\nخوش اومدی ${roleLabel} عزیز — پنل مدیریت روی کیبورد بازه 👇`, {
+  await ctx.reply(`سلام ${escapeHtml(firstName)} ${badge}\n\nخوش اومدی ${roleLabel} عزیز — پنل مدیریت روی کیبورد بازه 👇`, {
     parse_mode: "HTML",
     reply_markup: buildAdminReplyKeyboard(ctx),
   });

@@ -77,6 +77,34 @@ export const env = {
   get VERIFY_REJECTED_PHOTO() {
     return optional("VERIFY_REJECTED_PHOTO");
   },
+  /** Photo sent with the "your blue tick was removed" notice (admin panel
+   *  "لغو وریفای"). Falls back to VERIFY_REJECTED_PHOTO, then to text only. */
+  get VERIFY_REVOKED_PHOTO() {
+    return optional("VERIFY_REVOKED_PHOTO") ?? optional("VERIFY_REJECTED_PHOTO");
+  },
+
+  /** Cost (in Relic) a profile owner pays to see WHO looked up their Nava
+   *  ID while the viewer was not in a chat. Default 10. */
+  get PROFILE_VIEW_REVEAL_COST(): number {
+    const n = Number(optional("PROFILE_VIEW_REVEAL_COST"));
+    return Number.isInteger(n) && n > 0 ? n : 10;
+  },
+
+  /** By default an admin/owner looking a user up (moderation) is SILENT —
+   *  the user gets no notice. Set to "true" to make admin lookups behave
+   *  like normal users' (handy while testing the paid-reveal flow with
+   *  your admin account). */
+  get PROFILE_VIEW_NOTIFY_ADMIN_LOOKUPS(): boolean {
+    return ["true", "1", "on", "yes"].includes((optional("PROFILE_VIEW_NOTIFY_ADMIN_LOOKUPS") ?? "").toLowerCase());
+  },
+
+  /** Master switch for ALL premium (custom) emoji. Set to "false"/"0"/"off"
+   *  to instantly fall back to normal emoji everywhere without touching
+   *  the individual EMOJI_PREMIUM_* values. Default: on. */
+  get PREMIUM_EMOJI_ENABLED(): boolean {
+    const raw = (optional("PREMIUM_EMOJI_ENABLED") ?? "true").toLowerCase();
+    return !["false", "0", "off", "no"].includes(raw);
+  },
 
   sightengine: {
     get apiUser() {

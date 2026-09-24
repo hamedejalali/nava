@@ -35,3 +35,7 @@ export const CHAT_CALLBACKS = {
   report: "profile:report",
   notifyOnEnd: "profile:notify_on_end",
 } as const;
+
+/** "درخواست وریفای" — shown under "ویرایش پروفایل" on the user's own profile
+ *  and inside the edit menu; both open the same verify flow. */
+export const VERIFY_REQUEST_CALLBACK = "profile:edit:req_verify";

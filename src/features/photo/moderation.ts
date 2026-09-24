@@ -1,12 +1,12 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { env } from "../../config/env.js";
 import { dictionary, requireLocked } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { createModerationRecord, decideModerationRecord, type ImageModerationDoc } from "../../db/models/imageModeration.js";
 import { setProfilePhoto, getUser, type UserDoc } from "../../db/models/user.js";
 import { checkImage } from "../../services/sightengine.js";
 import { buildSupportButton } from "../support/index.js";
+import { getAllAdminIds, isAdmin } from "../admin/constants.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
 import { deliverApprovedChatImage, notifyRejectedChatImage } from "../matching/chatImage.js";
 
@@ -33,7 +33,10 @@ export function registerPhotoUpload(composer: Composer<NavaContext>) {
     if (!user || user.activeChatSessionId || user.onboardingStep !== "COMPLETED") {
       return next(); // handled elsewhere (chat image) or not a valid context yet
     }
-    if (env.ADMIN_IDS.length === 0) {
+    // Owner + ADMIN_IDS + admins granted from the panel (was: ADMIN_IDS
+    // only — with just OWNER_ID set every photo upload failed).
+    const adminIds = await getAllAdminIds();
+    if (adminIds.length === 0) {
       const t = dictionary(ctx.userLang);
       await ctx.reply(t.errors.generic);
       return;
@@ -78,7 +81,7 @@ export function registerPhotoUpload(composer: Composer<NavaContext>) {
       ],
     ]);
 
-    for (const adminId of env.ADMIN_IDS) {
+    for (const adminId of adminIds) {
       await ctx.api.sendPhoto(adminId, largest.file_id, { caption: adminCaption(user), reply_markup: keyboard }).catch(() => {});
     }
 
@@ -107,7 +110,7 @@ async function handleProfilePhotoDecision(ctx: NavaContext, doc: ImageModeration
 
 export function registerImageModerationDecisions(composer: Composer<NavaContext>) {
   composer.callbackQuery(/^modimg:(approve|reject):(.+)$/, async (ctx) => {
-    if (!env.ADMIN_IDS.includes(ctx.from!.id)) {
+    if (!isAdmin(ctx)) {
       await ctx.answerCallbackQuery();
       return;
     }

@@ -9,6 +9,7 @@ import { setAdminFlow, getAdminFlow } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { isFlowCancelSignal } from "./flowState.js";
+import { notifyVerificationChange } from "./verifyNotify.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 
@@ -79,6 +80,8 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     const updated = await setVerified(targetId, !target.verified);
     await logAdminAction(ctx.from!.id, "toggle_verify", String(targetId));
     await ctx.answerCallbackQuery({ text: updated?.verified ? "وریفای شد ✅" : "وریفای برداشته شد" });
+    // The user gets a notice (with photo) about the change.
+    await notifyVerificationChange(ctx.api, targetId, !!updated?.verified);
   });
 
   composer.callbackQuery(/^admin:userlist:(\d+)$/, async (ctx) => {
@@ -153,7 +156,9 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     if (flow.flow === "verify") {
       const updated = await setVerified(target._id, !target.verified);
       await logAdminAction(ctx.from!.id, "toggle_verify", String(target._id));
-      await ctx.reply(updated?.verified ? `✅ @${target.anonId} وریفای شد.` : `@${target.anonId} وریفای برداشته شد.`);
+      const notified = await notifyVerificationChange(ctx.api, target._id, !!updated?.verified);
+      const notifiedLine = notified ? "\n📨 اعلان برای کاربر ارسال شد." : "\n⚠️ اعلان به کاربر نرسید (احتمالاً ربات رو بلاک کرده).";
+      await ctx.reply((updated?.verified ? `✅ @${target.anonId} وریفای شد.` : `@${target.anonId} وریفای برداشته شد.`) + notifiedLine);
       return;
     }
     await showFullProfile(ctx, target);

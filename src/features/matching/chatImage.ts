@@ -1,6 +1,6 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { env } from "../../config/env.js";
+import { getAllAdminIds } from "../admin/constants.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { getSession, otherParticipant } from "../../db/models/chatSession.js";
 import { createModerationRecord, type ImageModerationDoc } from "../../db/models/imageModeration.js";
@@ -65,7 +65,7 @@ export function registerChatImageModeration(composer: Composer<NavaContext>) {
       ],
     ]);
 
-    for (const adminId of env.ADMIN_IDS) {
+    for (const adminId of await getAllAdminIds()) {
       await ctx.api
         .sendPhoto(adminId, largest.file_id, {
           caption: `📸 عکس مشکوک در چت ناشناس\n\nفرستنده (آیدی تلگرام): ${ctx.from!.id}\nشناسه‌ی چت: ${sessionId}`,

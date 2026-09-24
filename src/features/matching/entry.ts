@@ -9,23 +9,7 @@ import { requireChannelMembership } from "../forcejoin/guard.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
 import { PARTNER_TYPE_CALLBACKS } from "./constants.js";
 
-// LOCKED default (Feature 05) — must match the admin's "پیام پین" default
-// exactly. Duplicated as a plain string here (rather than importing from
-// the admin module) to avoid a feature -> admin dependency; the single
-// source of truth for the CURRENT value is always MongoDB via getContent.
-const DEFAULT_PINNED_PROMO =
-  "💰 میخوای از تلگرامت درآمد ملیونی داشته باشی؟ 🤔\n\n" +
-  "🧐 شاید باور نکنی ولی اگر بخوای میتونی خیلی راحت از ربات هایپر گپ درآمد داشته باشی!💰\n\n" +
-  "❗️ حتما میگی چطوری؟ مگه میشه!🤔\n\n" +
-  "🔺 بله که میشه چرا نشه!😍\n\n" +
-  "بیا به لینک پایین آموزش ها رو برات گذاشتم! 😍👇\n\n" +
-  "📎 https://t.me/pAd/26\n" +
-  "📎 https://t.me/Hy\n\n" +
-  "👌 بدو بیا که منتظرتما!.. 👆\n\n" +
-  "📢 اسکرین درآمد های پرداخت شده➕نمایش کل درآمد کاربران تا این لحظه 🤑👇\n\n" +
-  "📎 https://t.me/+CnxZ2FmW64I3MGFk\n" +
-  "📎 https://t.me/+CnxZ2FmW64I3MGFk\n\n" +
-  "✅ باور نداری بزن رو لینک بالا اسکرین ها رو ببین!👌👆";
+import { DEFAULT_PINNED_PROMO } from "../../config/defaultTexts.js";
 
 function buildPartnerTypeKeyboard(lang: Language) {
   const t = dictionary(lang);

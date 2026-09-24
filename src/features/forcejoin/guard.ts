@@ -3,6 +3,7 @@ import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, glassUrlButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon, textEmoji } from "../../config/emojis.js";
 import { listActiveChannels, type RequiredChannelDoc } from "../../db/models/channel.js";
+import { escapeHtml } from "../../utils/html.js";
 import { FORCE_JOIN_VERIFY_CALLBACK } from "./constants.js";
 
 /** Checks the user's live Telegram membership for every required channel.
@@ -28,7 +29,7 @@ export async function isMemberOfAll(ctx: NavaContext, channels: RequiredChannelD
 }
 
 function buildChannelLines(channels: RequiredChannelDoc[]): string {
-  return channels.map((c) => `${textEmoji("CHANNEL", "📣")} ${c.handle}`).join("\n");
+  return channels.map((c) => `${textEmoji("CHANNEL", "📣")} ${escapeHtml(c.handle)}`).join("\n");
 }
 
 function buildForceJoinKeyboard(channels: RequiredChannelDoc[], verifyLabel: string) {
@@ -48,7 +49,7 @@ export async function sendForceJoinScreen(ctx: NavaContext, lang: Language, chan
   const t = dictionary(lang);
   const nickname = ctx.dbUser?.nickname ?? ctx.from?.first_name ?? "";
 
-  const intro = requireLocked(lang, "forceJoin.messageIntro", t.forceJoin.messageIntro)(nickname);
+  const intro = requireLocked(lang, "forceJoin.messageIntro", t.forceJoin.messageIntro)(escapeHtml(nickname));
   const outro = requireLocked(lang, "forceJoin.messageOutro", t.forceJoin.messageOutro);
   const verifyLabel = requireLocked(lang, "forceJoin.verifyButton", t.forceJoin.verifyButton);
 

@@ -8,8 +8,9 @@
  */
 const ONLINE_WINDOW_MS = 3 * 60 * 1000; // "recently active" = last 3 minutes
 
-export function formatPresenceFa(lastActivityAt: Date): string {
-  const diffMs = Date.now() - lastActivityAt.getTime();
+export function formatPresenceFa(lastActivityAt: Date | undefined): string {
+  if (!lastActivityAt) return "⚪️ آخرین بازدید: نامشخص";
+  const diffMs = Date.now() - new Date(lastActivityAt).getTime();
   if (diffMs <= ONLINE_WINDOW_MS) return "🟢 آنلاین";
 
   const minutes = Math.floor(diffMs / 60000);

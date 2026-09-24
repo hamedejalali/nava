@@ -39,9 +39,18 @@ import { registerAdminBroadcast } from "./features/admin/broadcast.js";
 import { registerOwnerAdminPanelClose } from "./features/admin/ownerBypass.js";
 import { getAllAdminIds } from "./features/admin/constants.js";
 import { registerMainMenuRouter } from "./features/menu/mainMenuRouter.js";
+import { escapeHtml } from "./utils/html.js";
+import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
+import { registerAdminVerifiedUsers } from "./features/admin/verifiedUsers.js";
+import { registerProfileReveal } from "./features/matching/profileReveal.js";
+import { ensureProfileRevealIndexes } from "./db/models/profileReveal.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
+
+  // Every outgoing request passes through the emoji/HTML safety net — see
+  // src/ui/telegramSafety.ts for what it guarantees.
+  bot.api.config.use(telegramSafetyTransformer);
 
   // Fire-and-forget index setup — runs once per cold start (createBot is
   // only called once per warm container). createIndexes is idempotent, so
@@ -53,6 +62,7 @@ export function createBot(): Bot<NavaContext> {
     ensureProfileViewIndexes(),
     ensureRateLimitIndexes(),
     ensureImageModerationIndexes(),
+    ensureProfileRevealIndexes(),
   ]).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[bot] Index setup failed (will retry on next cold start):", err);
@@ -77,8 +87,8 @@ export function createBot(): Bot<NavaContext> {
         const usernamePart = from.username ? `@${from.username}` : "-";
         const notifyText =
           `👤 کاربر جدید به ربات پیوست\n\n` +
-          `نام: ${from.first_name}${from.last_name ? " " + from.last_name : ""}\n` +
-          `یوزرنیم: ${usernamePart}\n` +
+          `نام: ${escapeHtml(from.first_name)}${from.last_name ? " " + escapeHtml(from.last_name) : ""}\n` +
+          `یوزرنیم: ${escapeHtml(usernamePart)}\n` +
           `آیدی عددی: ${from.id}\n` +
           `آیدی ناشناس: <code>${user.anonId}</code>`;
 
@@ -154,6 +164,8 @@ export function createBot(): Bot<NavaContext> {
   registerAdminSettings(features);
   registerAdminReports(features);
   registerAdminBroadcast(features);
+  registerAdminVerifiedUsers(features);
+  registerProfileReveal(features);
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
   registerOnboarding(features);

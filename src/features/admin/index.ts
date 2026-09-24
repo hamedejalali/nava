@@ -4,8 +4,10 @@ import { registerAdminPanel } from "./panel.js";
 import { registerAdminGuides } from "./guides.js";
 import { registerAdminChannels } from "./channels.js";
 import { registerAdminRelic } from "./relic.js";
+import { registerAdminVersionButton } from "./menu.js";
 
 export function registerAdmin(composer: Composer<NavaContext>) {
+  registerAdminVersionButton(composer);
   registerAdminPanel(composer);
   registerAdminGuides(composer);
   registerAdminChannels(composer);

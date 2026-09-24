@@ -17,7 +17,10 @@ const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
   body: JSON.stringify({
     url,
     secret_token: secret,
-    allowed_updates: ["message", "callback_query"],
+    // pre_checkout_query is REQUIRED for Telegram Stars payments: without it
+    // Telegram never delivers the pre-checkout update, the bot can't answer
+    // it, and every purchase fails with a timeout.
+    allowed_updates: ["message", "callback_query", "pre_checkout_query"],
     drop_pending_updates: false,
   }),
 });

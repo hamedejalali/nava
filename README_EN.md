@@ -1,4 +1,4 @@
-# Nava Bot — Version 1
+# Nava Bot — Version 1.1.1
 
 A Persian anonymous chat & matchmaking Telegram bot. Node.js + TypeScript + grammY + MongoDB + Vercel Serverless.
 

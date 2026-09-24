@@ -18,15 +18,7 @@ const DEFAULT_GUIDE_TEXT = "به نوا خوش اومدی! هر سوالی دا�
 // LOCKED default (Feature 05) — "هایپر گپ" replaced with "نوا" per owner
 // request (Feature 05 of the second feature batch). Admin may edit it
 // afterward via the same "ویرایش راهنما ها" workflow regardless.
-const DEFAULT_PINNED_PROMO =
-  "💰 میخوای از تلگرامت درآمد ملیونی داشته باشی؟ 🤔\n\n" +
-  "🧐 شاید باور نکنی ولی اگر بخوای میتونی خیلی راحت از ربات نوا درآمد داشته باشی!💰\n\n" +
-  "❗️ حتما میگی چطوری؟ مگه میشه!🤔\n\n" +
-  "🔺 بله که میشه چرا نشه!😍\n\n" +
-  "بیا به لینک پایین آموزش ها رو برات گذاشتم! 😍👇\n\n" +
-  "👌 بدو بیا که منتظرتما!.. 👆\n\n" +
-  "📢 اسکرین درآمد های پرداخت شده➕نمایش کل درآمد کاربران تا این لحظه 🤑👇\n\n" +
-  "✅ باور نداری بزن رو لینک بالا اسکرین ها رو ببین!👌👆";
+import { DEFAULT_PINNED_PROMO } from "../../config/defaultTexts.js";
 
 // LOCKED default (Feature "RULES") — "هایپر گپ" replaced with "نوا" per
 // owner request (Feature 05 of the second feature batch).

@@ -6,7 +6,7 @@ import { blockUser } from "../../db/models/blocks.js";
 import { getUser, setActiveChatSession } from "../../db/models/user.js";
 import { getSession, otherParticipant, endSessionOnce } from "../../db/models/chatSession.js";
 import { CHAT_CALLBACKS } from "./constants.js";
-import { buildProfileText, buildProfileKeyboard, resolveProfilePhoto } from "./profile.js";
+import { buildProfileKeyboard, replyWithProfile } from "./profile.js";
 
 const CB = {
   remove: "contacts:remove:", // + targetId
@@ -60,14 +60,7 @@ export function registerContacts(composer: Composer<NavaContext>) {
       return;
     }
     await ctx.answerCallbackQuery();
-    const text = buildProfileText(ctx.userLang, target, ctx.dbUser);
-    const kb = buildProfileKeyboard(ctx.userLang, target, "lookup");
-    const photo = resolveProfilePhoto(target);
-    if (photo) {
-      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
-    } else {
-      await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
-    }
+    await replyWithProfile(ctx, target, ctx.dbUser, buildProfileKeyboard(ctx.userLang, target, "lookup"));
   });
 
   composer.callbackQuery(new RegExp(`^${CHAT_CALLBACKS.block}:(\\d+)$`), async (ctx) => {

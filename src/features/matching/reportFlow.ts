@@ -10,6 +10,7 @@ import { getUser } from "../../db/models/user.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { textEmoji } from "../../config/emojis.js";
+import { escapeHtml } from "../../utils/html.js";
 
 interface ReportFlowDoc {
   _id: number; // reporter's telegram id
@@ -131,7 +132,7 @@ async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId
 
   const identity = reportIdentityBlock(ctx.from!.id, ctx.dbUser?.anonId ?? "-", ctx.from?.username, target, undefined);
   const caption =
-    `⚠️ گزارش جدید\n\n${identity}\n\n` + `دلیل: ${flow.reason}\n` + `شناسه گزارش: <code>${report._id}</code>`;
+    `⚠️ گزارش جدید\n\n${identity}\n\n` + `دلیل: ${escapeHtml((flow.reason ?? "").slice(0, 600))}\n` + `شناسه گزارش: <code>${report._id}</code>`;
 
   const decisionKb = inlineKeyboard([
     [

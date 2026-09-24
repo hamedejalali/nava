@@ -24,6 +24,7 @@ export type RelicTransactionType =
   | "PROFILE_COMPLETION_REWARD"
   | "REPORT_REWARD"
   | "WALLET_MINING"
+  | "PROFILE_VIEW_REVEAL"
   | "ADMIN_ADJUSTMENT"
   | "BONUS";
 
@@ -116,6 +117,45 @@ export async function chargeChatCost(userId: number, sessionId: string, usersCol
     },
     { session: mongoSession }
   );
+}
+
+/** Atomically deducts `amount` Relic inside the caller's transaction and
+ *  writes the matching ledger row (deterministic `ledgerId` => idempotent).
+ *  Returns false — WITHOUT writing anything — when the balance is too low,
+ *  so the caller decides whether to abort. */
+export async function chargeRelicInSession(
+  userId: number,
+  amount: number,
+  ledgerId: string,
+  type: RelicTransactionType,
+  reference: string,
+  mongoSession: ClientSession
+): Promise<boolean> {
+  const db = await getDb();
+  const usersCol = db.collection<any>("users");
+  const debited = await usersCol.findOneAndUpdate(
+    { _id: userId, relicBalance: { $gte: amount } },
+    { $inc: { relicBalance: -amount } },
+    { session: mongoSession }
+  );
+  if (!debited) return false;
+
+  const ledger = await ledgerCollection();
+  await ledger.insertOne(
+    {
+      _id: ledgerId,
+      userId,
+      amount: -amount,
+      type,
+      status: "completed",
+      reference,
+      sourceApp: "nava",
+      createdAt: new Date(),
+      completedAt: new Date(),
+    },
+    { session: mongoSession }
+  );
+  return true;
 }
 
 /** Issues the 1-Relic chat refund exactly once per session, per the

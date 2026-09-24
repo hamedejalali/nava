@@ -14,7 +14,31 @@
  * same color-cycling behavior for free.
  */
 
+import type { ButtonIcon } from "../config/emojis.js";
+
 export type GlassStyle = "primary" | "success" | "danger";
+
+/** What callers may pass as the button icon: the result of
+ *  `buttonIcon(...)` (preferred), or a raw custom-emoji id string. */
+export type IconInput = ButtonIcon | string | undefined;
+
+/** Premium ID only (never the plain fallback) — for buttons whose label
+ *  already contains its own plain emoji (e.g. the admin panel). */
+export function iconIdOnly(icon: IconInput): string | undefined {
+  if (!icon) return undefined;
+  return typeof icon === "string" ? icon : icon.id;
+}
+
+/** Resolves an icon into either an `icon_custom_emoji_id` (premium) or a
+ *  plain emoji prefixed to the label (normal emoji fallback), so a button
+ *  ALWAYS shows an emoji and never breaks when a premium ID is removed. */
+function withIcon(text: string, icon: IconInput, plainFallbackInText: boolean): { text: string; iconId?: string } {
+  if (!icon) return { text };
+  if (typeof icon === "string") return { text, iconId: icon };
+  if (icon.id) return { text, iconId: icon.id };
+  if (!plainFallbackInText || !icon.fallback) return { text };
+  return { text: `${icon.fallback} ${text}` };
+}
 
 const STYLE_CYCLE: readonly GlassStyle[] = ["primary", "success", "danger"];
 
@@ -39,20 +63,22 @@ export interface GlassUrlButton {
 }
 
 /**
- * Builds a callback-data Glass button. `iconCustomEmojiId` should come from
- * src/config/emojis.ts (`buttonIcon(...)`) — pass undefined when the
- * corresponding Premium Emoji hasn't been configured yet; the button simply
- * renders without an icon in that case (never crashes).
+ * Builds a callback-data Glass button. `icon` should come from
+ * src/config/emojis.ts (`buttonIcon(...)`): with a premium ID configured
+ * the button shows that premium emoji; without one, the plain fallback
+ * emoji is put in front of the label instead (never crashes, never blank).
  */
-export function glassButton(text: string, callbackData: string, style: GlassStyle, iconCustomEmojiId?: string): GlassCallbackButton {
-  const button: GlassCallbackButton = { text, callback_data: callbackData, style };
-  if (iconCustomEmojiId) button.icon_custom_emoji_id = iconCustomEmojiId;
+export function glassButton(text: string, callbackData: string, style: GlassStyle, icon?: IconInput): GlassCallbackButton {
+  const resolved = withIcon(text, icon, true);
+  const button: GlassCallbackButton = { text: resolved.text, callback_data: callbackData, style };
+  if (resolved.iconId) button.icon_custom_emoji_id = resolved.iconId;
   return button;
 }
 
-export function glassUrlButton(text: string, url: string, style: GlassStyle, iconCustomEmojiId?: string): GlassUrlButton {
-  const button: GlassUrlButton = { text, url, style };
-  if (iconCustomEmojiId) button.icon_custom_emoji_id = iconCustomEmojiId;
+export function glassUrlButton(text: string, url: string, style: GlassStyle, icon?: IconInput): GlassUrlButton {
+  const resolved = withIcon(text, icon, true);
+  const button: GlassUrlButton = { text: resolved.text, url, style };
+  if (resolved.iconId) button.icon_custom_emoji_id = resolved.iconId;
   return button;
 }
 
@@ -84,9 +110,13 @@ export interface GlassReplyButton {
  *  genuinely colorful too, not just plain text. Tapping one sends its
  *  `text` back as an ordinary text message (there is no callback_data for
  *  reply-keyboard buttons); handlers match on that text. */
-export function glassReplyButton(text: string, style: GlassStyle, iconCustomEmojiId?: string): GlassReplyButton {
-  const button: GlassReplyButton = { text, style };
-  if (iconCustomEmojiId) button.icon_custom_emoji_id = iconCustomEmojiId;
+export function glassReplyButton(text: string, style: GlassStyle, icon?: IconInput): GlassReplyButton {
+  // NOTE: when the plain fallback is put in front of the label, the tap
+  // arrives as "<emoji> <label>" — handlers that match labels must strip
+  // the leading emoji first (see matchMainMenuAction).
+  const resolved = withIcon(text, icon, true);
+  const button: GlassReplyButton = { text: resolved.text, style };
+  if (resolved.iconId) button.icon_custom_emoji_id = resolved.iconId;
   return button;
 }
 

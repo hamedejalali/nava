@@ -1,9 +1,10 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { getUserByAnonId } from "../../db/models/user.js";
-import { textEmoji } from "../../config/emojis.js";
-import { buildProfileText, buildProfileKeyboard, resolveProfilePhoto, shouldNotifyProfileView } from "./profile.js";
+import { env } from "../../config/env.js";
+import { isAdmin } from "../admin/constants.js";
+import { sendRevealNotification } from "./profileReveal.js";
+import { buildProfileKeyboard, replyWithProfile, shouldNotifyProfileView } from "./profile.js";
 
 const ANON_ID_PATTERN = /^[@/]?(user_[A-Za-z0-9]{6})$/;
 
@@ -28,26 +29,18 @@ export function registerProfileLookup(composer: Composer<NavaContext>) {
       return;
     }
 
-    const text = buildProfileText(ctx.userLang, target, ctx.dbUser);
-    const kb = buildProfileKeyboard(ctx.userLang, target, "lookup");
-    const photo = resolveProfilePhoto(target);
+    await replyWithProfile(ctx, target, ctx.dbUser, buildProfileKeyboard(ctx.userLang, target, "lookup"));
 
-    if (photo) {
-      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
-    } else {
-      await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
-    }
+    // Admins/owner looking users up (moderation) never trigger anything on
+    // the other side — no notice, no charge.
+    if (isAdmin(ctx) && !env.PROFILE_VIEW_NOTIFY_ADMIN_LOOKUPS) return;
 
-    // Same "someone viewed your profile" notification as the in-chat
-    // partner-profile button — one shared cooldown, so a user can't be
-    // spammed by repeated lookups either.
-    if (!(await shouldNotifyProfileView(ctx.dbUser._id, target._id))) return;
-
-    const targetLang: Language = target.languageCode ?? "fa";
-    const t = dictionary(targetLang);
-    const notifyTemplate = requireLocked(targetLang, "matching.profileViewNotification", t.matching.profileViewNotification);
-    const navaEmoji = textEmoji("NAVA", "🌐");
-    const notifyText = notifyTemplate.split("{{NAVA_EMOJI}}").join(navaEmoji);
-    await ctx.api.sendMessage(target._id, notifyText, { parse_mode: "HTML" }).catch(() => {});
+    // NEW behaviour (only when the viewer is NOT in a chat): the profile
+    // owner gets an ANONYMOUS notice with a "پرداخت" button; paying
+    // PROFILE_VIEW_REVEAL_COST Relic reveals who looked. The old
+    // "مخاطب شما پروفایلِ نوا شما را مشاهده کرد" text is only for the
+    // in-chat "پروفایل مخاطب" button (see profile.ts).
+    if (!(await shouldNotifyProfileView(ctx.dbUser._id, target._id, "lookup"))) return;
+    await sendRevealNotification(ctx.api, ctx.dbUser._id, target);
   });
 }

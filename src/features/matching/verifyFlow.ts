@@ -8,6 +8,8 @@ import { getUser, setVerified } from "../../db/models/user.js";
 import { getAllAdminIds, isOwner } from "../admin/constants.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { getContent } from "../../db/models/content.js";
+import { escapeHtml } from "../../utils/html.js";
+import { notifyVerificationChange, sendPhotoOrText } from "../admin/verifyNotify.js";
 
 const VERIFY_TERMS_TEXT =
   "⚠️ قوانین و شرایط وریفای\n\n" +
@@ -61,12 +63,18 @@ export async function startVerifyRequest(ctx: NavaContext): Promise<void> {
     ],
   ]);
 
+  // The terms text is ~1300 chars, but Telegram caps a PHOTO caption at
+  // 1024 — sending it as a caption made this whole screen fail whenever a
+  // sample photo was configured. So: sample photo first, then the terms as
+  // a normal message carrying the buttons.
   if (photos.length > 0) {
     const chosen = photos[Math.floor(Math.random() * photos.length)]!;
-    await ctx.replyWithPhoto(chosen, { caption: VERIFY_TERMS_TEXT, reply_markup: kb });
-  } else {
-    await ctx.reply(VERIFY_TERMS_TEXT, { reply_markup: kb });
+    await ctx.replyWithPhoto(chosen).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("[verify] sample photo could not be sent (wrong file_id for this bot?):", err);
+    });
   }
+  await ctx.reply(VERIFY_TERMS_TEXT, { reply_markup: kb });
 }
 
 export function registerVerifyFlow(composer: Composer<NavaContext>) {
@@ -142,14 +150,9 @@ export function registerVerifyFlow(composer: Composer<NavaContext>) {
 
     await col.deleteOne({ _id: ctx.from!.id });
     const supportId = await getContent("supportId", "");
-    const supportLine = supportId ? `\n\nاگر اعتراض داری، به آیدی پشتیبانی پیام بده: ${supportId}` : "";
-    const rejectionText = `❌ درخواست وریفای شما رد شد.\n\nدلیل: ${text}${supportLine}`;
-
-    if (env.VERIFY_REJECTED_PHOTO) {
-      await ctx.api.sendPhoto(flow.targetId, env.VERIFY_REJECTED_PHOTO, { caption: rejectionText }).catch(() => {});
-    } else {
-      await ctx.api.sendMessage(flow.targetId, rejectionText).catch(() => {});
-    }
+    const supportLine = supportId ? `\n\nاگر اعتراض داری، به آیدی پشتیبانی پیام بده: ${escapeHtml(supportId)}` : "";
+    const rejectionHtml = `❌ درخواست وریفای شما رد شد.\n\nدلیل: ${escapeHtml(text)}${supportLine}`;
+    await sendPhotoOrText(ctx.api, flow.targetId, env.VERIFY_REJECTED_PHOTO, rejectionHtml);
     await ctx.reply("✅ دلیل رد برای کاربر ارسال شد.");
   });
 }
@@ -186,12 +189,7 @@ async function decide(ctx: NavaContext, userId: number, decision: "approved" | "
 
   if (decision === "approved") {
     await setVerified(userId, true);
-    const approvedText = `✅ شما تایید شدید! ${textEmoji("VERIFIED_BADGE", "🔵")} تیک آبی وریفای به پروفایلتون اضافه شد.`;
-    if (env.VERIFY_APPROVED_PHOTO) {
-      await ctx.api.sendPhoto(userId, env.VERIFY_APPROVED_PHOTO, { caption: approvedText }).catch(() => {});
-    } else {
-      await ctx.api.sendMessage(userId, approvedText).catch(() => {});
-    }
+    await notifyVerificationChange(ctx.api, userId, true);
     await ctx.editMessageCaption({ caption: "✅ وریفای تایید شد." }).catch(() => {});
   } else {
     await setVerified(userId, false);

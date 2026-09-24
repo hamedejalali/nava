@@ -1,6 +1,7 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { matchMainMenuAction } from "./mainMenu.js";
+import { matchMainMenuAction, MENU_CALLBACKS } from "./mainMenu.js";
+import { sendGuide, sendFeedbackInfo } from "./guide.js";
 import { enterAnonymousMatching } from "../matching/entry.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { showOwnProfile } from "../matching/profile.js";
@@ -22,6 +23,12 @@ import { showContactsList } from "../matching/contacts.js";
  * types text identical to a menu label.
  */
 export function registerMainMenuRouter(composer: Composer<NavaContext>) {
+  // Inline "راهنما" button under the onboarding completion message.
+  composer.callbackQuery(MENU_CALLBACKS.guide, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await sendGuide(ctx);
+  });
+
   composer.on("message:text", async (ctx, next) => {
     if (ctx.dbUser?.onboardingStep !== "COMPLETED") return next();
     if (ctx.dbUser?.activeChatSessionId) return next(); // in-chat text must always go to registerChatRelay
@@ -48,10 +55,14 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
       case "contacts":
         await showContactsList(ctx);
         return;
+      case "guide":
+        await sendGuide(ctx);
+        return;
+      case "feedback":
+        await sendFeedbackInfo(ctx);
+        return;
       case "nearbyPeople":
       case "searchUsers":
-      case "guide":
-      case "feedback":
       case "myAnonymousLink":
         // Not implemented yet (same as the old inline buttons, which the
         // generic callback fallback silently acknowledged without taking
