@@ -14,6 +14,7 @@ import {
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { toAsciiDigits } from "../../utils/digits.js";
 import { CHAT_CALLBACKS } from "./constants.js";
+import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
 
 export function registerRelicTransfer(composer: Composer<NavaContext>) {
   composer.callbackQuery(new RegExp(`^${CHAT_CALLBACKS.transfer}:(\\d+)$`), async (ctx) => {
@@ -31,8 +32,9 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     }
 
     await ctx.answerCallbackQuery();
+    await clearAllUserFlows(ctx.from!.id);
     await startTransferSession(ctx.from!.id, targetId);
-    const sent = await ctx.reply(t.relic.amountPrompt);
+    const sent = await ctx.reply(t.relic.amountPrompt, { reply_markup: cancelKeyboard() });
     await recordPrompt(ctx, sent.message_id);
   });
 
@@ -46,7 +48,7 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     const raw = toAsciiDigits(ctx.message.text.trim());
 
     if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
-      await ctx.reply(t.relic.invalidAmount);
+      await ctx.reply(t.relic.invalidAmount, { reply_markup: cancelKeyboard() });
       return;
     }
 
@@ -66,7 +68,7 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
 
     await deletePreviousPrompt(ctx);
 
-    const confirmText = requireLocked(ctx.userLang, "relic.transferConfirmMessage", t.relic.transferConfirmMessage)(amount, `@${target.anonId}`);
+    const confirmText = requireLocked(ctx.userLang, "relic.transferConfirmMessage", t.relic.transferConfirmMessage)(amount, `${target.anonId}`);
     const sent = await ctx.reply(confirmText, {
       reply_markup: inlineKeyboard([
         [
@@ -127,6 +129,6 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     const targetLang: Language = target.languageCode ?? "fa";
     const senderAnonId = ctx.dbUser?.anonId ?? "?";
     const tTarget = dictionary(targetLang);
-    await ctx.api.sendMessage(session.targetId, tTarget.relic.transferReceived(session.amount, `@${senderAnonId}`)).catch(() => {});
+    await ctx.api.sendMessage(session.targetId, tTarget.relic.transferReceived(session.amount, `${senderAnonId}`)).catch(() => {});
   });
 }

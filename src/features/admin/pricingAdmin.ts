@@ -2,6 +2,7 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { getPackages, setPackages, parsePackagesJson, type PricingKind } from "../../db/models/pricing.js";
+import { cancelKeyboard } from "../common/userFlows.js";
 import { isAdmin } from "./constants.js";
 import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
@@ -20,7 +21,7 @@ async function showCurrent(ctx: NavaContext, kind: PricingKind) {
   await ctx.reply(
     `قیمت‌های فعلیِ خرید با ${label}:\n\n<code>${JSON.stringify(packages)}</code>\n\n` +
       `برای تغییر، یه JSON جدید به همین فرمت بفرست:\n${exampleFor(kind)}`,
-    { parse_mode: "HTML" }
+    { parse_mode: "HTML", reply_markup: cancelKeyboard() }
   );
   await setAdminFlow(ctx.from!.id, { flow: "pricing", stage: kind });
 }

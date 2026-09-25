@@ -2,6 +2,7 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { matchMainMenuAction, MENU_CALLBACKS } from "./mainMenu.js";
 import { sendGuide, sendFeedbackInfo } from "./guide.js";
+import { sendMyAnonymousLink } from "../anonMessages/index.js";
 import { enterAnonymousMatching } from "../matching/entry.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { showOwnProfile } from "../matching/profile.js";
@@ -61,9 +62,11 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
       case "feedback":
         await sendFeedbackInfo(ctx);
         return;
+      case "myAnonymousLink":
+        await sendMyAnonymousLink(ctx);
+        return;
       case "nearbyPeople":
       case "searchUsers":
-      case "myAnonymousLink":
         // Not implemented yet (same as the old inline buttons, which the
         // generic callback fallback silently acknowledged without taking
         // any action) — swallow the tap rather than falling through to the

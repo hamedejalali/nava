@@ -1,6 +1,7 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { searchUsers, setAdminRole } from "../../db/models/user.js";
+import { cancelKeyboard } from "../common/userFlows.js";
 import { isOwner } from "./constants.js";
 import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
@@ -14,8 +15,9 @@ export function registerAdminModerators(composer: Composer<NavaContext>) {
     if (text === ADMIN_MENU_LABELS.moderators) {
       await setAdminFlow(ctx.from!.id, { flow: "moderators", stage: "await_query" });
       await ctx.reply(
-        "آیدی تلگرام یا @آیدی‌ناشناس کاربر رو بفرست.\n" +
-          "بعدش می‌تونی «افزودن» یا «حذف» ادمین رو انتخاب کنی."
+        "آیدی تلگرام یا آیدی ناشناس کاربر رو بفرست.\n" +
+          "بعدش می‌تونی «افزودن» یا «حذف» ادمین رو انتخاب کنی.",
+        { reply_markup: cancelKeyboard() }
       );
       return;
     }
@@ -39,7 +41,7 @@ export function registerAdminModerators(composer: Composer<NavaContext>) {
       const target = results[0]!;
       await setAdminFlow(ctx.from!.id, { flow: "moderators", stage: "await_action", data: { targetId: target._id } });
       await ctx.reply(
-        `کاربر: @${target.anonId} — ادمین فعلاً: ${target.isAdmin ? "✅" : "❌"}\n\n` +
+        `کاربر: ${target.anonId} — ادمین فعلاً: ${target.isAdmin ? "✅" : "❌"}\n\n` +
           `بفرست: «افزودن» برای دادن دسترسی ادمین، یا «حذف» برای گرفتنش`
       );
       return;

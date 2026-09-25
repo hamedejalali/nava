@@ -1,3 +1,4 @@
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -17,7 +18,7 @@ export function registerAdminBroadcast(composer: Composer<NavaContext>) {
 
     if (text === ADMIN_MENU_LABELS.broadcast) {
       await setAdminFlow(ctx.from!.id, { flow: "broadcast", stage: "await_text" });
-      await ctx.reply("متن پیام همگانی رو بفرست:");
+      await ctx.reply("متن پیام همگانی رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
 

@@ -83,6 +83,18 @@ export const env = {
     return optional("VERIFY_REVOKED_PHOTO") ?? optional("VERIFY_REJECTED_PHOTO");
   },
 
+  /** The bot's @username without "@" (used for invite / anonymous-message
+   *  links). Default: NavaChatBot. */
+  get BOT_USERNAME() {
+    return optional("BOT_USERNAME");
+  },
+
+  /** @username (without @) of the separate wallet bot that finishes gateway
+   *  payments. Empty = gateway checkout not connected yet. */
+  get WALLET_BOT_USERNAME() {
+    return optional("WALLET_BOT_USERNAME");
+  },
+
   /** Cost (in Relic) a profile owner pays to see WHO looked up their Nava
    *  ID while the viewer was not in a chat. Default 10. */
   get PROFILE_VIEW_REVEAL_COST(): number {

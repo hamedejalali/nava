@@ -2,6 +2,7 @@ import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
+import { resumePendingAnon } from "../anonMessages/index.js";
 import { MENU_CALLBACKS, buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 
 export async function showOnboardingCompletion(ctx: NavaContext, lang: Language) {
@@ -17,4 +18,7 @@ export async function showOnboardingCompletion(ctx: NavaContext, lang: Language)
 
   const chooseFromMenuText = requireLocked(lang, "onboarding.chooseFromMenu", t.onboarding.chooseFromMenu);
   await ctx.reply(chooseFromMenuText, { reply_markup: buildMainMenuReplyKeyboard(lang) });
+
+  // The user may have arrived through someone's anonymous-message link.
+  await resumePendingAnon(ctx);
 }

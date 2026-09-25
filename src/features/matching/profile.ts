@@ -61,9 +61,9 @@ export function buildProfileText(lang: Language, target: UserDoc, viewer?: UserD
   // the online/last-seen line.
   // (The premium badge is used ONLY for verified users — an unverified user
   // must never be shown a blue tick, so ❌ stays a plain emoji.)
-  const verifiedBadge = textEmoji("VERIFIED_BADGE", "🔵");
+  const verifiedBadge = textEmoji("VERIFIED_BADGE", "✅");
   const verifiedLine = target.verified
-    ? `${verifiedBadge} (کاربر تایید شده از طرف ادمین)`
+    ? `${verifiedBadge} (این کاربر مورد اعتماد می‌باشد و توسط ادمین تایید شده)`
     : `❌ (تایید نشده)`;
 
   // Real online/offline is impossible for a bot to know (Bot API has no
@@ -71,7 +71,7 @@ export function buildProfileText(lang: Language, target: UserDoc, viewer?: UserD
   // substitute: activity with THIS bot. See src/utils/presence.ts.
   const presenceLine = formatPresenceFa(target.lastActivityAt);
 
-  // Blue tick right next to the name for verified users.
+  // Green tick right next to the name for verified users.
   const nameBadge = target.verified ? ` ${verifiedBadge}` : "";
 
   // Every user-controlled value is HTML-escaped: this message is sent with

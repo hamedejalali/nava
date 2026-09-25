@@ -7,6 +7,7 @@ import { setProfilePhoto, getUser, type UserDoc } from "../../db/models/user.js"
 import { checkImage } from "../../services/sightengine.js";
 import { buildSupportButton } from "../support/index.js";
 import { getAllAdminIds, isAdmin } from "../admin/constants.js";
+import { hasPendingPhotoFlow } from "../common/userFlows.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
 import { deliverApprovedChatImage, notifyRejectedChatImage } from "../matching/chatImage.js";
 
@@ -16,7 +17,7 @@ function adminCaption(user: UserDoc): string {
   return [
     `📸 درخواست تایید عکس پروفایل`,
     ``,
-    `آیدی ناشناس: @${user.anonId}`,
+    `آیدی ناشناس: ${user.anonId}`,
     `آیدی تلگرام: ${user.telegramId}`,
     user.username ? `یوزرنیم: @${user.username}` : `یوزرنیم: ندارد`,
     `نیک‌نیم: ${user.nickname ?? "-"}`,
@@ -33,6 +34,8 @@ export function registerPhotoUpload(composer: Composer<NavaContext>) {
     if (!user || user.activeChatSessionId || user.onboardingStep !== "COMPLETED") {
       return next(); // handled elsewhere (chat image) or not a valid context yet
     }
+    // Verification selfie / report evidence are handled by their own flows.
+    if (await hasPendingPhotoFlow(user._id)) return next();
     // Owner + ADMIN_IDS + admins granted from the panel (was: ADMIN_IDS
     // only — with just OWNER_ID set every photo upload failed).
     const adminIds = await getAllAdminIds();

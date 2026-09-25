@@ -8,7 +8,7 @@
  * It is shown on the (do-nothing) version button at the bottom of the
  * admin panel, so you can always see which build is really deployed.
  */
-export const BOT_VERSION = "1.1.1";
+export const BOT_VERSION = "1.2.0";
 
 /** Text on the admin panel's version button. */
 export const VERSION_BUTTON_LABEL = `🏷 نسخه ${BOT_VERSION}`;

@@ -86,7 +86,7 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
       }
       await setStep(ctx.from!.id, { stage: "await_amount", targetId });
       await ctx.reply(
-        `کاربر: @${target.anonId} — موجودی فعلی: ${target.relicBalance ?? 0} رلیک\n\n` +
+        `کاربر: ${target.anonId} — موجودی فعلی: ${target.relicBalance ?? 0} رلیک\n\n` +
           `عدد مثبت برای افزودن، عدد منفی برای کسر بفرست (مثلاً 10 یا 10-):`,
         { reply_markup: inlineKeyboard([[cancelButton("لغو", CB.cancel)]]) }
       );

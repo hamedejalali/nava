@@ -1,7 +1,9 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
-import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
+import { glassButton, inlineKeyboard, contactReplyButton, glassReplyButton, replyKeyboard } from "../../ui/keyboard.js";
+import { cancelKeyboard } from "../common/userFlows.js";
+import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { env } from "../../config/env.js";
 import { textEmoji } from "../../config/emojis.js";
 import { getUser, setVerified } from "../../db/models/user.js";
@@ -24,7 +26,7 @@ const VERIFY_TERMS_TEXT =
   "• در صورت ارسال اطلاعات یا تصویر نادرست، جعل هویت، سوءاستفاده از سیستم یا هرگونه تخلف، مسئولیت عواقب آن بر عهده کاربر خواهد بود.\n\n" +
   "✅ مزایای وریفای\n\n" +
   "در صورت تأیید پروفایل شما:\n\n" +
-  `• ${textEmoji("VERIFIED_BADGE", "🔵")} تیک آبی وریفای در کنار پروفایل شما نمایش داده می‌شود.\n` +
+  `• ${textEmoji("VERIFIED_BADGE", "✅")} تیک سبز وریفای در کنار اسم شما در پروفایل نمایش داده می‌شود.\n` +
   "• 🎯 شانس بیشتری برای متصل شدن به سایر کاربران خواهید داشت.\n" +
   "• 🚀 در فرایند مچینگ، اولویت بیشتری نسبت به کاربران عادی خواهید داشت.\n" +
   "• ⭐ پروفایل شما به‌عنوان یک کاربر وریفای‌شده و معتبر نمایش داده می‌شود.\n\n" +
@@ -32,19 +34,30 @@ const VERIFY_TERMS_TEXT =
 
 interface VerifyFlowDoc {
   _id: number;
-  stage: "await_photo" | "await_phone";
+  stage: "await_agree" | "await_photo" | "await_phone";
   photoFileId?: string;
+  updatedAt?: number;
 }
+
+/** A verify request that sits untouched for this long is forgotten, so an
+ *  abandoned request can never block later photos (e.g. a new profile photo). */
+const FLOW_TTL_MS = 30 * 60 * 1000;
 
 async function setFlow(userId: number, flow: VerifyFlowDoc | null): Promise<void> {
   const db = await getDb();
   const col = db.collection<VerifyFlowDoc>("verify_flow");
   if (!flow) await col.deleteOne({ _id: userId });
-  else await col.replaceOne({ _id: userId }, flow, { upsert: true });
+  else await col.replaceOne({ _id: userId }, { ...flow, updatedAt: Date.now() }, { upsert: true });
 }
 async function getFlow(userId: number): Promise<VerifyFlowDoc | null> {
   const db = await getDb();
-  return db.collection<VerifyFlowDoc>("verify_flow").findOne({ _id: userId });
+  const col = db.collection<VerifyFlowDoc>("verify_flow");
+  const doc = await col.findOne({ _id: userId });
+  if (doc && doc.updatedAt && Date.now() - doc.updatedAt > FLOW_TTL_MS) {
+    await col.deleteOne({ _id: userId });
+    return null;
+  }
+  return doc;
 }
 
 const CB = {
@@ -54,7 +67,17 @@ const CB = {
   reject: "admin:verify:reject:", // + userId
 };
 
+const CONTACT_BUTTON_LABEL = "📱 اشتراک‌گذاری شماره تلفن";
+const CANCEL_TEXT_LABEL = "❌ لغو";
+
 export async function startVerifyRequest(ctx: NavaContext): Promise<void> {
+  // Two states only: verified, or not verified. A verified user has
+  // nothing to request.
+  if (ctx.dbUser?.verified) {
+    await ctx.reply("✅ شما قبلاً وریفای شدید و نیازی به درخواست دوباره نیست.");
+    return;
+  }
+
   const photos = env.VERIFY_PHOTOS;
   const kb = inlineKeyboard([
     [
@@ -62,6 +85,9 @@ export async function startVerifyRequest(ctx: NavaContext): Promise<void> {
       glassButton("❌ کنسل", CB.cancel, "danger"),
     ],
   ]);
+
+  // Nothing (photo/phone) is accepted until the user taps «موافقم».
+  await setFlow(ctx.from!.id, { _id: ctx.from!.id, stage: "await_agree" });
 
   // The terms text is ~1300 chars, but Telegram caps a PHOTO caption at
   // 1024 — sending it as a caption made this whole screen fail whenever a
@@ -77,6 +103,11 @@ export async function startVerifyRequest(ctx: NavaContext): Promise<void> {
   await ctx.reply(VERIFY_TERMS_TEXT, { reply_markup: kb });
 }
 
+/** Restores the normal main-menu keyboard after the share-contact keyboard. */
+function mainMenuMarkup(ctx: NavaContext) {
+  return buildMainMenuReplyKeyboard(ctx.userLang);
+}
+
 export function registerVerifyFlow(composer: Composer<NavaContext>) {
   composer.callbackQuery(CB.cancel, async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -84,48 +115,104 @@ export function registerVerifyFlow(composer: Composer<NavaContext>) {
     await ctx.deleteMessage().catch(() => {});
   });
 
+  // Step 1 — «موافقم»: only NOW does the bot start accepting the photo.
   composer.callbackQuery(CB.agree, async (ctx) => {
+    if (ctx.dbUser?.verified) {
+      await ctx.answerCallbackQuery({ text: "شما قبلاً وریفای شدید ✅", show_alert: true });
+      return;
+    }
+    const flow = await getFlow(ctx.from!.id);
+    if (!flow) {
+      await ctx.answerCallbackQuery({ text: "این درخواست منقضی شده. از پروفایلت دوباره «درخواست وریفای» رو بزن.", show_alert: true });
+      return;
+    }
+    if (flow.stage !== "await_agree") {
+      await ctx.answerCallbackQuery(); // double tap
+      return;
+    }
     await ctx.answerCallbackQuery();
     await setFlow(ctx.from!.id, { _id: ctx.from!.id, stage: "await_photo" });
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
     await ctx.reply(
-      "یکی از عکس‌های نمونه رو که دیدی، دقیقاً همون‌طوری از خودت با انگشتت کنار صورتت بگیر و همینجا بفرست."
+      "📸 مرحله‌ی ۱ از ۲\n\nیکی از عکس‌های نمونه رو که دیدی، دقیقاً همون‌طوری از خودت با انگشتت کنار صورتت بگیر و همینجا بفرست.",
+      { reply_markup: cancelKeyboard() }
     );
   });
 
+  // Step 2 — the photo. Registered with a flow check so the generic
+  // profile-photo uploader (src/features/photo/moderation.ts) never
+  // swallows a verification selfie.
   composer.on("message:photo", async (ctx, next) => {
     const flow = await getFlow(ctx.from!.id);
-    if (!flow || flow.stage !== "await_photo") return next();
+    if (!flow) return next();
+
+    if (flow.stage === "await_agree") {
+      await ctx.reply("اول قوانین بالا رو بخون و روی «✅ موافقم» بزن، بعد عکست رو بفرست.");
+      return;
+    }
+    if (flow.stage === "await_phone") {
+      await ctx.reply("عکست قبلاً دریافت شد ✅ حالا فقط شماره‌ت رو با دکمه‌ی «" + CONTACT_BUTTON_LABEL + "» پایین بفرست.");
+      return;
+    }
 
     const sizes = ctx.message.photo;
     const largest = sizes[sizes.length - 1]!;
     await setFlow(ctx.from!.id, { _id: ctx.from!.id, stage: "await_phone", photoFileId: largest.file_id });
     await ctx.reply(
-      "شماره تلفن همین اکانت تلگرام رو بفرست (با دکمه‌ی 📎 گزینه‌ی Contact رو بزن، یا خودت تایپ کن)."
+      "✅ عکست دریافت شد.\n\n📱 مرحله‌ی ۲ از ۲\n\nشماره‌ی همین اکانت تلگرامت رو با دکمه‌ی «" + CONTACT_BUTTON_LABEL + "» پایین صفحه بفرست.",
+      {
+        reply_markup: replyKeyboard(
+          [[contactReplyButton(CONTACT_BUTTON_LABEL, "success")], [glassReplyButton(CANCEL_TEXT_LABEL, "danger")]]
+        ),
+      }
     );
   });
 
+  // Step 3 — the phone number, ONLY through the native share-contact button,
+  // and only if it belongs to this same Telegram account.
   composer.on("message:contact", async (ctx, next) => {
     const flow = await getFlow(ctx.from!.id);
-    if (!flow || flow.stage !== "await_phone") return next();
-    await finalizeVerify(ctx, flow, ctx.message.contact.phone_number);
+    if (!flow) return next();
+
+    if (flow.stage !== "await_phone") {
+      await ctx.reply(
+        flow.stage === "await_agree"
+          ? "اول قوانین رو بخون و روی «✅ موافقم» بزن."
+          : "اول عکست رو بفرست، بعد شماره‌ت رو.",
+        { reply_markup: mainMenuMarkup(ctx) }
+      );
+      return;
+    }
+
+    const contact = ctx.message.contact;
+    if (contact.user_id !== ctx.from!.id) {
+      await ctx.reply("این شماره متعلق به اکانت خودت نیست ❌ فقط شماره‌ی همین اکانت رو با دکمه‌ی «" + CONTACT_BUTTON_LABEL + "» بفرست.");
+      return;
+    }
+    await finalizeVerify(ctx, flow, contact.phone_number);
   });
 
   composer.on("message:text", async (ctx, next) => {
     const flow = await getFlow(ctx.from!.id);
-    if (!flow || flow.stage !== "await_phone") return next();
+    if (!flow || flow.stage === "await_photo") {
+      // (await_photo text is handled by the generic red «لغو» button; any
+      //  other text just falls through as usual)
+      return next();
+    }
 
     const text = ctx.message.text.trim();
     if (isFlowCancelSignal(text)) {
       await setFlow(ctx.from!.id, null);
       if (text.startsWith("/")) return next();
-      await ctx.reply("لغو شد.");
+      await ctx.reply("لغو شد.", { reply_markup: mainMenuMarkup(ctx) });
       return;
     }
-    if (!/^\+?\d{8,15}$/.test(text)) {
-      await ctx.reply("شماره معتبر نیست. دوباره بفرست (مثلاً 09121234567).");
+    if (flow.stage === "await_phone") {
+      await ctx.reply("شماره رو فقط با دکمه‌ی «" + CONTACT_BUTTON_LABEL + "» بفرست (تایپ کردن قبول نیست).");
       return;
     }
-    await finalizeVerify(ctx, flow, text);
+    // await_agree: ignore other text
+    return next();
   });
 
   composer.callbackQuery(new RegExp(`^${CB.approve}(\\d+)$`), async (ctx) => decide(ctx, Number(ctx.match![1]), "approved"));
@@ -159,14 +246,17 @@ export function registerVerifyFlow(composer: Composer<NavaContext>) {
 
 async function finalizeVerify(ctx: NavaContext, flow: VerifyFlowDoc, phone: string) {
   await setFlow(ctx.from!.id, null);
-  await ctx.reply("✅ اطلاعات شما بررسی و به شما اطلاع داده می‌شود.");
+  await ctx.reply("✅ عکس و شماره‌ت برای ادمین ارسال شد. بعد از بررسی نتیجه بهت اطلاع داده میشه.", {
+    reply_markup: mainMenuMarkup(ctx),
+  });
 
   const user = ctx.dbUser;
   const caption =
-    `🔵 درخواست وریفای جدید\n\n` +
-    `کاربر: @${user?.anonId ?? "-"}\n` +
+    `${textEmoji("VERIFY_REQUEST", "✅")} درخواست وریفای جدید\n\n` +
+    `کاربر: <code>${escapeHtml(user?.anonId ?? "-")}</code>\n` +
+    `نام: ${escapeHtml(user?.nickname ?? "-")}\n` +
     `آیدی عددی: <code>${ctx.from!.id}</code>\n` +
-    `شماره تلفن ارسالی: <code>${phone}</code>`;
+    `شماره تلفن (تایید‌شده توسط تلگرام): <code>${escapeHtml(phone)}</code>`;
 
   const kb = inlineKeyboard([
     [
@@ -175,8 +265,11 @@ async function finalizeVerify(ctx: NavaContext, flow: VerifyFlowDoc, phone: stri
     ],
   ]);
 
+  // Photo + phone travel together (the phone is in the photo's caption).
   for (const adminId of await getAllAdminIds()) {
-    await ctx.api.sendPhoto(adminId, flow.photoFileId!, { caption, parse_mode: "HTML", reply_markup: kb }).catch(() => {});
+    await ctx.api.sendPhoto(adminId, flow.photoFileId!, { caption, parse_mode: "HTML", reply_markup: kb }).catch(async () => {
+      await ctx.api.sendMessage(adminId, caption, { parse_mode: "HTML", reply_markup: kb }).catch(() => {});
+    });
   }
 }
 

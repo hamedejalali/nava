@@ -10,7 +10,7 @@ import { createEditRequest, decideEditRequest, getEditRequest } from "../../db/m
 import { getAllAdminIds } from "../admin/constants.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { showOwnProfile } from "./profile.js";
-import { buttonIcon } from "../../config/emojis.js";
+import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
 import { startVerifyRequest } from "./verifyFlow.js";
 import { VERIFY_REQUEST_CALLBACK } from "./constants.js";
 
@@ -29,6 +29,7 @@ async function setAwaiting(adminId: number, awaiting: AwaitingField | null): Pro
   const db = await getDb();
   const col = db.collection<EditFlowDoc>("profile_edit_flow");
   if (awaiting) {
+    await clearAllUserFlows(adminId); // only ONE "waiting for text" step at a time
     await col.updateOne({ _id: adminId }, { $set: { awaiting } }, { upsert: true });
   } else {
     await col.deleteOne({ _id: adminId });
@@ -69,9 +70,8 @@ function editMenuKeyboard() {
     [glassButton("📍 ثبت موقعیت مکانی", EDIT_CALLBACKS.location, "primary")],
     [glassButton("✏️ درخواست تغییر نام", EDIT_CALLBACKS.requestNickname, "danger")],
     [glassButton("✏️ درخواست تغییر سن", EDIT_CALLBACKS.requestAge, "danger")],
-    // Emoji on a BUTTON must go through the icon field (never a <tg-emoji>
-    // tag in the label — that was the raw-HTML-on-button bug).
-    [glassButton("درخواست وریفای", EDIT_CALLBACKS.requestVerify, "primary", buttonIcon("VERIFY_REQUEST"))],
+    // (No verify button here on purpose — "درخواست وریفای" lives ONLY under
+    // "ویرایش پروفایل" in the profile message itself.)
     [glassButton("❌ انصراف", EDIT_CALLBACKS.cancel, "danger")],
   ]);
 }
@@ -79,7 +79,7 @@ function editMenuKeyboard() {
 export function registerProfileEdit(composer: Composer<NavaContext>) {
   composer.callbackQuery(EDIT_CALLBACKS.open, async (ctx) => {
     await ctx.answerCallbackQuery();
-    await setAwaiting(ctx.from!.id, null);
+    await clearAllUserFlows(ctx.from!.id); // never leave a half-done step (verify, report...) behind
     await ctx.reply("چه چیزی رو می‌خوای ویرایش کنی؟", { reply_markup: editMenuKeyboard() });
   });
 
@@ -92,20 +92,20 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
   composer.callbackQuery(EDIT_CALLBACKS.bio, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "bio");
-    await ctx.reply(`بیوگرافی جدیدت رو بفرست (حداکثر ${MAX_BIO_LENGTH} کاراکتر):`);
+    await ctx.reply(`بیوگرافی جدیدت رو بفرست (حداکثر ${MAX_BIO_LENGTH} کاراکتر):`, { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.photo, async (ctx) => {
     await ctx.answerCallbackQuery();
-    await setAwaiting(ctx.from!.id, null);
-    await ctx.reply("عکس جدید پروفایلت رو همینجا بفرست، بعد از تایید ادمین جایگزین میشه.");
+    await clearAllUserFlows(ctx.from!.id);
+    await ctx.reply("عکس جدید پروفایلت رو همینجا بفرست، بعد از تایید ادمین جایگزین میشه.", { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.province, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "province");
     const names = PROVINCES.map((p) => p.nameFa).join("، ");
-    await ctx.reply(`اسم استان جدیدت رو دقیقاً بفرست.\n\nاستان‌های معتبر:\n${names}`);
+    await ctx.reply(`اسم استان جدیدت رو دقیقاً بفرست.\n\nاستان‌های معتبر:\n${names}`, { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.city, async (ctx) => {
@@ -119,29 +119,30 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
     const cities = citiesForProvince(user.province)
       .map((c) => c.nameFa)
       .join("، ");
-    await ctx.reply(`اسم شهر جدیدت (داخل استان ${user.province}) رو دقیقاً بفرست.\n\nشهرهای معتبر:\n${cities}`);
+    await ctx.reply(`اسم شهر جدیدت (داخل استان ${user.province}) رو دقیقاً بفرست.\n\nشهرهای معتبر:\n${cities}`, { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.location, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "location");
-    await ctx.reply("از دکمه‌ی 📎 (ضمیمه) پایین صفحه، گزینه‌ی Location رو بزن و موقعیتت رو بفرست.");
+    await ctx.reply("از دکمه‌ی 📎 (ضمیمه) پایین صفحه، گزینه‌ی Location رو بزن و موقعیتت رو بفرست.", { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.requestNickname, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "nickname_request");
-    await ctx.reply("نام مستعار جدیدی که می‌خوای رو بفرست. این درخواست باید توسط ادمین تایید بشه.");
+    await ctx.reply("نام مستعار جدیدی که می‌خوای رو بفرست. این درخواست باید توسط ادمین تایید بشه.", { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.requestAge, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "age_request");
-    await ctx.reply("سن جدیدی که می‌خوای رو بفرست. این درخواست باید توسط ادمین تایید بشه.");
+    await ctx.reply("سن جدیدی که می‌خوای رو بفرست. این درخواست باید توسط ادمین تایید بشه.", { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.requestVerify, async (ctx) => {
     await ctx.answerCallbackQuery();
+    await clearAllUserFlows(ctx.from!.id);
     await startVerifyRequest(ctx);
   });
 
@@ -163,7 +164,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
 
     if (awaiting === "bio") {
       if (raw.length === 0 || raw.length > MAX_BIO_LENGTH) {
-        await ctx.reply(`بیوگرافی باید بین ۱ تا ${MAX_BIO_LENGTH} کاراکتر باشه.`);
+        await ctx.reply(`بیوگرافی باید بین ۱ تا ${MAX_BIO_LENGTH} کاراکتر باشه.`, { reply_markup: cancelKeyboard() });
         return;
       }
       await usersCollectionDirectSet(user._id, { bio: raw });
@@ -176,7 +177,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
     if (awaiting === "province") {
       const match = PROVINCES.find((p) => p.nameFa === raw);
       if (!match) {
-        await ctx.reply("این اسم استان معتبر نیست. دقیقاً از لیستی که فرستادم انتخاب کن.");
+        await ctx.reply("این اسم استان معتبر نیست. دقیقاً از لیستی که فرستادم انتخاب کن.", { reply_markup: cancelKeyboard() });
         return;
       }
       // Changing province invalidates the previously-picked city.
@@ -193,7 +194,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
         return;
       }
       if (!isValidCityForProvince(raw, user.province)) {
-        await ctx.reply("این اسم شهر برای استان انتخابی معتبر نیست. دقیقاً از لیستی که فرستادم انتخاب کن.");
+        await ctx.reply("این اسم شهر برای استان انتخابی معتبر نیست. دقیقاً از لیستی که فرستادم انتخاب کن.", { reply_markup: cancelKeyboard() });
         return;
       }
       await usersCollectionDirectSet(user._id, { city: raw });
@@ -205,7 +206,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
 
     if (awaiting === "nickname_request") {
       if (!isValidPersianNickname(raw)) {
-        await ctx.reply("این نام مستعار معتبر نیست (فقط حروف فارسی، حداکثر ۳۲ کاراکتر).");
+        await ctx.reply("این نام مستعار معتبر نیست (فقط حروف فارسی، حداکثر ۳۲ کاراکتر).", { reply_markup: cancelKeyboard() });
         return;
       }
       await setAwaiting(ctx.from!.id, null);
@@ -218,7 +219,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
     if (awaiting === "age_request") {
       const age = Number(raw);
       if (!Number.isInteger(age) || age < MIN_AGE || age > MAX_AGE) {
-        await ctx.reply(`سن باید یک عدد صحیح بین ${MIN_AGE} تا ${MAX_AGE} باشه.`);
+        await ctx.reply(`سن باید یک عدد صحیح بین ${MIN_AGE} تا ${MAX_AGE} باشه.`, { reply_markup: cancelKeyboard() });
         return;
       }
       await setAwaiting(ctx.from!.id, null);
@@ -259,7 +260,7 @@ async function notifyAdminsOfRequest(
   const fieldFa = field === "nickname" ? "نام مستعار" : "سن";
   const text =
     `📝 درخواست تغییر ${fieldFa}\n\n` +
-    `کاربر: @${user.anonId} (${user._id})\n` +
+    `کاربر: ${user.anonId} (${user._id})\n` +
     `مقدار جدید: ${newValue}`;
   const kb = inlineKeyboard([
     [

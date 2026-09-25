@@ -1,3 +1,4 @@
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -18,7 +19,7 @@ function formatFullProfile(u: UserDoc, balance: number): string {
     `👤 پروفایل کامل کاربر`,
     ``,
     `آیدی تلگرام: ${u.telegramId}`,
-    `آیدی ناشناس: @${u.anonId}`,
+    `آیدی ناشناس: ${u.anonId}`,
     u.username ? `یوزرنیم: @${u.username}` : `یوزرنیم: ندارد`,
     `نیک‌نیم: ${u.nickname ?? "-"}`,
     `نام تلگرام: ${u.firstName}`,
@@ -101,22 +102,22 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     }
     if (text === ADMIN_MENU_LABELS.search || text === ADMIN_MENU_LABELS.fullProfile) {
       await setAdminFlow(ctx.from!.id, { flow: "user_lookup", stage: "await_query" });
-      await ctx.reply("آیدی تلگرام، @آیدی‌ناشناس، یا یوزرنیم کاربر رو بفرست:");
+      await ctx.reply("آیدی تلگرام، آیدی ناشناس، یا یوزرنیم کاربر رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
     if (text === ADMIN_MENU_LABELS.ban) {
       await setAdminFlow(ctx.from!.id, { flow: "ban", stage: "await_query" });
-      await ctx.reply("آیدی تلگرامی کاربری که می‌خوای بن کنی رو بفرست:");
+      await ctx.reply("آیدی تلگرامی کاربری که می‌خوای بن کنی رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
     if (text === ADMIN_MENU_LABELS.unban) {
       await setAdminFlow(ctx.from!.id, { flow: "unban", stage: "await_query" });
-      await ctx.reply("آیدی تلگرامی کاربری که می‌خوای آن‌بن کنی رو بفرست:");
+      await ctx.reply("آیدی تلگرامی کاربری که می‌خوای آن‌بن کنی رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
     if (text === ADMIN_MENU_LABELS.verify) {
       await setAdminFlow(ctx.from!.id, { flow: "verify", stage: "await_query" });
-      await ctx.reply("آیدی تلگرامی کاربری که می‌خوای وریفای/لغو وریفای کنی رو بفرست:");
+      await ctx.reply("آیدی تلگرامی کاربری که می‌خوای وریفای/لغو وریفای کنی رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
 
@@ -142,14 +143,14 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     if (flow.flow === "ban") {
       await setBanned(target._id, true, "توسط ادمین");
       await logAdminAction(ctx.from!.id, "ban_user", String(target._id));
-      await ctx.reply(`✅ @${target.anonId} بن شد.`);
+      await ctx.reply(`✅ ${target.anonId} بن شد.`);
       await ctx.api.sendMessage(target._id, "🚫 دسترسی شما به ربات توسط ادمین مسدود شد.").catch(() => {});
       return;
     }
     if (flow.flow === "unban") {
       await setBanned(target._id, false);
       await logAdminAction(ctx.from!.id, "unban_user", String(target._id));
-      await ctx.reply(`✅ @${target.anonId} آن‌بن شد.`);
+      await ctx.reply(`✅ ${target.anonId} آن‌بن شد.`);
       await ctx.api.sendMessage(target._id, "✅ دسترسی شما به ربات دوباره فعال شد.").catch(() => {});
       return;
     }
@@ -158,7 +159,7 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
       await logAdminAction(ctx.from!.id, "toggle_verify", String(target._id));
       const notified = await notifyVerificationChange(ctx.api, target._id, !!updated?.verified);
       const notifiedLine = notified ? "\n📨 اعلان برای کاربر ارسال شد." : "\n⚠️ اعلان به کاربر نرسید (احتمالاً ربات رو بلاک کرده).";
-      await ctx.reply((updated?.verified ? `✅ @${target.anonId} وریفای شد.` : `@${target.anonId} وریفای برداشته شد.`) + notifiedLine);
+      await ctx.reply((updated?.verified ? `✅ ${target.anonId} وریفای شد.` : `${target.anonId} وریفای برداشته شد.`) + notifiedLine);
       return;
     }
     await showFullProfile(ctx, target);
@@ -170,7 +171,7 @@ async function sendUserListPage(ctx: NavaContext, page: number) {
   const { users, total } = await listUsersPage(page * USERS_PER_PAGE, USERS_PER_PAGE);
   const totalPages = Math.max(1, Math.ceil(total / USERS_PER_PAGE));
 
-  const lines = users.map((u) => `• ${u.telegramId} — @${u.anonId} — ${u.nickname ?? "-"} — ${levelDisplay(u.level)}`);
+  const lines = users.map((u) => `• ${u.telegramId} — ${u.anonId} — ${u.nickname ?? "-"} — ${levelDisplay(u.level)}`);
   const navRow = [];
   if (page > 0) navRow.push(glassButton("◀️ قبلی", `admin:userlist:${page - 1}`, "primary"));
   if (page < totalPages - 1) navRow.push(glassButton("بعدی ▶️", `admin:userlist:${page + 1}`, "primary"));

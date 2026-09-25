@@ -16,7 +16,7 @@ async function renderList(ctx: NavaContext, page: number, edit: boolean) {
   const users = await listVerifiedUsersPage(safePage * PER_PAGE, PER_PAGE);
 
   const lines = users.map(
-    (u, i) => `${safePage * PER_PAGE + i + 1}. ${u.nickname ?? "-"} — @${u.anonId} — ${u.telegramId}`
+    (u, i) => `${safePage * PER_PAGE + i + 1}. ${u.nickname ?? "-"} — ${u.anonId} — ${u.telegramId}`
   );
   const text =
     `✅ کاربران وریفای (صفحه ${safePage + 1}/${totalPages} — مجموع ${total})\n\n` +

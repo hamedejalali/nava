@@ -39,5 +39,5 @@ export async function getAdminFlow(adminId: number): Promise<(AdminFlowState & {
  */
 export function isFlowCancelSignal(text: string): boolean {
   const t = text.trim();
-  return t.startsWith("/") || ["لغو", "کنسل", "انصراف", "بازگشت", "لغو کن"].includes(t);
+  return t.startsWith("/") || ["لغو", "کنسل", "انصراف", "بازگشت", "لغو کن", "❌ لغو"].includes(t);
 }

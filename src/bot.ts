@@ -41,6 +41,8 @@ import { getAllAdminIds } from "./features/admin/constants.js";
 import { registerMainMenuRouter } from "./features/menu/mainMenuRouter.js";
 import { escapeHtml } from "./utils/html.js";
 import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
+import { registerAnonMessages } from "./features/anonMessages/index.js";
+import { registerFlowInterrupt, registerFlowCancel } from "./features/common/userFlows.js";
 import { registerAdminVerifiedUsers } from "./features/admin/verifiedUsers.js";
 import { registerProfileReveal } from "./features/matching/profileReveal.js";
 import { ensureProfileRevealIndexes } from "./db/models/profileReveal.js";
@@ -152,6 +154,8 @@ export function createBot(): Bot<NavaContext> {
   });
 
   const features = new Composer<NavaContext>();
+  registerFlowInterrupt(features); // a menu tap / command always ends a pending "waiting for text" step
+  registerFlowCancel(features); // the red "❌ لغو" glass button used by every such step
   registerAdmin(features);
   registerOwnerAdminPanelClose(features);
   registerAdminUsers(features);
@@ -168,6 +172,7 @@ export function createBot(): Bot<NavaContext> {
   registerProfileReveal(features);
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
+  registerAnonMessages(features); // before onboarding (its /start payload) and before the photo uploader
   registerOnboarding(features);
   registerForceJoin(features);
   registerRulesCommand(features);

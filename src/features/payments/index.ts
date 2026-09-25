@@ -5,12 +5,7 @@ import { buttonIcon, textEmoji } from "../../config/emojis.js";
 import { creditPurchaseOnce } from "../../db/models/relic.js";
 import { getPackages } from "../../db/models/pricing.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
-
-/** Username of the separate Premium Wallet mini-app bot — where, for now,
- *  the gateway checkout actually happens (see registerRelicScreen's
- *  gateway package handler below). Update this if that bot's @username
- *  ever changes. */
-const WALLET_BOT_USERNAME = "WalletPremiumBot";
+import { env } from "../../config/env.js";
 
 const OPEN_CB = { stars: "relic:open:stars", gateway: "relic:open:gateway" };
 const BUY_STARS_PREFIX = "relic:buy:stars:"; // + package index
@@ -64,15 +59,15 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
 
   composer.callbackQuery(OPEN_CB.gateway, async (ctx) => {
     await ctx.answerCallbackQuery();
+    // (getPackages falls back to 5 ready-made default packages until real
+    //  ones are set from the admin panel.)
     const packages = await getPackages("gateway");
-    if (packages.length === 0) {
-      await ctx.reply("فعلاً پکیجی برای خرید از طریق درگاه تنظیم نشده.");
-      return;
-    }
     const buttons = packages.map((pkg, index) =>
-      glassButton(`💳 ${pkg.price.toLocaleString("fa-IR")} تومان = 👑 ${pkg.relic}`, `${BUY_GATEWAY_PREFIX}${index}`, "primary", buttonIcon("CROWN"))
+      glassButton(`${pkg.price.toLocaleString("fa-IR")} تومان = ${pkg.relic} رلیک`, `${BUY_GATEWAY_PREFIX}${index}`, index % 2 === 0 ? "primary" : "success", buttonIcon("CROWN"))
     );
-    await ctx.reply("یکی از پکیج‌های زیر رو انتخاب کن:", { reply_markup: inlineKeyboard(buttons.map((b) => [b])) });
+    await ctx.reply("💳 خرید رلیک از طریق درگاه\n\nیکی از پکیج‌های زیر رو انتخاب کن:", {
+      reply_markup: inlineKeyboard(buttons.map((b) => [b])),
+    });
   });
 
   composer.callbackQuery(new RegExp(`^${BUY_STARS_PREFIX}(\\d+)$`), async (ctx) => {
@@ -108,9 +103,16 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
       await ctx.answerCallbackQuery({ text: "این پکیج دیگه معتبر نیست." });
       return;
     }
+    // Not connected yet -> friendly notice. Once the wallet bot is ready,
+    // set WALLET_BOT_USERNAME in env and this hands the buyer over to it.
+    const wallet = env.WALLET_BOT_USERNAME?.replace(/^@/, "");
+    if (!wallet) {
+      await ctx.answerCallbackQuery({ text: "درگاه پرداخت هنوز فعال نشده؛ به‌زودی فعال میشه 🙏", show_alert: true });
+      return;
+    }
     await ctx.answerCallbackQuery();
     await ctx.reply(
-      `برای تکمیل خرید ${pkg.relic} رلیک با ${pkg.price.toLocaleString("fa-IR")} تومان، به ربات ولت نوا برو و پرداختت رو اونجا کامل کن:\nhttps://t.me/${WALLET_BOT_USERNAME}`
+      `برای تکمیل خرید ${pkg.relic} رلیک با ${pkg.price.toLocaleString("fa-IR")} تومان، به ربات ولت نوا برو و پرداختت رو اونجا کامل کن:\nhttps://t.me/${wallet}`
     );
   });
 }

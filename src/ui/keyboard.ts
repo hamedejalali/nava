@@ -101,6 +101,14 @@ export interface GlassReplyButton {
   text: string;
   style?: GlassStyle;
   icon_custom_emoji_id?: string;
+  /** Telegram's native "share my phone number" button. */
+  request_contact?: boolean;
+}
+
+/** A reply-keyboard button that asks Telegram to send the user's OWN phone
+ *  contact when tapped (the only way to get a number Telegram vouches for). */
+export function contactReplyButton(text: string, style: GlassStyle): GlassReplyButton {
+  return { text, style, request_contact: true };
 }
 
 /** A Reply Keyboard (the persistent keyboard docked below the chat input,

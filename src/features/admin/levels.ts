@@ -1,3 +1,4 @@
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -24,7 +25,7 @@ export function registerAdminLevels(composer: Composer<NavaContext>) {
 
     if (text === ADMIN_MENU_LABELS.level) {
       await setAdminFlow(ctx.from!.id, { flow: "level", stage: "await_query" });
-      await ctx.reply("آیدی تلگرام یا @آیدی‌ناشناس کاربری که می‌خوای سطحش رو تغییر بدی رو بفرست:");
+      await ctx.reply("آیدی تلگرام یا آیدی ناشناس کاربری که می‌خوای سطحش رو تغییر بدی رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
 
@@ -45,7 +46,7 @@ export function registerAdminLevels(composer: Composer<NavaContext>) {
     }
     const target = results[0]!;
     await setAdminFlow(ctx.from!.id, null);
-    await ctx.reply(`سطح فعلی @${target.anonId}: ${levelDisplay(target.level)}\n\nسطح جدید رو انتخاب کن:`, {
+    await ctx.reply(`سطح فعلی ${target.anonId}: ${levelDisplay(target.level)}\n\nسطح جدید رو انتخاب کن:`, {
       reply_markup: levelPickerKeyboard(target._id),
     });
   });

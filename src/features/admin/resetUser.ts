@@ -1,3 +1,4 @@
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -19,7 +20,7 @@ export function registerAdminResetUser(composer: Composer<NavaContext>) {
 
     if (text === ADMIN_MENU_LABELS.resetUser) {
       await setAdminFlow(ctx.from!.id, { flow: "reset_user", stage: "await_query" });
-      await ctx.reply("آیدی تلگرام، یوزرنیم تلگرام، یا @آیدی‌ناشناس کاربری که می‌خوای کاملاً ریست کنی رو بفرست:");
+      await ctx.reply("آیدی تلگرام، یوزرنیم تلگرام، یا آیدی ناشناس کاربری که می‌خوای کاملاً ریست کنی رو بفرست:", { reply_markup: cancelKeyboard() });
       return;
     }
 
@@ -42,7 +43,7 @@ export function registerAdminResetUser(composer: Composer<NavaContext>) {
     await setAdminFlow(ctx.from!.id, null);
 
     await ctx.reply(
-      `⚠️ مطمئنی می‌خوای اطلاعات @${target.anonId} (${target.telegramId}) رو کامل ریست کنی؟\n\n` +
+      `⚠️ مطمئنی می‌خوای اطلاعات ${target.anonId} (${target.telegramId}) رو کامل ریست کنی؟\n\n` +
         `این کار برگشت‌ناپذیره: نام مستعار، سن، جنسیت، استان/شهر، بیوگرافی، عکس، موجودی رلیک، وریفای، سطح و موقعیت مکانی همه پاک میشن و کاربر دقیقاً مثل یک کاربر تازه، از /start شروع می‌کنه.`,
       {
         reply_markup: inlineKeyboard([

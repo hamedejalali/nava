@@ -11,6 +11,7 @@ import { CHAT_CALLBACKS } from "./constants.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { textEmoji } from "../../config/emojis.js";
 import { escapeHtml } from "../../utils/html.js";
+import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
 
 interface ReportFlowDoc {
   _id: number; // reporter's telegram id
@@ -60,8 +61,9 @@ export function registerReportFlow(composer: Composer<NavaContext>) {
       return;
     }
     await ctx.answerCallbackQuery();
+    await clearAllUserFlows(ctx.from!.id);
     await setFlow(ctx.from!.id, { _id: ctx.from!.id, stage: "await_reason", targetId });
-    await ctx.reply("دلیل گزارشت رو دقیق بنویس (اگه لازم بود بعدش می‌تونی مدرک/عکس هم بفرستی):");
+    await ctx.reply("دلیل گزارشت رو دقیق بنویس (اگه لازم بود بعدش می‌تونی مدرک/عکس هم بفرستی):", { reply_markup: cancelKeyboard() });
   });
 
   // Step 2: reason text.
@@ -77,12 +79,12 @@ export function registerReportFlow(composer: Composer<NavaContext>) {
       return;
     }
     if (text.length < 3) {
-      await ctx.reply("لطفاً دلیل گزارش رو کمی کامل‌تر بنویس.");
+      await ctx.reply("لطفاً دلیل گزارش رو کمی کامل‌تر بنویس.", { reply_markup: cancelKeyboard() });
       return;
     }
 
     await setFlow(ctx.from!.id, { ...flow, stage: "await_photo", reason: text });
-    await ctx.reply("اگه عکس یا مدرکی داری همینجا بفرست، وگرنه بنویس «ندارم».");
+    await ctx.reply("اگه عکس یا مدرکی داری همینجا بفرست، وگرنه بنویس «ندارم».", { reply_markup: cancelKeyboard() });
   });
 
   // Step 3: optional photo, or "ندارم" text — finalizes the report.
@@ -98,7 +100,7 @@ export function registerReportFlow(composer: Composer<NavaContext>) {
       return;
     }
     if (text !== "ندارم") {
-      await ctx.reply("اگه عکس داری بفرستش، یا دقیقاً بنویس «ندارم».");
+      await ctx.reply("اگه عکس داری بفرستش، یا دقیقاً بنویس «ندارم».", { reply_markup: cancelKeyboard() });
       return;
     }
 

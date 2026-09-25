@@ -3,13 +3,13 @@ import { countReferralRewards } from "../../db/models/relic.js";
 import { getContent, setContent } from "../../db/models/content.js";
 import { env } from "../../config/env.js";
 import { textEmoji } from "../../config/emojis.js";
+import { botUsername } from "../../config/botInfo.js";
 
 /** The bot's own @username, used to build the referral deep link
  *  (t.me/<username>?start=<anonId>). Telegram gives no API for a bot to
  *  read its own username at request time without an extra API call, so
  *  this is the one thing that must be typed once, matching whatever
  *  BotFather actually gave this bot. */
-const BOT_USERNAME = "NavaChatBot";
 
 /** Admin-editable via the "🛠 راهنما / کانال جوین / پشتیبانی" panel (see
  *  guides.ts, ContentKey "inviteMessage"). The literal token `{{link}}` is
@@ -42,7 +42,7 @@ export async function sendInviteScreen(ctx: NavaContext): Promise<void> {
   const user = ctx.dbUser;
   if (!user) return;
 
-  const link = `https://t.me/${BOT_USERNAME}?start=${user.anonId}`;
+  const link = `https://t.me/${botUsername()}?start=${user.anonId}`;
   const template = await getContent("inviteMessage", defaultInviteMessageTemplate());
   const inviteText = template.split("{{link}}").join(link);
 

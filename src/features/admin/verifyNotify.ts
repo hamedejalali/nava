@@ -33,12 +33,15 @@ export async function sendPhotoOrText(api: Api, chatId: number, photo: string | 
  *  Photos come from VERIFY_APPROVED_PHOTO / VERIFY_REVOKED_PHOTO (env). */
 export async function notifyVerificationChange(api: Api, userId: number, nowVerified: boolean): Promise<boolean> {
   if (nowVerified) {
-    const html = `✅ شما تایید شدید! ${textEmoji("VERIFIED_BADGE", "🔵")} تیک آبی وریفای به پروفایلتون اضافه شد.`;
+    const tick = textEmoji("VERIFIED_BADGE", "✅");
+    const html =
+      `${tick} شما توسط ادمین تایید شدید!\n\n` +
+      `از این به بعد کاربران اعتماد بیشتری به شما خواهند داشت، تیک سبز کنار اسمتون توی پروفایل نمایش داده میشه و شانس بیشتری برای آشنا شدن با بقیه دارید 🎉`;
     return sendPhotoOrText(api, userId, env.VERIFY_APPROVED_PHOTO, html);
   }
 
   const supportId = await getContent("supportId", "");
   const supportLine = supportId ? `\n\nاگر اعتراض داری، به آیدی پشتیبانی پیام بده: ${escapeHtml(supportId)}` : "";
-  const html = `❌ وریفای پروفایل شما لغو شد و تیک آبی از پروفایلتون برداشته شد.${supportLine}`;
+  const html = `❌ وریفای پروفایل شما لغو شد و تیک سبز از پروفایلتون برداشته شد.${supportLine}`;
   return sendPhotoOrText(api, userId, env.VERIFY_REVOKED_PHOTO, html);
 }

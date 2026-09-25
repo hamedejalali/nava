@@ -24,11 +24,21 @@ function defaultStarsPackages(): RelicPackage[] {
   return env.starsPackages.map((p) => ({ price: p.stars, relic: p.relic }));
 }
 
+/** Placeholder gateway packages shown until you set real ones from the admin
+ *  panel (💳 تنظیم قیمت رلیک ← قیمت‌های درگاه). price = Toman. */
+export const DEFAULT_GATEWAY_PACKAGES: RelicPackage[] = [
+  { price: 50_000, relic: 10 },
+  { price: 100_000, relic: 25 },
+  { price: 180_000, relic: 50 },
+  { price: 320_000, relic: 100 },
+  { price: 700_000, relic: 250 },
+];
+
 export async function getPackages(kind: PricingKind): Promise<RelicPackage[]> {
   const col = await collection();
   const doc = await col.findOne({ _id: kind });
   if (doc) return doc.packages;
-  return kind === "stars" ? defaultStarsPackages() : [];
+  return kind === "stars" ? defaultStarsPackages() : DEFAULT_GATEWAY_PACKAGES;
 }
 
 export function parsePackagesJson(raw: string): RelicPackage[] {
