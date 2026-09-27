@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/webhook.ts": {
+      "memory": 512,
+      "maxDuration": 45
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/expire-searches",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/process-broadcasts",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
