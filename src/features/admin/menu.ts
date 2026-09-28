@@ -27,6 +27,7 @@ export const ADMIN_MENU_LABELS = {
   guidesAndChannels: "🛠 راهنما / کانال جوین / پشتیبانی",
   resetUser: "♻️ ریست اطلاعات کاربر",
   pricing: "💳 تنظیم قیمت رلیک",
+  reactionGate: "🎯 تنظیم گیت ری‌اکشن",
   close: "❌ بستن پنل",
 } as const;
 
@@ -67,6 +68,7 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
     { label: ADMIN_MENU_LABELS.guidesAndChannels },
     { label: ADMIN_MENU_LABELS.resetUser, icon: buttonIcon("RESET_USER") },
     { label: ADMIN_MENU_LABELS.pricing },
+    { label: ADMIN_MENU_LABELS.reactionGate },
   ].filter((e) => owner || !OWNER_ONLY.includes(e.label));
 
   const rows = [];

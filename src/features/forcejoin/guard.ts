@@ -5,6 +5,7 @@ import { buttonIcon, textEmoji } from "../../config/emojis.js";
 import { listActiveChannels, type RequiredChannelDoc } from "../../db/models/channel.js";
 import { escapeHtml } from "../../utils/html.js";
 import { FORCE_JOIN_VERIFY_CALLBACK } from "./constants.js";
+import { requireReactionGate } from "../reactionGate/gate.js";
 
 /** Checks the user's live Telegram membership for every required channel.
  *  Never cached — re-verified on every gated action, per spec ("do not
@@ -68,11 +69,16 @@ export async function requireChannelMembership(ctx: NavaContext, lang: Language)
   if (ctx.dbUser?.channelsExempt) return true;
 
   const channels = await listActiveChannels();
-  if (channels.length === 0) return true;
+  if (channels.length > 0) {
+    const ok = await isMemberOfAll(ctx, channels);
+    if (!ok) {
+      await sendForceJoinScreen(ctx, lang, channels);
+      return false;
+    }
+  }
 
-  const ok = await isMemberOfAll(ctx, channels);
-  if (ok) return true;
-
-  await sendForceJoinScreen(ctx, lang, channels);
-  return false;
+  // The admin-configured "گیت ری‌اکشن" rides on exactly the same call
+  // sites as force-join (menu taps, search, anonymous messages) — see
+  // src/features/reactionGate/gate.ts. Always fail-open.
+  return requireReactionGate(ctx);
 }

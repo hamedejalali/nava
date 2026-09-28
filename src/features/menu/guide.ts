@@ -14,12 +14,6 @@ export async function sendGuide(ctx: NavaContext): Promise<void> {
   await ctx.reply(text, { reply_markup: support ? inlineKeyboard([[support]]) : undefined });
 }
 
-/** "پیشنهادات و انتقادات": hands the user the support contact. */
-export async function sendFeedbackInfo(ctx: NavaContext): Promise<void> {
-  const support = await buildSupportButton("پیام به پشتیبانی");
-  if (!support) {
-    await ctx.reply("فعلاً آیدی پشتیبانی تنظیم نشده. کمی بعد دوباره امتحان کن 🙏");
-    return;
-  }
-  await ctx.reply("پیشنهاد یا انتقادی داری؟ با تیم پشتیبانی در میون بذار 👇", { reply_markup: inlineKeyboard([[support]]) });
-}
+/** "پیشنهادات و انتقادات": no support id shown anymore — the user's
+ *  message goes straight to the owner. See feedbackFlow.ts. */
+export { sendFeedbackPrompt as sendFeedbackInfo } from "./feedbackFlow.js";

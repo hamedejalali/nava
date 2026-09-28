@@ -2,12 +2,13 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { getSession, otherParticipant, endSessionOnce } from "../../db/models/chatSession.js";
+import { getSession, otherParticipant, endSessionOnce, incrementMessageCount, toggleSafeChat } from "../../db/models/chatSession.js";
 import { setActiveChatSession, getUser } from "../../db/models/user.js";
 import { refundChatCostOnce } from "../../db/models/relic.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { textEmoji } from "../../config/emojis.js";
+import { buildChatControlsKeyboard } from "./chatUi.js";
 
 /** Every text message from a user with an active chat session is relayed
  *  verbatim to their partner, never touching any onboarding/admin handler.
@@ -29,11 +30,21 @@ export function registerChatRelay(composer: Composer<NavaContext>) {
     const partnerId = otherParticipant(session, ctx.from!.id);
     if (!partnerId) return next();
 
-    await ctx.api.sendMessage(partnerId, ctx.message.text).catch(() => {
-      // Partner may have blocked the bot or deleted their account — the
-      // chat itself stays open; message delivery failures are silent to
-      // the sender by design (mirrors how Telegram DMs behave).
-    });
+    await incrementMessageCount(session._id);
+
+    await ctx.api
+      .sendMessage(partnerId, ctx.message.text, {
+        // "چت ایمن": while enabled, relayed messages can't be forwarded or
+        // saved by the recipient. Telegram has no way for a bot to detect
+        // or block a screenshot itself — protect_content is the actual,
+        // real effect available through the Bot API.
+        protect_content: session.safeChatEnabled || undefined,
+      })
+      .catch(() => {
+        // Partner may have blocked the bot or deleted their account — the
+        // chat itself stays open; message delivery failures are silent to
+        // the sender by design (mirrors how Telegram DMs behave).
+      });
   });
 }
 
@@ -64,6 +75,47 @@ export function registerChatControls(composer: Composer<NavaContext>) {
   composer.callbackQuery(CHAT_CALLBACKS.endChatCancel, async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.deleteMessage().catch(() => {});
+  });
+
+  // "چت ایمن" / "غیرفعال کردن چت ایمن" — same button, callback data never
+  // changes; the label flips based on the session's current state. Either
+  // participant can toggle it; it applies to the whole session (both
+  // directions), and both sides' own copy of this message gets its label
+  // updated so neither side sees a stale state.
+  composer.callbackQuery(CHAT_CALLBACKS.safeChat, async (ctx) => {
+    const sessionId = ctx.dbUser?.activeChatSessionId;
+    if (!sessionId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const result = await toggleSafeChat(sessionId);
+    if (!result) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const { session, enabled } = result;
+    await ctx.answerCallbackQuery({ text: enabled ? "🔒 چت ایمن فعال شد" : "🔓 چت ایمن غیرفعال شد" });
+
+    const partnerId = otherParticipant(session, ctx.from!.id);
+    const partner = partnerId ? await getUser(partnerId) : null;
+    const partnerLang: Language = partner?.languageCode ?? "fa";
+
+    const edits: Array<Promise<unknown>> = [
+      ctx
+        .editMessageReplyMarkup({ reply_markup: buildChatControlsKeyboard(ctx.userLang, enabled) })
+        .catch(() => {}),
+    ];
+    if (partnerId) {
+      const partnerMessageId = session.userA === partnerId ? session.controlsMessageIdA : session.controlsMessageIdB;
+      if (partnerMessageId) {
+        edits.push(
+          ctx.api
+            .editMessageReplyMarkup(partnerId, partnerMessageId, { reply_markup: buildChatControlsKeyboard(partnerLang, enabled) })
+            .catch(() => {})
+        );
+      }
+    }
+    await Promise.all(edits);
   });
 
   composer.callbackQuery(CHAT_CALLBACKS.endChatConfirm, async (ctx) => {
@@ -102,12 +154,19 @@ export function registerChatControls(composer: Composer<NavaContext>) {
       })
       .catch(() => {});
 
-    const refunded = await refundChatCostOnce(partnerId, sessionId);
-    if (refunded) {
-      const relicEmoji = textEmoji("RELIC", "💰");
-      const cashbackTemplate = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
-      const cashbackText = cashbackTemplate.split("{{RELIC_EMOJI}}").join(relicEmoji);
-      await ctx.api.sendMessage(partnerId, cashbackText).catch(() => {});
+    // Refund only applies to a chat that never really got going: fewer
+    // than 4 messages total between BOTH participants. A chat with real
+    // conversation doesn't get the 1-Relic cashback even though the OTHER
+    // person ended it.
+    const totalMessages = session.messageCount ?? 0;
+    if (totalMessages < 4) {
+      const refunded = await refundChatCostOnce(partnerId, sessionId);
+      if (refunded) {
+        const relicEmoji = textEmoji("RELIC", "💰");
+        const cashbackTemplate = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
+        const cashbackText = cashbackTemplate.split("{{RELIC_EMOJI}}").join(relicEmoji);
+        await ctx.api.sendMessage(partnerId, cashbackText).catch(() => {});
+      }
     }
 
     // Ending a chat previously left BOTH sides with no inline keyboard at
@@ -122,8 +181,4 @@ export function registerChatControls(composer: Composer<NavaContext>) {
     const chooseFromMenuTextEnder = requireLocked(ctx.userLang, "onboarding.chooseFromMenu", tEnder.onboarding.chooseFromMenu);
     await ctx.reply(chooseFromMenuTextEnder, { reply_markup: buildMainMenuReplyKeyboard(ctx.userLang) }).catch(() => {});
   });
-
-  // "چت ایمن" — UI stub only, per spec's staged approach; behavior defined
-  // in a future prompt. Safely acknowledged by the generic callback
-  // fallback (src/bot.ts) in the meantime.
 }

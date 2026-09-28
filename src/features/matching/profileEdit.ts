@@ -7,7 +7,7 @@ import { citiesForProvince, isValidCityForProvince } from "../../data/cities.js"
 import { usersCollectionDirectSet, setUserLocation } from "../../db/models/user.js";
 import { isValidPersianNickname } from "../onboarding/nickname.js";
 import { createEditRequest, decideEditRequest, getEditRequest } from "../../db/models/editRequests.js";
-import { getAllAdminIds } from "../admin/constants.js";
+import { getRequestRecipientIds } from "../admin/constants.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { showOwnProfile } from "./profile.js";
 import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
@@ -63,10 +63,9 @@ function editMenuKeyboard() {
   return inlineKeyboard([
     [glassButton("📝 بیوگرافی", EDIT_CALLBACKS.bio, "primary")],
     [glassButton("🖼 عکس پروفایل", EDIT_CALLBACKS.photo, "primary")],
-    [
-      glassButton("🏙 استان", EDIT_CALLBACKS.province, "primary"),
-      glassButton("🏘 شهر", EDIT_CALLBACKS.city, "primary"),
-    ],
+    // Province/city are intentionally NOT editable by the user anymore —
+    // removed on request. They're still set once during onboarding and
+    // can only be changed by an admin (resetUser / direct DB edit).
     [glassButton("📍 ثبت موقعیت مکانی", EDIT_CALLBACKS.location, "primary")],
     [glassButton("✏️ درخواست تغییر نام", EDIT_CALLBACKS.requestNickname, "danger")],
     [glassButton("✏️ درخواست تغییر سن", EDIT_CALLBACKS.requestAge, "danger")],
@@ -101,25 +100,16 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
     await ctx.reply("عکس جدید پروفایلت رو همینجا بفرست، بعد از تایید ادمین جایگزین میشه.", { reply_markup: cancelKeyboard() });
   });
 
+  // Province/city editing was removed on request — these two handlers
+  // stay registered (harmless) only so an OLD inline keyboard still
+  // sitting in someone's chat history from before this change doesn't
+  // spin forever with no response when tapped.
   composer.callbackQuery(EDIT_CALLBACKS.province, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await setAwaiting(ctx.from!.id, "province");
-    const names = PROVINCES.map((p) => p.nameFa).join("، ");
-    await ctx.reply(`اسم استان جدیدت رو دقیقاً بفرست.\n\nاستان‌های معتبر:\n${names}`, { reply_markup: cancelKeyboard() });
+    await ctx.answerCallbackQuery({ text: "استان دیگه قابل ویرایش نیست.", show_alert: true });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.city, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const user = ctx.dbUser;
-    if (!user?.province) {
-      await ctx.reply("اول باید استانت رو ثبت کنی.");
-      return;
-    }
-    await setAwaiting(ctx.from!.id, "city");
-    const cities = citiesForProvince(user.province)
-      .map((c) => c.nameFa)
-      .join("، ");
-    await ctx.reply(`اسم شهر جدیدت (داخل استان ${user.province}) رو دقیقاً بفرست.\n\nشهرهای معتبر:\n${cities}`, { reply_markup: cancelKeyboard() });
+    await ctx.answerCallbackQuery({ text: "شهر دیگه قابل ویرایش نیست.", show_alert: true });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.location, async (ctx) => {
@@ -210,9 +200,10 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
         return;
       }
       await setAwaiting(ctx.from!.id, null);
-      const request = await createEditRequest(user._id, "nickname", user.nickname ?? "-", raw);
+      const previousNickname = user.nickname ?? "-";
+      const request = await createEditRequest(user._id, "nickname", previousNickname, raw);
       await ctx.reply("✅ درخواستت برای ادمین ارسال شد. بعد از تایید اعمال میشه.");
-      await notifyAdminsOfRequest(ctx, request._id, user, "nickname", raw);
+      await notifyAdminsOfRequest(ctx, request._id, user, "nickname", previousNickname, raw);
       return;
     }
 
@@ -223,9 +214,10 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
         return;
       }
       await setAwaiting(ctx.from!.id, null);
-      const request = await createEditRequest(user._id, "age", String(user.age ?? "-"), String(age));
+      const previousAge = String(user.age ?? "-");
+      const request = await createEditRequest(user._id, "age", previousAge, String(age));
       await ctx.reply("✅ درخواستت برای ادمین ارسال شد. بعد از تایید اعمال میشه.");
-      await notifyAdminsOfRequest(ctx, request._id, user, "age", String(age));
+      await notifyAdminsOfRequest(ctx, request._id, user, "age", previousAge, String(age));
       return;
     }
   });
@@ -255,12 +247,14 @@ async function notifyAdminsOfRequest(
   requestId: string,
   user: { _id: number; anonId: string },
   field: "nickname" | "age",
+  previousValue: string,
   newValue: string
 ): Promise<void> {
   const fieldFa = field === "nickname" ? "نام مستعار" : "سن";
   const text =
     `📝 درخواست تغییر ${fieldFa}\n\n` +
     `کاربر: ${user.anonId} (${user._id})\n` +
+    `مقدار قبلی: ${previousValue}\n` +
     `مقدار جدید: ${newValue}`;
   const kb = inlineKeyboard([
     [
@@ -268,7 +262,7 @@ async function notifyAdminsOfRequest(
       glassButton("❌ رد", `${ADMIN_DECISION_PREFIX.reject}${requestId}`, "danger"),
     ],
   ]);
-  for (const adminId of await getAllAdminIds()) {
+  for (const adminId of await getRequestRecipientIds()) {
     await ctx.api.sendMessage(adminId, text, { reply_markup: kb }).catch(() => {});
   }
 }

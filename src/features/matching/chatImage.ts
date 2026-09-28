@@ -1,8 +1,8 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { getAllAdminIds } from "../admin/constants.js";
+import { getRequestRecipientIds } from "../admin/constants.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { getSession, otherParticipant } from "../../db/models/chatSession.js";
+import { getSession, otherParticipant, incrementMessageCount } from "../../db/models/chatSession.js";
 import { createModerationRecord, type ImageModerationDoc } from "../../db/models/imageModeration.js";
 import { checkImage } from "../../services/sightengine.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
@@ -39,7 +39,8 @@ export function registerChatImageModeration(composer: Composer<NavaContext>) {
         aiScore: check.score,
         aiClassification: check.classification,
       });
-      await ctx.api.sendPhoto(partnerId, largest.file_id).catch(() => {});
+      await incrementMessageCount(sessionId);
+      await ctx.api.sendPhoto(partnerId, largest.file_id, { protect_content: session.safeChatEnabled || undefined }).catch(() => {});
       return;
     }
 
@@ -65,7 +66,7 @@ export function registerChatImageModeration(composer: Composer<NavaContext>) {
       ],
     ]);
 
-    for (const adminId of await getAllAdminIds()) {
+    for (const adminId of await getRequestRecipientIds()) {
       await ctx.api
         .sendPhoto(adminId, largest.file_id, {
           caption: `📸 عکس مشکوک در چت ناشناس\n\nفرستنده (آیدی تلگرام): ${ctx.from!.id}\nشناسه‌ی چت: ${sessionId}`,
@@ -90,7 +91,8 @@ export async function deliverApprovedChatImage(ctx: NavaContext, doc: ImageModer
   const isRecipientValid = otherParticipant(session, doc.senderId) === doc.recipientId;
   if (!isSenderValid || !isRecipientValid) return;
 
-  await ctx.api.sendPhoto(doc.recipientId, doc.fileId).catch(() => {});
+  await incrementMessageCount(session._id);
+  await ctx.api.sendPhoto(doc.recipientId, doc.fileId, { protect_content: session.safeChatEnabled || undefined }).catch(() => {});
 }
 
 /** Called by the shared decision handler once an admin rejects a pending

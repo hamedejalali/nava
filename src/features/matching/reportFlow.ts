@@ -4,7 +4,7 @@ import { getDb } from "../../db/connect.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { createReport, getReport, decideReportOnce } from "../../db/models/reports.js";
 import { grantReportRewardOnce } from "../../db/models/relic.js";
-import { getAllAdminIds, isOwner } from "../admin/constants.js";
+import { getRequestRecipientIds, isOwner } from "../admin/constants.js";
 import { getContent } from "../../db/models/content.js";
 import { getUser } from "../../db/models/user.js";
 import { CHAT_CALLBACKS } from "./constants.js";
@@ -143,7 +143,7 @@ async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId
     ],
   ]);
 
-  for (const adminId of await getAllAdminIds()) {
+  for (const adminId of await getRequestRecipientIds()) {
     if (photoFileId) {
       await ctx.api.sendPhoto(adminId, photoFileId, { caption, parse_mode: "HTML", reply_markup: decisionKb }).catch(() => {});
     } else {

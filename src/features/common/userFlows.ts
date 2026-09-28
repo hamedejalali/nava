@@ -39,6 +39,7 @@ export async function clearAllUserFlows(userId: number): Promise<void> {
     db.collection("verify_flow").deleteOne({ _id: userId as never }),
     db.collection("report_flow").deleteOne({ _id: userId as never }),
     db.collection("anon_msg_flow").deleteOne({ _id: userId as never }),
+    db.collection("feedback_flow").deleteOne({ _id: userId as never }),
     // admin-panel steps (search / ban / broadcast / relic ...) use these:
     db.collection("admin_flow_state").deleteOne({ _id: userId as never }),
     db.collection("admin_relic_flow").deleteOne({ _id: userId as never }),
@@ -53,12 +54,13 @@ export async function clearAllUserFlows(userId: number): Promise<void> {
  *  profile photo and never reached the admins. */
 export async function hasPendingPhotoFlow(userId: number): Promise<boolean> {
   const db = await getDb();
-  const [verify, report, anon] = await Promise.all([
+  const [verify, report, anon, feedback] = await Promise.all([
     db.collection("verify_flow").findOne({ _id: userId as never }),
     db.collection("report_flow").findOne({ _id: userId as never, stage: "await_photo" }),
     db.collection("anon_msg_flow").findOne({ _id: userId as never }),
+    db.collection("feedback_flow").findOne({ _id: userId as never }),
   ]);
-  return !!verify || !!report || !!anon;
+  return !!verify || !!report || !!anon || !!feedback;
 }
 
 export function registerFlowCancel(composer: Composer<NavaContext>) {

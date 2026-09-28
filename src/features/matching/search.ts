@@ -3,6 +3,7 @@ import { GrammyError } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { getUser } from "../../db/models/user.js";
+import { setControlsMessageId } from "../../db/models/chatSession.js";
 import { getQueueEntry, removeQueueEntry, setQueueStatusMessageId, type SearchType } from "../../db/models/matchQueue.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { attemptMatchOrQueue } from "./engine.js";
@@ -45,16 +46,19 @@ function countdownKeyboard(lang: Language, elapsedSeconds: number) {
   ]);
 }
 
-async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language) {
+async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language, sessionId: string) {
   const t = dictionary(lang);
   const found = requireLocked(lang, "matching.foundPartner", t.matching.foundPartner);
   const warning = requireLocked(lang, "matching.trustWarning", t.matching.trustWarning);
 
   await ctx.api.sendMessage(telegramId, found);
-  await ctx.api.sendMessage(telegramId, `<blockquote>${warning}</blockquote>`, {
+  const controls = await ctx.api.sendMessage(telegramId, `<blockquote>${warning}</blockquote>`, {
     parse_mode: "HTML",
-    reply_markup: buildChatControlsKeyboard(lang),
+    reply_markup: buildChatControlsKeyboard(lang, false),
   });
+  // Remembered so toggling "چت ایمن" from either side can update BOTH
+  // participants' copies of this same message's button label.
+  await setControlsMessageId(sessionId, telegramId, controls.message_id);
 }
 
 /**
@@ -75,7 +79,31 @@ async function runCountdown(ctx: NavaContext, telegramId: number, chatId: number
   for (let elapsed = 1; elapsed <= COUNTDOWN_SECONDS; elapsed++) {
     await sleep(1000);
 
-    const stillQueued = await getQueueEntry(telegramId);
+    // FIXED — this read was NOT wrapped in try/catch. A single transient
+    // MongoDB hiccup during any one of these 40 per-second checks used to
+    // throw all the way out of this function, uncaught: the countdown
+    // message then froze forever at whatever second it reached (exactly
+    // the "stuck at 30 seconds" symptom), and — since a genuine processing
+    // failure now correctly returns a retryable HTTP status to Telegram
+    // (see api/webhook.ts) — Telegram would redeliver the same button tap,
+    // which re-entered this handler and created a SECOND, separate
+    // countdown message/loop while the first one sat there permanently
+    // frozen. A user tapping "لغو جستجو" on that old, orphaned message
+    // would silently no-op (its queue entry had already moved on), which
+    // is the "cancel button doesn't do anything" symptom. None of this
+    // ever risked a double charge (queuing doesn't charge Relic, and the
+    // "already in an active chat" guard blocks a retry after a real
+    // match), but it did produce confusing, stuck, duplicated UI. A
+    // transient failure here now just skips this tick and the countdown
+    // keeps going, exactly like a transient Telegram error already did a
+    // few lines below.
+    let stillQueued;
+    try {
+      stillQueued = await getQueueEntry(telegramId);
+    } catch (err) {
+      console.error("[search] getQueueEntry failed mid-countdown (will retry next tick):", err);
+      continue;
+    }
     if (!stillQueued) return; // matched or cancelled — already handled elsewhere
 
     try {
@@ -153,8 +181,8 @@ export function registerSearch(composer: Composer<NavaContext>) {
       const partner = await getUser(result.partnerId);
       const partnerLang: Language = partner?.languageCode ?? "fa";
 
-      await notifyMatch(ctx, user._id, ctx.userLang);
-      await notifyMatch(ctx, result.partnerId, partnerLang);
+      await notifyMatch(ctx, user._id, ctx.userLang, result.sessionId);
+      await notifyMatch(ctx, result.partnerId, partnerLang, result.sessionId);
       return;
     }
 

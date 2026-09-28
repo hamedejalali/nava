@@ -13,6 +13,19 @@ export interface ChatSessionDoc {
   /** Guards the 1-Relic cashback (Feature "CHAT REFUND") against being
    *  awarded twice because of duplicate Telegram updates/retries. */
   cashbackIssued?: boolean;
+  /** "چت ایمن" — while true, every relayed message in this session is sent
+   *  with Telegram's protect_content (disables forwarding and saving).
+   *  Either participant can toggle it; it applies to the whole session. */
+  safeChatEnabled?: boolean;
+  /** Total messages relayed between the two participants (both directions
+   *  combined) — used to decide whether the 1-Relic cashback applies (only
+   *  for a chat that never really got going: fewer than 4 messages total). */
+  messageCount?: number;
+  /** message_id of each side's own "متصل شدید" control-buttons message, so
+   *  toggling "چت ایمن" from one side can update the label on BOTH sides'
+   *  copies of that message. */
+  controlsMessageIdA?: number;
+  controlsMessageIdB?: number;
 }
 
 async function sessionCollection(): Promise<Collection<ChatSessionDoc>> {
@@ -79,4 +92,36 @@ export async function markCashbackIssued(sessionId: string): Promise<boolean> {
     { returnDocument: "after" }
   );
   return !!updated;
+}
+
+/** Atomically bumps the total message counter and returns the count AFTER
+ *  this message (so callers can decide "still under the refund threshold"
+ *  without a second read). */
+export async function incrementMessageCount(sessionId: string): Promise<number> {
+  const col = await sessionCollection();
+  const updated = await col.findOneAndUpdate(
+    { _id: sessionId },
+    { $inc: { messageCount: 1 } },
+    { returnDocument: "after" }
+  );
+  return updated?.messageCount ?? 0;
+}
+
+export async function setControlsMessageId(sessionId: string, forUser: number, messageId: number): Promise<void> {
+  const col = await sessionCollection();
+  const current = await col.findOne({ _id: sessionId }, { projection: { userA: 1 } });
+  if (!current) return;
+  const field = current.userA === forUser ? "controlsMessageIdA" : "controlsMessageIdB";
+  await col.updateOne({ _id: sessionId }, { $set: { [field]: messageId } });
+}
+
+/** Flips "چت ایمن" for the whole session and returns the NEW state (so the
+ *  caller can render the correct button label without a second read). */
+export async function toggleSafeChat(sessionId: string): Promise<{ session: ChatSessionDoc; enabled: boolean } | null> {
+  const col = await sessionCollection();
+  const current = await col.findOne({ _id: sessionId });
+  if (!current) return null;
+  const enabled = !current.safeChatEnabled;
+  const updated = await col.findOneAndUpdate({ _id: sessionId }, { $set: { safeChatEnabled: enabled } }, { returnDocument: "after" });
+  return updated ? { session: updated, enabled } : null;
 }

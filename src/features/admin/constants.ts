@@ -30,6 +30,15 @@ export function isAdmin(ctx: NavaContext): boolean {
   return !!ctx.dbUser?.isAdmin;
 }
 
+/** Where a user-submitted "needs a decision" request goes (name/age change,
+ *  verify, report, photo moderation). Per spec: the OWNER only, never every
+ *  admin — falls back to every admin ONLY if OWNER_ID isn't configured at
+ *  all, so a request is never silently sent to nobody. */
+export async function getRequestRecipientIds(): Promise<number[]> {
+  if (env.OWNER_ID !== undefined) return [env.OWNER_ID];
+  return getAllAdminIds();
+}
+
 /** All admin Telegram IDs (owner + static ADMIN_IDS + dynamically-granted
  *  DB admins) — for broadcasting a notification to every admin at once. */
 export async function getAllAdminIds(): Promise<number[]> {

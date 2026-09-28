@@ -44,6 +44,9 @@ import { escapeHtml } from "./utils/html.js";
 import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
 import { telegramRetryTransformer } from "./ui/telegramRetry.js";
 import { registerAnonMessages } from "./features/anonMessages/index.js";
+import { registerAdminReactionGate } from "./features/admin/reactionGateAdmin.js";
+import { registerReactionGate } from "./features/reactionGate/gate.js";
+import { registerFeedbackFlow } from "./features/menu/feedbackFlow.js";
 import { registerFlowInterrupt, registerFlowCancel } from "./features/common/userFlows.js";
 import { registerAdminVerifiedUsers } from "./features/admin/verifiedUsers.js";
 import { registerProfileReveal } from "./features/matching/profileReveal.js";
@@ -161,6 +164,8 @@ export function createBot(): Bot<NavaContext> {
   registerFlowInterrupt(features); // a menu tap / command always ends a pending "waiting for text" step
   registerFlowCancel(features); // the red "❌ لغو" glass button used by every such step
   registerAdmin(features);
+  registerAdminReactionGate(features);
+  registerReactionGate(features);
   registerOwnerAdminPanelClose(features);
   registerAdminUsers(features);
   registerAdminLevels(features);
@@ -177,6 +182,7 @@ export function createBot(): Bot<NavaContext> {
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
   registerAnonMessages(features); // before onboarding (its /start payload) and before the photo uploader
+  registerFeedbackFlow(features);
   registerOnboarding(features);
   registerForceJoin(features);
   registerRulesCommand(features);
