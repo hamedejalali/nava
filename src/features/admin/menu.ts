@@ -28,6 +28,8 @@ export const ADMIN_MENU_LABELS = {
   resetUser: "♻️ ریست اطلاعات کاربر",
   pricing: "💳 تنظیم قیمت رلیک",
   reactionGate: "🎯 تنظیم گیت ری‌اکشن",
+  exportUsers: "📤 خروجی اکسل کاربران",
+  importUsers: "📥 ورودی اکسل (بازیابی)",
   close: "❌ بستن پنل",
 } as const;
 
@@ -45,7 +47,13 @@ export function registerAdminVersionButton(composer: Composer<NavaContext>) {
 /** Items only the owner should see/use (dynamic admin management, granting
  *  user levels, and fully wiping a user's profile — all irreversible or
  *  security-sensitive enough to keep away from regular admins). */
-const OWNER_ONLY: string[] = [ADMIN_MENU_LABELS.moderators, ADMIN_MENU_LABELS.level, ADMIN_MENU_LABELS.resetUser];
+const OWNER_ONLY: string[] = [
+  ADMIN_MENU_LABELS.moderators,
+  ADMIN_MENU_LABELS.level,
+  ADMIN_MENU_LABELS.resetUser,
+  ADMIN_MENU_LABELS.exportUsers,
+  ADMIN_MENU_LABELS.importUsers,
+];
 
 export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const owner = isOwner(ctx);
@@ -69,6 +77,8 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
     { label: ADMIN_MENU_LABELS.resetUser, icon: buttonIcon("RESET_USER") },
     { label: ADMIN_MENU_LABELS.pricing },
     { label: ADMIN_MENU_LABELS.reactionGate },
+    { label: ADMIN_MENU_LABELS.exportUsers },
+    { label: ADMIN_MENU_LABELS.importUsers },
   ].filter((e) => owner || !OWNER_ONLY.includes(e.label));
 
   const rows = [];

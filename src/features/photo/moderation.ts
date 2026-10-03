@@ -9,7 +9,6 @@ import { buildSupportButton } from "../support/index.js";
 import { getRequestRecipientIds, isAdmin } from "../admin/constants.js";
 import { hasPendingPhotoFlow } from "../common/userFlows.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
-import { deliverApprovedChatImage, notifyRejectedChatImage } from "../matching/chatImage.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 
@@ -128,11 +127,12 @@ export function registerImageModerationDecisions(composer: Composer<NavaContext>
     await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
 
     const { doc } = result;
+    // "chat_image" records only exist from before the v1.8.0 upgrade (see
+    // features/photo/chatPhotoModeration.ts, which replaced the old
+    // approval-gated chat-image flow with instant delivery + a moderation
+    // log). Any such legacy pending record is simply inert now.
     if (doc.type === "profile_photo") {
       await handleProfilePhotoDecision(ctx, doc, decision);
-    } else {
-      if (decision === "approved") await deliverApprovedChatImage(ctx, doc);
-      else await notifyRejectedChatImage(ctx, doc);
     }
   });
 }

@@ -1,4 +1,5 @@
 import type { Collection } from "mongodb";
+import { randomBytes } from "node:crypto";
 import { getDb } from "../connect.js";
 import { grantInitialBalanceIfNeeded } from "./relic.js";
 
@@ -150,9 +151,19 @@ export async function ensureUserIndexes(): Promise<void> {
 }
 
 const ANON_ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+/**
+ * Generates the public, non-sensitive Nava ID shown to other users
+ * (e.g. "user_AbC123"). Uses a CSPRNG (node:crypto randomBytes) rather than
+ * Math.random(), since Math.random() is not cryptographically secure and a
+ * public, guessable-if-predictable ID is a real exposure surface even though
+ * it never encodes the Telegram numeric ID. Collisions are still handled by
+ * the caller's retry loop + unique index, so this is a pure RNG hardening,
+ * fully backward-compatible with existing IDs already stored in the DB.
+ */
 function generateAnonId(): string {
+  const bytes = randomBytes(6);
   let suffix = "";
-  for (let i = 0; i < 6; i++) suffix += ANON_ID_CHARS[Math.floor(Math.random() * ANON_ID_CHARS.length)];
+  for (let i = 0; i < 6; i++) suffix += ANON_ID_CHARS[bytes[i]! % ANON_ID_CHARS.length];
   return `user_${suffix}`;
 }
 

@@ -122,12 +122,19 @@ export function buildProfileKeyboard(lang: Language, target: UserDoc, viewContex
     glassButton(block, `${CHAT_CALLBACKS.block}:${target._id}`, "danger", buttonIcon("LOCK")),
     glassButton(report, `${CHAT_CALLBACKS.report}:${target._id}`, "danger", buttonIcon("REPORT")),
   ];
+  // "گزارش کاربر" is deliberately left OUT while the chat is still active
+  // (v1.7.0) — it only appears once the chat has ended, either from this
+  // same profile view (viewContext becomes something else once
+  // activeChatSessionId clears) or from the end-of-chat notice itself
+  // (see doEndChat in chat.ts). "بلاک" stays available the whole time.
+  const moderationRowDuringChat = [glassButton(block, `${CHAT_CALLBACKS.block}:${target._id}`, "danger", buttonIcon("LOCK"))];
 
-  // While actively connected in a chat, per owner spec, ONLY these 5
+  // While actively connected in a chat, per owner spec, ONLY these 4
   // actions are ever shown — chat-request/direct-message/notify-on-end
-  // (below) only make sense for someone you are NOT already talking to.
+  // (below) only make sense for someone you are NOT already talking to,
+  // and "گزارش" is held back until the chat is over (see above).
   if (viewContext === "chat") {
-    return inlineKeyboard([likeRow, transferRow, contactRow, moderationRow]);
+    return inlineKeyboard([likeRow, transferRow, contactRow, moderationRowDuringChat]);
   }
 
   const chatRequest = requireLocked(lang, "profile.chatRequestButton", t.profile.chatRequestButton);
@@ -177,6 +184,35 @@ export async function showOwnProfile(ctx: NavaContext): Promise<void> {
   await replyWithProfile(ctx, ctx.dbUser, undefined, inlineKeyboard(rows));
 }
 
+/** Shows the current partner's profile to `ctx.from`, while an active
+ *  chat session is open. Used by both the reply-keyboard "مشاهده پروفایل"
+ *  button (chat.ts) and the legacy inline callback below (kept only so an
+ *  old "شما به هم وصل شدید" message sent before v1.7.0 still works if
+ *  someone taps it). */
+export async function showPartnerProfile(ctx: NavaContext): Promise<void> {
+  const sessionId = ctx.dbUser?.activeChatSessionId;
+  if (!sessionId) return;
+  const session = await getSession(sessionId);
+  if (!session) return;
+  const partnerId = otherParticipant(session, ctx.from!.id);
+  if (!partnerId) return;
+
+  const partner = await getUser(partnerId);
+  if (!partner) return;
+
+  const kb = buildProfileKeyboard(ctx.userLang, partner, "chat");
+  await replyWithProfile(ctx, partner, ctx.dbUser, kb);
+
+  if (await shouldNotifyProfileView(ctx.from!.id, partnerId)) {
+    const partnerLang: Language = partner.languageCode ?? "fa";
+    const t = dictionary(partnerLang);
+    const notifyTemplate = requireLocked(partnerLang, "matching.profileViewNotification", t.matching.profileViewNotification);
+    const navaEmoji = textEmoji("NAVA", "🌐");
+    const notifyText = notifyTemplate.split("{{NAVA_EMOJI}}").join(navaEmoji);
+    await ctx.api.sendMessage(partnerId, notifyText, { parse_mode: "HTML" }).catch(() => {});
+  }
+}
+
 export function registerProfile(composer: Composer<NavaContext>) {
   composer.callbackQuery(MENU_CALLBACKS.profile, async (ctx) => {
     if (!ctx.dbUser) {
@@ -187,41 +223,12 @@ export function registerProfile(composer: Composer<NavaContext>) {
     await showOwnProfile(ctx);
   });
 
+  // Legacy: an inline "مشاهده پروفایل" button from a "شما به هم وصل
+  // شدید" message sent before v1.7.0 (now a reply-keyboard button instead
+  // — see chatUi.ts) still works if tapped.
   composer.callbackQuery(CHAT_CALLBACKS.partnerProfile, async (ctx) => {
-    const sessionId = ctx.dbUser?.activeChatSessionId;
-    if (!sessionId) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    const session = await getSession(sessionId);
-    if (!session) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    const partnerId = otherParticipant(session, ctx.from!.id);
-    if (!partnerId) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const partner = await getUser(partnerId);
-    if (!partner) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
     await ctx.answerCallbackQuery();
-    const kb = buildProfileKeyboard(ctx.userLang, partner, "chat");
-    await replyWithProfile(ctx, partner, ctx.dbUser, kb);
-
-    if (await shouldNotifyProfileView(ctx.from!.id, partnerId)) {
-      const partnerLang: Language = partner.languageCode ?? "fa";
-      const t = dictionary(partnerLang);
-      const notifyTemplate = requireLocked(partnerLang, "matching.profileViewNotification", t.matching.profileViewNotification);
-      const navaEmoji = textEmoji("NAVA", "🌐");
-      const notifyText = notifyTemplate.split("{{NAVA_EMOJI}}").join(navaEmoji);
-      await ctx.api.sendMessage(partnerId, notifyText, { parse_mode: "HTML" }).catch(() => {});
-    }
+    await showPartnerProfile(ctx);
   });
 
   composer.callbackQuery(new RegExp(`^${CHAT_CALLBACKS.like}:(\\d+)$`), async (ctx) => {

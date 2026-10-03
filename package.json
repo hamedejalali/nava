@@ -1,6 +1,6 @@
 {
   "name": "nava-bot",
-  "version": "1.6.0",
+  "version": "1.8.0",
   "private": true,
   "description": "Nava - Anonymous chat & matchmaking Telegram bot (Vercel Serverless + MongoDB + grammY)",
   "type": "module",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@vercel/functions": "^3.9.7",
+    "exceljs": "^4.4.0",
     "grammy": "^1.30.0",
     "mongodb": "^6.9.0"
   },

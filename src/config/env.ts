@@ -179,6 +179,25 @@ export const env = {
     return Number.isInteger(n) ? n : undefined;
   },
 
+  /** Chat ID (channel/group/admin DM) where flagged/all in-chat photos are
+   *  logged for moderation. Optional — falls back to getRequestRecipientIds()
+   *  (the owner) when unset, so moderation never silently has nowhere to go. */
+  get MODERATION_LOG_CHAT_ID(): number | undefined {
+    const raw = optional("MODERATION_LOG_CHAT_ID");
+    if (!raw) return undefined;
+    const n = Number(raw);
+    return Number.isInteger(n) ? n : undefined;
+  },
+
+  /** Channel/group the admin "backup export" button sends the Excel file
+   *  to, in addition to DMing the admin who triggered it. Optional. */
+  get BACKUP_CHANNEL_ID(): number | undefined {
+    const raw = optional("BACKUP_CHANNEL_ID");
+    if (!raw) return undefined;
+    const n = Number(raw);
+    return Number.isInteger(n) ? n : undefined;
+  },
+
   // Premium Emoji IDs: intentionally OPTIONAL. Missing config must never
   // crash the bot; it must just be easy to notice during development.
   emoji: {

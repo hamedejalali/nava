@@ -20,8 +20,17 @@ const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     // pre_checkout_query is REQUIRED for Telegram Stars payments: without it
     // Telegram never delivers the pre-checkout update, the bot can't answer
     // it, and every purchase fails with a timeout.
-    allowed_updates: ["message", "callback_query", "pre_checkout_query"],
+    // "message_reaction" is REQUIRED for real in-chat reaction mirroring
+    // (v1.8.0, src/features/matching/reactions.ts) — without it Telegram
+    // never delivers message_reaction updates at all.
+    allowed_updates: ["message", "callback_query", "pre_checkout_query", "message_reaction"],
     drop_pending_updates: false,
+    // Telegram defaults this to 40 when omitted, and caps in-flight
+    // webhook deliveries to this bot at that number — every second a
+    // request stays "in progress" (as the search countdown used to, before
+    // v1.7.0's waitUntil fix) ate into this same shared budget. Explicit
+    // and at Telegram's real maximum for extra headroom as the bot grows.
+    max_connections: 100,
   }),
 });
 

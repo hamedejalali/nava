@@ -6,6 +6,8 @@ import { blockUser } from "../../db/models/blocks.js";
 import { getUser, setActiveChatSession } from "../../db/models/user.js";
 import { getSession, otherParticipant, endSessionOnce } from "../../db/models/chatSession.js";
 import { CHAT_CALLBACKS } from "./constants.js";
+import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
+import type { Language } from "../../i18n/index.js";
 import { buildProfileKeyboard, replyWithProfile } from "./profile.js";
 
 const CB = {
@@ -74,6 +76,11 @@ export function registerContacts(composer: Composer<NavaContext>) {
 
     // If currently chatting with exactly this person, end that chat too —
     // blocking mid-conversation must not leave a dangling "active" session.
+    // FIXED (v1.7.0): both sides now get a proper "chat ended" notice with
+    // their main menu keyboard back (previously only the blocked person
+    // got a message; the blocker was left on-screen with no way to act
+    // again except /start — the exact same gap already fixed for the
+    // normal "پایان چت" flow).
     const sessionId = ctx.dbUser?.activeChatSessionId;
     if (sessionId) {
       const session = await getSession(sessionId);
@@ -82,7 +89,16 @@ export function registerContacts(composer: Composer<NavaContext>) {
         if (result.status === "ended") {
           await setActiveChatSession(session.userA, undefined);
           await setActiveChatSession(session.userB, undefined);
-          await ctx.api.sendMessage(targetId, "🚫 مخاطب شما چت را قطع و شما را مسدود کرد.").catch(() => {});
+
+          const blockedUser = await getUser(targetId);
+          const blockedLang: Language = blockedUser?.languageCode ?? "fa";
+          await ctx.api
+            .sendMessage(targetId, "🚫 چت پایان یافت — مخاطب شما، شما را مسدود کرد.", {
+              reply_markup: buildMainMenuReplyKeyboard(blockedLang),
+            })
+            .catch(() => {});
+
+          await ctx.reply("🚫 چت پایان یافت و کاربر مسدود شد.", { reply_markup: buildMainMenuReplyKeyboard(ctx.userLang) }).catch(() => {});
         }
       }
     }

@@ -25,8 +25,13 @@ import { registerRulesCommand } from "./features/support/index.js";
 import { checkRateLimit, ensureRateLimitIndexes } from "./utils/rateLimit.js";
 import { registerPhotoUpload, registerImageModerationDecisions } from "./features/photo/moderation.js";
 import { registerFileIdHelper } from "./features/admin/fileIdHelper.js";
-import { registerChatImageModeration } from "./features/matching/chatImage.js";
+import { registerChatPhotoModeration } from "./features/photo/chatPhotoModeration.js";
 import { ensureImageModerationIndexes } from "./db/models/imageModeration.js";
+import { ensurePhotoModerationLogIndexes } from "./db/models/photoModerationLog.js";
+import { registerChatMediaRelay } from "./features/matching/mediaRelay.js";
+import { registerChatReactions } from "./features/matching/reactions.js";
+import { ensureChatRelayMapIndexes } from "./db/models/chatRelayMap.js";
+import { registerUserBackup } from "./features/admin/userBackup.js";
 import { registerAdminUsers } from "./features/admin/users.js";
 import { registerAdminLevels } from "./features/admin/levels.js";
 import { registerAdminModerators } from "./features/admin/moderators.js";
@@ -72,6 +77,8 @@ export function createBot(): Bot<NavaContext> {
     ensureImageModerationIndexes(),
     ensureProfileRevealIndexes(),
     ensureBlocksIndexes(),
+    ensurePhotoModerationLogIndexes(),
+    ensureChatRelayMapIndexes(),
   ]).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[bot] Index setup failed (will retry on next cold start):", err);
@@ -180,6 +187,10 @@ export function createBot(): Bot<NavaContext> {
   registerAdminVerifiedUsers(features);
   registerProfileReveal(features);
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
+  registerChatControls(features); // before chat relay: the reply-keyboard control labels must never be relayed as a chat message
+  registerChatPhotoModeration(features); // before profile-photo upload: chat photos must never be mistaken for profile uploads; always delivers instantly + logs to moderation channel
+  registerChatMediaRelay(features); // stickers/gifs/voice/video/video-notes/audio inside an active chat
+  registerChatReactions(features); // mirrors real message_reaction updates onto the original sender's copy
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
   registerAnonMessages(features); // before onboarding (its /start payload) and before the photo uploader
   registerFeedbackFlow(features);
@@ -187,12 +198,11 @@ export function createBot(): Bot<NavaContext> {
   registerForceJoin(features);
   registerRulesCommand(features);
   registerImageModerationDecisions(features);
-  registerChatImageModeration(features); // before profile-photo upload: chat images must never be mistaken for profile uploads
   registerFileIdHelper(features); // must run before registerPhotoUpload — see its doc comment
   registerPhotoUpload(features);
+  registerUserBackup(features);
   registerMatchingEntry(features);
   registerSearch(features);
-  registerChatControls(features);
   registerProfile(features);
   registerProfileEdit(features);
   registerReportFlow(features);

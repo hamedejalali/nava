@@ -1,9 +1,9 @@
 import type { Composer } from "grammy";
 import { GrammyError } from "grammy";
+import { waitUntil } from "@vercel/functions";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { getUser } from "../../db/models/user.js";
-import { setControlsMessageId } from "../../db/models/chatSession.js";
 import { getQueueEntry, removeQueueEntry, setQueueStatusMessageId, type SearchType } from "../../db/models/matchQueue.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { attemptMatchOrQueue } from "./engine.js";
@@ -52,13 +52,14 @@ async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language,
   const warning = requireLocked(lang, "matching.trustWarning", t.matching.trustWarning);
 
   await ctx.api.sendMessage(telegramId, found);
-  const controls = await ctx.api.sendMessage(telegramId, `<blockquote>${warning}</blockquote>`, {
+  // The three chat controls are a persistent reply keyboard now (v1.7.0 —
+  // see chatUi.ts), attached to this same message; Telegram keeps it
+  // showing at the bottom of the chat from here on, not just on this one
+  // message.
+  await ctx.api.sendMessage(telegramId, `<blockquote>${warning}</blockquote>`, {
     parse_mode: "HTML",
     reply_markup: buildChatControlsKeyboard(lang, false),
   });
-  // Remembered so toggling "چت ایمن" from either side can update BOTH
-  // participants' copies of this same message's button label.
-  await setControlsMessageId(sessionId, telegramId, controls.message_id);
 }
 
 /**
@@ -187,9 +188,27 @@ export function registerSearch(composer: Composer<NavaContext>) {
     }
 
     // Queued — show the search-status message with a live countdown +
-    // cancel button, then hold this invocation open to animate it (see
-    // runCountdown's doc comment for why this replaces the old
-    // cron-only timeout).
+    // cancel button.
+    //
+    // FIXED (v1.7.0) — CRITICAL: this used to `await runCountdown(...)`
+    // right here, which meant `bot.handleUpdate()` — and therefore this
+    // whole webhook HTTP request — did not finish until the ENTIRE
+    // 40-second countdown was over. Telegram only keeps a limited number
+    // of webhook deliveries "in flight" to one bot at a time
+    // (`max_connections`, defaulting to 40 when not set explicitly — see
+    // scripts/set-webhook.ts); every second that one search held this
+    // slot open was a second that slot could not be used for anyone
+    // else's tap, message, or the "لغو جستجو" button itself, which
+    // explains it looking completely unresponsive for other users while a
+    // search was running, and the cancel button doing nothing (its own
+    // update was simply queued behind the still-open one). It also meant
+    // Vercel billed and reserved a full function instance for 40 seconds
+    // per search, for a page that Telegram was just waiting on. `waitUntil`
+    // (from `@vercel/functions`, Vercel's own supported mechanism for
+    // exactly this) lets the HTTP response go back to Telegram immediately
+    // once the status message is sent, while `runCountdown` keeps running
+    // in the background for the rest of its normal lifetime — the visible
+    // countdown/timeout behavior for the user is completely unchanged.
     await deletePreviousPrompt(ctx);
     const label = labelFor(ctx.userLang, searchType);
     const t = dictionary(ctx.userLang);
@@ -198,7 +217,15 @@ export function registerSearch(composer: Composer<NavaContext>) {
     await recordPrompt(ctx, sent.message_id);
     await setQueueStatusMessageId(user._id, sent.message_id);
 
-    await runCountdown(ctx, user._id, ctx.chat!.id, sent.message_id, ctx.userLang);
+    const countdown = runCountdown(ctx, user._id, ctx.chat!.id, sent.message_id, ctx.userLang).catch((err) => {
+      console.error("[search] runCountdown crashed (background task):", err);
+    });
+    // Outside a real Vercel request (local `node`/tests, another host)
+    // `waitUntil` is simply a no-op — the promise above still runs to
+    // completion on Node's own event loop regardless, it just isn't
+    // specially protected against the process being frozen right after
+    // the response is sent, which only Vercel's runtime ever does.
+    waitUntil(countdown);
   });
 
   composer.callbackQuery(SEARCH_CALLBACKS.cancel, async (ctx) => {
