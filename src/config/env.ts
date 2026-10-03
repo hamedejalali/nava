@@ -51,7 +51,17 @@ export const env = {
     return optional("WALLET_WEBHOOK_SECRET");
   },
   get WALLET_MINIAPP_URL() {
-    return optional("WALLET_MINIAPP_URL");
+    // trimmed + no trailing slash: a stray space/newline pasted into the
+    // env value used to produce a broken Mini App link.
+    return optional("WALLET_MINIAPP_URL")?.trim().replace(/\/+$/, "");
+  },
+  /** URL of the Nava user Mini App (public/miniapp). Defaults to
+   *  PUBLIC_URL + "/miniapp/". */
+  get NAVA_MINIAPP_URL(): string | undefined {
+    const explicit = optional("NAVA_MINIAPP_URL")?.trim();
+    if (explicit) return explicit;
+    const base = optional("PUBLIC_URL")?.trim().replace(/\/+$/, "");
+    return base ? `${base}/miniapp/` : undefined;
   },
 
   /** Optional file_id (or public https URL) of a default profile photo

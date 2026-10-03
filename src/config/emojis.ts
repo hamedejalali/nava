@@ -120,6 +120,23 @@ export function cleanEmojiId(raw: string | undefined): string | undefined {
   return match ? match[0] : undefined;
 }
 
+/**
+ * The plain (normal) emoji written in .env for a key, e.g.
+ *   EMOJI_PREMIUM_HOME=🏠          -> "🏠"
+ *   EMOJI_PREMIUM_HOME=5416041192905265756      -> (id only, no plain emoji)
+ *   EMOJI_PREMIUM_HOME=5416041192905265756 🏠   -> "🏠" (+ the ID)
+ * This lets you keep ordinary emoji in .env while you have no Telegram
+ * Premium, and later just replace the value with the numeric ID.
+ * Takes precedence over the fallback hard-coded in the code.
+ */
+export function envPlainEmoji(key: EmojiKey): string | undefined {
+  const raw = env.emoji[key];
+  if (!raw) return undefined;
+  const rest = raw.replace(/\d{6,}/g, "").replace(/["'`]/g, "").trim();
+  if (!rest || /[<>]/.test(rest) || rest.length > 16) return undefined;
+  return rest;
+}
+
 /** Resolved premium ID for a key, or undefined when missing OR when the
  *  master switch PREMIUM_EMOJI_ENABLED is off. */
 export function premiumId(key: EmojiKey): string | undefined {
@@ -152,7 +169,7 @@ export function allowedPremiumIds(): Set<string> {
  * tag's inner content).
  */
 export function textEmoji(key: EmojiKey, fallback?: string): string {
-  const plain = fallback ?? DEFAULT_EMOJI[key];
+  const plain = envPlainEmoji(key) ?? fallback ?? DEFAULT_EMOJI[key];
   const id = premiumId(key);
   if (!id) {
     if (env.PREMIUM_EMOJI_ENABLED) warnMissing(key);
@@ -171,5 +188,5 @@ export interface ButtonIcon {
 export function buttonIcon(key: EmojiKey, fallback?: string): ButtonIcon {
   const id = premiumId(key);
   if (!id && env.PREMIUM_EMOJI_ENABLED) warnMissing(key);
-  return { id, fallback: fallback ?? DEFAULT_EMOJI[key] };
+  return { id, fallback: envPlainEmoji(key) ?? fallback ?? DEFAULT_EMOJI[key] };
 }

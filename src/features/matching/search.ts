@@ -46,7 +46,7 @@ function countdownKeyboard(lang: Language, elapsedSeconds: number) {
   ]);
 }
 
-async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language, sessionId: string) {
+export async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language, sessionId: string) {
   const t = dictionary(lang);
   const found = requireLocked(lang, "matching.foundPartner", t.matching.foundPartner);
   const warning = requireLocked(lang, "matching.trustWarning", t.matching.trustWarning);

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>نوا</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--text:#f2f4f8;--muted:#8d95a5;--green:#2ecc71;--red:#ff4d5e;--line:#262b36}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Vazirmatn","Segoe UI",Tahoma,sans-serif}
+  body{display:flex;flex-direction:column;align-items:center;padding:12px 16px calc(16px + env(safe-area-inset-bottom));overflow:hidden}
+  header{width:100%;max-width:440px;display:flex;justify-content:space-between;align-items:center;padding:4px 2px 10px}
+  header b{font-size:18px;letter-spacing:.5px}
+  header span{font-size:12px;color:var(--muted)}
+  .stage{flex:1;width:100%;max-width:440px;min-height:0;display:flex;flex-direction:column;gap:14px}
+  .photo{position:relative;flex:1;min-height:0;border-radius:24px;overflow:hidden;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+  .photo img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .25s}
+  .photo img.on{opacity:1}
+  .photo.swap img{opacity:0}
+  .msg{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;text-align:center;padding:28px;color:var(--muted);line-height:1.9;font-size:15px}
+  .msg b{color:var(--text);font-size:17px}
+  .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--green);animation:r .8s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  .actions{display:flex;gap:12px}
+  button{font:inherit;border:0;border-radius:18px;height:56px;font-size:16px;font-weight:600;cursor:pointer;color:#fff;transition:transform .08s,opacity .2s}
+  button:active{transform:scale(.97)}
+  button:disabled{opacity:.45;cursor:default}
+  .req{flex:1;background:var(--green);color:#06210f}
+  .skip{width:110px;background:var(--card);color:var(--red);border:1px solid var(--line)}
+  .ghost{height:46px;padding:0 22px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:14px}
+  .toast{position:fixed;left:50%;top:14px;transform:translate(-50%,-90px);background:#222733;border:1px solid var(--line);padding:11px 18px;border-radius:14px;font-size:14px;transition:transform .25s;z-index:9;max-width:90%;text-align:center}
+  .toast.show{transform:translate(-50%,0)}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<header><b>نوا</b><span id="hint">کاربران ثبت‌نام‌شده</span></header>
+<div class="stage">
+  <div class="photo" id="photo">
+    <img id="img" alt="">
+    <div class="msg" id="msg"><div class="spin"></div><div>در حال بارگذاری…</div></div>
+  </div>
+  <div class="actions" id="actions">
+    <button class="req" id="reqBtn" disabled>💬 درخواست چت</button>
+    <button class="skip" id="skipBtn" disabled>✕ بعدی</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var initData = tg ? tg.initData : "";
+  if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor("#0f1115"); tg.setBackgroundColor("#0f1115"); } catch(e){} }
+
+  var $ = function(id){ return document.getElementById(id); };
+  var seen = [];          // public Nava IDs already shown in this session (UX only, not critical state)
+  var current = null;     // {id}
+  var busy = false;
+  var blobUrl = null;
+
+  function toast(t){ var el=$("toast"); el.textContent=t; el.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(function(){el.classList.remove("show");},2600); }
+  function haptic(kind){ try{ tg.HapticFeedback.notificationOccurred(kind);}catch(e){} }
+  function setButtons(on){ $("reqBtn").disabled=!on; $("skipBtn").disabled=!on; }
+  function showMsg(html){ $("img").classList.remove("on"); $("msg").innerHTML=html; $("msg").classList.remove("hide"); }
+  function hideMsg(){ $("msg").classList.add("hide"); }
+  function fatal(title, text){ setButtons(false); showMsg("<b>"+title+"</b><div>"+text+"</div>"); }
+
+  function api(path, body){
+    body = body || {}; body.initData = initData;
+    return fetch(path, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  }
+
+  function handleError(status, data){
+    var e = data && data.error;
+    if (e === "join_required") return fatal("عضویت در کانال‌ها لازمه","اول داخل کانال‌های ربات عضو شو، بعد دوباره مینی‌اپ رو باز کن.");
+    if (e === "not_registered") return fatal("ثبت‌نام کامل نیست","اول ثبت‌نام رو داخل ربات کامل کن (/start).");
+    if (e === "banned") return fatal("دسترسی محدوده","حساب شما اجازه‌ی استفاده از این بخش رو نداره.");
+    if (status === 401) return fatal("مینی‌اپ رو از داخل تلگرام باز کن","دکمه‌ی «جستجوی کاربران» توی ربات رو بزن.");
+    fatal("خطا","مشکلی پیش اومد. چند لحظه بعد دوباره امتحان کن.");
+    var b = document.createElement("button"); b.className="ghost"; b.textContent="تلاش دوباره"; b.onclick=next;
+    $("msg").appendChild(b);
+  }
+
+  async function loadPhoto(id){
+    var r = await api("/api/miniapp/photo", { id:id });
+    if (!r.ok) throw new Error("photo");
+    var blob = await r.blob();
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(blob);
+    return blobUrl;
+  }
+
+  async function next(){
+    if (busy) return; busy = true; setButtons(false);
+    showMsg('<div class="spin"></div><div>در حال بارگذاری…</div>');
+    try {
+      if (!initData) { busy=false; return handleError(401); }
+      // a few tries: a candidate may disappear (e.g. goes into a chat) between feed and photo
+      for (var attempt=0; attempt<3; attempt++){
+        var r = await api("/api/miniapp/feed", { exclude: seen.slice(-200) });
+        var data = await r.json().catch(function(){return {};});
+        if (!r.ok) { busy=false; return handleError(r.status, data); }
+        if (!data.candidate) {
+          current = null; busy=false;
+          showMsg("<b>فعلاً کاربر جدیدی نیست</b><div>بعداً دوباره سر بزن.</div>");
+          if (seen.length){ var b=document.createElement("button"); b.className="ghost"; b.textContent="دیدن دوباره از اول"; b.onclick=function(){seen=[];next();}; $("msg").appendChild(b); }
+          return;
+        }
+        seen.push(data.candidate.id);
+        try {
+          var url = await loadPhoto(data.candidate.id);
+          current = data.candidate;
+          var img = $("img"); img.classList.remove("on");
+          img.onload = function(){ img.classList.add("on"); };
+          img.src = url; hideMsg(); setButtons(true); busy=false; return;
+        } catch(e) { /* try another one */ }
+      }
+      busy=false; handleError(500);
+    } catch(e){ busy=false; handleError(500); }
+  }
+
+  async function requestChat(){
+    if (!current || busy) return; busy = true; setButtons(false);
+    try {
+      var r = await api("/api/miniapp/request", { id: current.id });
+      var data = await r.json().catch(function(){return {};});
+      if (!r.ok) { busy=false; return handleError(r.status, data); }
+      var s = data.status;
+      if (s === "sent") { haptic("success"); toast("✅ درخواست ارسال شد"); }
+      else if (s === "already_pending") toast("قبلاً برای این کاربر درخواست دادی. منتظر جوابش باش.");
+      else if (s === "rate_limited") toast("تعداد درخواست‌هات زیاد بوده؛ کمی بعد دوباره امتحان کن.");
+      else if (s === "no_balance") toast("موجودی رلیکت کافی نیست (۱ رلیک لازمه).");
+      else if (s === "in_chat") toast("الان توی یه چت هستی. اول چت رو تموم کن.");
+      else toast("این کاربر دیگه در دسترس نیست.");
+      busy = false;
+      if (s === "no_balance" || s === "in_chat") { setButtons(true); return; }
+      next();
+    } catch(e){ busy=false; setButtons(true); toast("خطا در ارسال. دوباره امتحان کن."); }
+  }
+
+  $("reqBtn").addEventListener("click", requestChat);
+  $("skipBtn").addEventListener("click", function(){ try{tg.HapticFeedback.selectionChanged();}catch(e){} next(); });
+  next();
+})();
+</script>
+</body>
+</html>

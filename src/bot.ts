@@ -54,6 +54,8 @@ import { registerReactionGate } from "./features/reactionGate/gate.js";
 import { registerFeedbackFlow } from "./features/menu/feedbackFlow.js";
 import { registerFlowInterrupt, registerFlowCancel } from "./features/common/userFlows.js";
 import { registerAdminVerifiedUsers } from "./features/admin/verifiedUsers.js";
+import { registerChatRequest } from "./features/matching/chatRequest.js";
+import { ensureChatRequestIndexes } from "./db/models/chatRequest.js";
 import { registerProfileReveal } from "./features/matching/profileReveal.js";
 import { ensureProfileRevealIndexes } from "./db/models/profileReveal.js";
 
@@ -79,6 +81,7 @@ export function createBot(): Bot<NavaContext> {
     ensureBlocksIndexes(),
     ensurePhotoModerationLogIndexes(),
     ensureChatRelayMapIndexes(),
+    ensureChatRequestIndexes(),
   ]).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[bot] Index setup failed (will retry on next cold start):", err);
@@ -186,6 +189,7 @@ export function createBot(): Bot<NavaContext> {
   registerAdminBroadcast(features);
   registerAdminVerifiedUsers(features);
   registerProfileReveal(features);
+  registerChatRequest(features); // accept/decline buttons of chat requests sent from the Nava Mini App
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatControls(features); // before chat relay: the reply-keyboard control labels must never be relayed as a chat message
   registerChatPhotoModeration(features); // before profile-photo upload: chat photos must never be mistaken for profile uploads; always delivers instantly + logs to moderation channel
