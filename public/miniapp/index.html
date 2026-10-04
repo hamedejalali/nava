@@ -66,9 +66,9 @@
   function hideMsg(){ $("msg").classList.add("hide"); }
   function fatal(title, text){ setButtons(false); showMsg("<b>"+title+"</b><div>"+text+"</div>"); }
 
-  function api(path, body){
-    body = body || {}; body.initData = initData;
-    return fetch(path, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  function api(action, body){
+    body = body || {}; body.initData = initData; body.action = action;
+    return fetch("/api/miniapp", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
   }
 
   function handleError(status, data){
@@ -83,7 +83,7 @@
   }
 
   async function loadPhoto(id){
-    var r = await api("/api/miniapp/photo", { id:id });
+    var r = await api("photo", { id:id });
     if (!r.ok) throw new Error("photo");
     var blob = await r.blob();
     if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -98,7 +98,7 @@
       if (!initData) { busy=false; return handleError(401); }
       // a few tries: a candidate may disappear (e.g. goes into a chat) between feed and photo
       for (var attempt=0; attempt<3; attempt++){
-        var r = await api("/api/miniapp/feed", { exclude: seen.slice(-200) });
+        var r = await api("feed", { exclude: seen.slice(-200) });
         var data = await r.json().catch(function(){return {};});
         if (!r.ok) { busy=false; return handleError(r.status, data); }
         if (!data.candidate) {
@@ -123,7 +123,7 @@
   async function requestChat(){
     if (!current || busy) return; busy = true; setButtons(false);
     try {
-      var r = await api("/api/miniapp/request", { id: current.id });
+      var r = await api("request", { id: current.id });
       var data = await r.json().catch(function(){return {};});
       if (!r.ok) { busy=false; return handleError(r.status, data); }
       var s = data.status;

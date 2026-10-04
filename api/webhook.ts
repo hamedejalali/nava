@@ -1,7 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { Update } from "grammy/types";
 import { createBot } from "../src/bot.js";
+import { waitUntil } from "@vercel/functions";
 import { env } from "../src/config/env.js";
+import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
 // matches Vercel's Node.js request/response shape, so we drive
@@ -111,13 +113,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  const startedAt = Date.now();
   try {
     await bot!.handleUpdate(req.body as Update);
   } catch (err) {
     console.error("[nava:webhook] handleUpdate failed:", err);
+    // Monitoring only: both helpers swallow their own errors and run after the response.
+    waitUntil(recordWebhookMetric(false, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
     res.status(500).send("processing failed");
     return;
   }
 
+  waitUntil(recordWebhookMetric(true, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
   res.status(200).send("ok");
 }

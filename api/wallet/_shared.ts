@@ -3,6 +3,7 @@ import { verifyTelegramWebAppInitData, type TelegramWebAppUser } from "../../src
 import { env } from "../../src/config/env.js";
 import { ensureWalletMiningIndexes } from "../../src/db/models/walletMining.js";
 import { ensureRelicLedgerIndexes } from "../../src/db/models/relic.js";
+import { ensureWalletRecoveryIndexes } from "../../src/db/models/walletRecovery.js";
 
 // Fire-and-forget index setup for the wallet API's own collections — the
 // Nava bot's cold-start index setup (src/bot.ts) never runs for these
@@ -15,7 +16,7 @@ let walletIndexesEnsured = false;
 function ensureWalletIndexesOnce(): void {
   if (walletIndexesEnsured) return;
   walletIndexesEnsured = true;
-  Promise.all([ensureWalletMiningIndexes(), ensureRelicLedgerIndexes()]).catch((err) => {
+  Promise.all([ensureWalletMiningIndexes(), ensureRelicLedgerIndexes(), ensureWalletRecoveryIndexes()]).catch((err) => {
     walletIndexesEnsured = false; // let the next request retry
     // eslint-disable-next-line no-console
     console.error("[wallet] index setup failed (will retry on next request):", err);

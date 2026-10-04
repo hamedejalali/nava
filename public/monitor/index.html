@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مانیتورینگ نوا</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#0e1116;--card:#171b22;--line:#252b35;--tx:#e8ecf2;--mu:#8a94a6;--ok:#3ecf8e;--warn:#f5a524;--bad:#ff5c5c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 system-ui,Tahoma,sans-serif;padding:14px 16px 40px}
+h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mu);font-size:12px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.card.wide{grid-column:1/-1}.k{color:var(--mu);font-size:12px}.v{font-size:20px;font-weight:700;margin-top:2px}.v.sm{font-size:15px}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.na{color:var(--mu);font-size:13px;font-weight:500}
+.note{color:var(--mu);font-size:11px;margin-top:4px}#err{color:var(--bad);text-align:center;margin:20px 0}
+button{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font:inherit}
+</style></head><body>
+<h1>📊 مانیتورینگ نوا</h1><div class="sub" id="ts">در حال بارگذاری…</div>
+<div id="err" hidden></div><div class="grid" id="g"></div>
+<p class="note">مقدارهایی که قابل اندازه‌گیری نیستند به‌جای عدد ساختگی «در دسترس نیست» نمایش داده می‌شوند. بار سیستم (٪) روی سرورلس معنا ندارد؛ به‌جای آن ترافیک، تأخیر و صف تلگرام نمایش داده می‌شود.</p>
+<button id="r">به‌روزرسانی</button>
+<script>
+const tg=window.Telegram&&Telegram.WebApp;if(tg){tg.ready();tg.expand()}
+const g=document.getElementById("g");
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function card(k,m,fmt,cls,wide,note){const c=el("div","card"+(wide?" wide":""));c.append(el("div","k",k));
+ if(!m||!m.available){c.append(el("div","v na","در دسترس نیست"));if(m&&m.reason)c.append(el("div","note",m.reason))}
+ else{const v=fmt(m.value);c.append(el("div","v "+(cls?cls(m.value):""),v))}
+ if(note)c.append(el("div","note",note));return c}
+const n=x=>Number(x).toLocaleString("fa-IR");
+function win(w){return w.requests?`${n(w.requests)} درخواست · خطا ${w.errorRatePct}٪ · میانگین ${n(w.avgLatencyMs)}ms`:"بدون ترافیک ثبت‌شده"}
+function render(s){const T=s.thresholds;g.replaceChildren(
+ card("دیتابیس (پینگ زنده)",s.database,v=>n(v.latencyMs)+" ms",v=>v.latencyMs>T.dbLatencyMs?"warn":"ok"),
+ card("صف آپدیت تلگرام",s.telegramWebhook,v=>n(v.pending_update_count),v=>v.pending_update_count>=T.pendingUpdates?"warn":"ok"),
+ card("ترافیک ۵ دقیقه اخیر",s.traffic.last5min,win,v=>v.errorRatePct!=null&&v.errorRatePct>=T.errorRatePct?"bad":"",true),
+ card("ترافیک ۶۰ دقیقه اخیر",s.traffic.last60min,win,null,true),
+ card("کاربران ثبت‌نام‌شده",s.users.registered,n),card("کل کاربران",s.users.total,n),
+ card("چت‌های فعال",s.activity.activeChats,n),card("صف جستجو",s.activity.searchQueue,n),
+ card("درخواست چت (۲۴س)",s.activity.chatRequests24h,n),card("تراکنش رلیک (۱س)",s.activity.ledgerEntries1h,n),
+ card("بار سیستم (٪)",s.systemLoadPercent,String,null,true),
+ card("آخرین خطای وب‌هوک",s.telegramWebhook,v=>v.last_error_message?v.last_error_message.slice(0,120):"ندارد",v=>v.last_error_message?"warn":"ok",true));
+ document.getElementById("ts").textContent="به‌روزرسانی: "+new Date(s.generatedAt).toLocaleTimeString("fa-IR")}
+async function load(){const e=document.getElementById("err");
+ try{const r=await fetch("/api/monitor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?tg.initData:"",action:"snapshot"})});
+  if(r.status===401||r.status===403){e.hidden=false;e.textContent="دسترسی فقط برای مالک و ادمین‌ها است (از داخل تلگرام و با /monitor باز کنید).";g.replaceChildren();return}
+  if(!r.ok)throw 0;e.hidden=true;render(await r.json())}catch(x){e.hidden=false;e.textContent="خطا در دریافت اطلاعات"}}
+document.getElementById("r").onclick=load;load();setInterval(load,20000);
+</script></body></html>

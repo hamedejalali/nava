@@ -41,6 +41,8 @@ export type RelicTransactionType =
   | "WALLET_MINING"
   | "PROFILE_VIEW_REVEAL"
   | "ADMIN_ADJUSTMENT"
+  | "RECOVERY_OUT"
+  | "RECOVERY_IN"
   | "BONUS";
 
 export interface RelicTransactionDoc {

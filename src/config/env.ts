@@ -64,6 +64,15 @@ export const env = {
     return base ? `${base}/miniapp/` : undefined;
   },
 
+  /** URL of the owner/admin Monitoring Mini App (public/monitor). Defaults
+   *  to PUBLIC_URL + "/monitor/". */
+  get MONITOR_MINIAPP_URL(): string | undefined {
+    const explicit = optional("MONITOR_MINIAPP_URL")?.trim();
+    if (explicit) return explicit;
+    const base = optional("PUBLIC_URL")?.trim().replace(/\/+$/, "");
+    return base ? `${base}/monitor/` : undefined;
+  },
+
   /** Optional file_id (or public https URL) of a default profile photo
    *  shown for a user of that gender who hasn't uploaded their own photo
    *  yet. If unset, profiles simply show text with no photo (never a

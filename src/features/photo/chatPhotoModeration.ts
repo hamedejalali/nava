@@ -1,7 +1,7 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { env } from "../../config/env.js";
-import { getRequestRecipientIds } from "../admin/constants.js";
+import { getRequestRecipientIds, isAdmin } from "../admin/constants.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { incrementMessageCount } from "../../db/models/chatSession.js";
 import { recordRelayedMessage } from "../../db/models/chatRelayMap.js";
@@ -122,6 +122,9 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
 
   composer.callbackQuery(/^photomod:delete:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
+    // Defence in depth (v1.9.0): these buttons are only ever sent to the
+    // owner/admins, but the action itself must not depend on that alone.
+    if (!isAdmin(ctx)) return;
     const id = ctx.match![1]!;
     const result = await markPhotoModerationDecided(id, "deleted", ctx.from!.id);
 
@@ -147,6 +150,7 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
 
   composer.callbackQuery(/^photomod:ban:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
+    if (!isAdmin(ctx)) return; // see the note on the delete handler
     const id = ctx.match![1]!;
     const doc = await getPhotoModerationLog(id);
     if (!doc) {

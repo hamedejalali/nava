@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { env } from "../../config/env.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { ADMIN_CALLBACKS, isAdmin } from "./constants.js";
@@ -24,6 +25,14 @@ export function registerAdminPanel(composer: Composer<NavaContext>) {
   composer.command("admin", async (ctx) => {
     if (!isAdmin(ctx)) return; // silently ignore — never reveal the panel exists
     await ctx.reply("راهنما، پشتیبانی و کانال‌ها:", { reply_markup: guidesAndChannelsMenu() });
+  });
+
+  // Monitoring Mini App — staff only, inline web_app button (the only kind that carries signed initData).
+  composer.command("monitor", async (ctx) => {
+    if (!isAdmin(ctx)) return; // silently ignore
+    const url = env.MONITOR_MINIAPP_URL;
+    if (!url) return void (await ctx.reply("آدرس مانیتورینگ تنظیم نشده است (PUBLIC_URL یا MONITOR_MINIAPP_URL)."));
+    await ctx.reply("📊 مانیتورینگ نوا:", { reply_markup: { inline_keyboard: [[{ text: "📊 باز کردن مانیتورینگ", web_app: { url } }]] } });
   });
 
   composer.on("message:text", async (ctx, next) => {
