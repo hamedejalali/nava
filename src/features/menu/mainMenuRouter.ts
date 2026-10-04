@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { env } from "../../config/env.js";
 import type { NavaContext } from "../../bot-context.js";
 import { matchMainMenuAction, MENU_CALLBACKS } from "./mainMenu.js";
 import { sendGuide, sendFeedbackInfo } from "./guide.js";
@@ -65,8 +66,20 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
       case "myAnonymousLink":
         await sendMyAnonymousLink(ctx);
         return;
+      case "searchUsers": {
+        // "جستجوی کاربران" opens the Nava Mini App (photos + chat request).
+        // It must be an INLINE web_app button: only those give the Mini App
+        // a signed initData (reply-keyboard Mini Apps get none).
+        const url = env.NAVA_MINIAPP_URL;
+        if (!url) return;
+        const eligible = await requireChannelMembership(ctx, ctx.userLang);
+        if (!eligible) return;
+        await ctx.reply("🖼 برای دیدن کاربران و ارسال درخواست چت، مینی‌اپ نوا رو باز کن:", {
+          reply_markup: { inline_keyboard: [[{ text: "🖼 باز کردن مینی‌اپ نوا", web_app: { url }, style: "success" } as any]] },
+        });
+        return;
+      }
       case "nearbyPeople":
-      case "searchUsers":
         // Not implemented yet (same as the old inline buttons, which the
         // generic callback fallback silently acknowledged without taking
         // any action) — swallow the tap rather than falling through to the

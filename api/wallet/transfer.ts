@@ -2,11 +2,33 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { handlePreflight, authenticateWalletRequest } from "./_shared.js";
 import { getUser, getUserByAnonId } from "../../src/db/models/user.js";
 import { transferRelicOnce } from "../../src/db/models/relic.js";
+import { authenticatePartner, handlePartnerRequest } from "../../src/db/models/walletPartners.js";
+import { cancelQuote, confirmQuote, createQuote, resolveDestination } from "../../src/db/models/walletTransfers.js";
+import { flushTxLog } from "../../src/services/walletTxLog.js";
+import { sendWalletError } from "./_shared.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handlePreflight(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+
+  // ---- Partner (server-to-server) API: `Authorization: Bearer wpk_...`
+  if (typeof req.headers.authorization === "string") {
+    try {
+      const partner = await authenticatePartner(req.headers.authorization);
+      if (!partner) {
+        res.status(401).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+      const out = await handlePartnerRequest(partner, req.body);
+      await flushTxLog(5);
+      res.status(out.status).json(out.body);
+    } catch (err) {
+      console.error("[wallet:partner] failed:", err instanceof Error ? err.name : "unknown");
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
     return;
   }
 
@@ -16,6 +38,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // ---- Wallet Mini App transfers (v1.11.0): resolve -> quote -> confirm | cancel
+  const action = typeof req.body?.action === "string" ? req.body.action : "";
+  if (action) {
+    try {
+      if (action === "resolve") {
+        res.status(200).json({ dest: await resolveDestination(tgUser.id, req.body) });
+      } else if (action === "quote") {
+        res.status(200).json(await createQuote(tgUser.id, req.body));
+      } else if (action === "confirm") {
+        const r = await confirmQuote(tgUser.id, req.body?.intentId);
+        await flushTxLog(10);
+        res.status(200).json(r);
+      } else if (action === "cancel") {
+        res.status(200).json(await cancelQuote(tgUser.id, req.body?.intentId));
+      } else {
+        res.status(400).json({ error: "bad_action" });
+      }
+    } catch (err) {
+      sendWalletError(res, err);
+    }
+    return;
+  }
+
+  // ---- Legacy Nava->Nava transfer by anonId (unchanged; unused by the Mini App)
   const sender = await getUser(tgUser.id);
   if (!sender) {
     res.status(404).json({ error: "not_found", message: "Open the bot with /start first." });

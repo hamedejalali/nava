@@ -166,6 +166,19 @@ export async function importUsersFromExcel(filePath: string): Promise<ImportRepo
         }
       } catch (err: any) {
         if (err?.code === 11000) {
+          // v1.9.0: a duplicate key can also mean this very telegramId was
+          // just created by a CONCURRENT import (or a first /start) between
+          // our findOne and insertOne. That user now exists, so it must be
+          // treated like any existing user: profile fields only, balance
+          // and init flag never touched.
+          const raced = await col_.findOne({ _id: telegramId });
+          if (raced) {
+            if (Object.keys(setFields).length > 0) {
+              await col_.updateOne({ _id: telegramId }, { $set: setFields });
+            }
+            report.updated++;
+            continue;
+          }
           // anonId collision with an existing, unrelated user (or no anonId
           // supplied at all) — fall back to a freshly generated one via the
           // normal getOrCreateUser path, then patch in the restored fields
