@@ -1,6 +1,7 @@
 import type { ClientSession, Collection } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { getDb, getClient } from "../connect.js";
+import { tryIssueFromSupply } from "./walletCore.js";
 
 /**
  * Central Relic ledger. Relic belongs to the GLOBAL user account
@@ -43,6 +44,7 @@ export type RelicTransactionType =
   | "ADMIN_ADJUSTMENT"
   | "RECOVERY_OUT"
   | "RECOVERY_IN"
+  | "WALLET_TRANSFER_IN"
   | "BONUS";
 
 export interface RelicTransactionDoc {
@@ -92,6 +94,13 @@ export class InsufficientBalanceError extends Error {
  *  applied before) — caught outside the transaction and turned into a
  *  plain `false` / no-op return, never a real error to the caller. */
 class AlreadyProcessedError extends Error {}
+/** Thrown inside a reward transaction when the owner's finite Relic supply cannot cover it: nothing is granted. */
+class SupplyShortError extends Error {}
+
+/** Rewards that NEW Relic is created for. They are drawn from the wallet's finite total supply
+ *  (the owner-set cap); once it is exhausted these rewards are simply not granted. Paid purchases,
+ *  refunds of a previous charge, transfers and admin adjustments are NOT drawn from it. */
+const SUPPLY_BACKED_TYPES = new Set<RelicTransactionType>(["REFERRAL_REWARD", "PROFILE_COMPLETION_REWARD", "REPORT_REWARD", "BONUS"]);
 
 /**
  * Shared building block for every "credit or refund N Relic to this user,
@@ -137,11 +146,12 @@ async function creditLedgerOnce(
         if (err?.code === 11000) throw new AlreadyProcessedError();
         throw err;
       }
+      if (SUPPLY_BACKED_TYPES.has(type) && amount > 0 && !(await tryIssueFromSupply(amount, session))) throw new SupplyShortError();
       await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: amount } }, { session });
     });
     return true;
   } catch (err) {
-    if (err instanceof AlreadyProcessedError) return false;
+    if (err instanceof AlreadyProcessedError || err instanceof SupplyShortError) return false;
     throw err;
   } finally {
     await session.endSession();
@@ -161,12 +171,21 @@ export async function grantInitialBalanceIfNeeded(userId: number, usersCol: Coll
   const ledger = await ledgerCollection();
 
   const run = async (s: ClientSession | undefined): Promise<void> => {
+    // The 5-Relic signup gift is also drawn from the finite supply; if it is exhausted nothing is granted
+    // (and the flag stays unset so it can still be granted once the owner adds supply).
     const guarded = await usersCol.findOneAndUpdate(
       { _id: userId, relicInitialized: { $ne: true } },
       { $set: { relicInitialized: true }, $inc: { relicBalance: 5 } },
       { session: s }
     );
     if (!guarded) return; // already granted previously
+
+    // Drawn from the finite supply only once we know this is the first grant. If the supply cannot cover it,
+    // undo the flag/balance bump inside the same session (never throw: that would abort the caller's onboarding).
+    if (s && !(await tryIssueFromSupply(5, s))) {
+      await usersCol.updateOne({ _id: userId }, { $set: { relicInitialized: false }, $inc: { relicBalance: -5 } }, { session: s });
+      return;
+    }
 
     try {
       await ledger.insertOne(

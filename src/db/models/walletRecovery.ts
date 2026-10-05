@@ -4,6 +4,7 @@ import { generateMnemonic, validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { getClient, getDb } from "../connect.js";
 import type { UserDoc } from "./user.js";
+import { accounts, getOrCreateAccount, insertLedger, displayNameOf } from "./walletCore.js";
 
 /**
  * 12-word wallet recovery phrase (BIP39, 128-bit entropy + 4-bit checksum).
@@ -221,13 +222,14 @@ export async function claimRecoveryPhrase(claimerId: number, normalized: string,
   const existing = await col.findOne({ _id: hash });
   if (existing?.status === "claimed") {
     if (existing.claimedBy === claimerId) {
-      const me = await users.findOne({ _id: claimerId });
-      return { status: "already_claimed_by_you", newBalance: me?.relicBalance ?? 0 };
+      const me = await getOrCreateAccount(claimerId);
+      return { status: "already_claimed_by_you", newBalance: me.balance };
     }
     return { status: "invalid" };
   }
   if (!existing || existing.status !== "active") return { status: "invalid" };
   if (existing.ownerId === claimerId) return { status: "same_account" };
+  await getOrCreateAccount(claimerId); // make sure the receiving wallet account exists before the transaction
 
   const session = client.startSession();
   try {
@@ -246,27 +248,21 @@ export async function claimRecoveryPhrase(claimerId: number, normalized: string,
         const owner = await users.findOne({ _id: burned.ownerId }, { session });
         if (!owner || owner.banned) throw new Abort({ status: "blocked" });
 
-        // zero the old wallet and read its balance in one atomic step
-        const before = await users.findOneAndUpdate(
-          { _id: burned.ownerId },
-          { $set: { relicBalance: 0, walletRecoveredTo: claimerId, walletRecoveredAt: now } },
-          { returnDocument: "before", session }
-        );
-        const amount = Math.max(0, Number(before?.relicBalance ?? 0));
+        // zero the old WALLET account and read its balance in one atomic step
+        const accts = await accounts();
+        const before = await accts.findOneAndUpdate({ _id: burned.ownerId }, { $set: { balance: 0 } }, { returnDocument: "before", session });
+        const amount = Math.max(0, Number(before?.balance ?? 0));
 
-        const credited = await users.updateOne({ _id: claimerId }, { $inc: { relicBalance: amount } }, { session });
+        const credited = await accts.updateOne({ _id: claimerId }, { $inc: { balance: amount } }, { session });
         if (credited.matchedCount !== 1) throw new Abort({ status: "blocked" });
 
-        await ledger.insertMany(
-          [
-            { _id: `recovery:${burned.recoveryId}:out`, userId: burned.ownerId, counterpartyUserId: claimerId, amount: -amount, type: "RECOVERY_OUT", status: "completed", reference: burned.recoveryId, sourceApp: "wallet", createdAt: now, completedAt: now },
-            { _id: `recovery:${burned.recoveryId}:in`, userId: claimerId, counterpartyUserId: burned.ownerId, amount, type: "RECOVERY_IN", status: "completed", reference: burned.recoveryId, sourceApp: "wallet", createdAt: now, completedAt: now },
-          ],
-          { session }
-        );
+        await insertLedger({
+          _id: `recovery:${burned.recoveryId}`, kind: "recovery", amount, fromUser: burned.ownerId, toUser: claimerId,
+          from: `wallet:${burned.ownerId}`, to: `wallet:${claimerId}`, fromName: displayNameOf(owner), toName: displayNameOf(claimer), note: "wallet recovery",
+        }, session);
         await col.updateOne({ _id: hash }, { $set: { movedAmount: amount } }, { session });
 
-        result = { status: "claimed", movedAmount: amount, newBalance: Number(claimer.relicBalance ?? 0) + amount };
+        result = { status: "claimed", movedAmount: amount, newBalance: Number((await accts.findOne({ _id: claimerId }, { session }))?.balance ?? 0) };
       });
     } catch (err) {
       if (err instanceof Abort) return err.result;

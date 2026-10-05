@@ -1,180 +1,123 @@
-import { getClient, getDb } from "../connect.js";
+import { getDb } from "../connect.js";
+import { TAPS_PER_RELIC, accounts, getOrCreateAccount, getSupply, insertLedger, issueFromSupply, runTx } from "./walletCore.js";
+import { gateFor, type TaskView } from "./walletTasks.js";
 
-/** How many taps earn 1 whole Relic. Matches the Mini App's own visual
- *  "progress ring" constant (CLICKS_PER_RELIC in script.js) — keep these
- *  two in sync if you ever tune the mining rate. */
-export const TAPS_PER_RELIC = 475;
+export { TAPS_PER_RELIC };
 
-/** Generous but real ceiling: a human tapping a screen cannot sustain much
- *  more than ~10 taps/sec for more than a moment. This blocks a script
- *  claiming "10,000 taps" in one batch while never penalizing a genuinely
- *  fast real tapper. */
+/** Generous but real ceiling: a human cannot sustain much more than ~10 taps/sec. */
 const MAX_TAPS_PER_SECOND = 10;
-
-/** How long a processed batch's result is kept for delayed-retry lookups.
- *  A real network retry lands within seconds to at most a few minutes;
- *  24h is a generous safety margin (covers a phone going offline and
- *  reconnecting later) without keeping this collection growing forever. */
+/** How long a processed batch's result is kept for delayed-retry lookups. */
 const BATCH_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export interface MiningCreditResult {
-  /** How many whole Relic this call credited (0 if the batch didn't cross
-   *  a whole-Relic boundary yet). */
+  /** Whole Relic credited by this call. */
   creditedRelic: number;
+  /** WALLET balance after this call (v1.11.0: the wallet has its own balance, separate from Nava). */
   newBalance: number;
-  /** How many of the CLAIMED taps were actually accepted (after the
-   *  rate-limit cap). The frontend must only subtract THIS many from its
-   *  local pending-taps counter. */
   acceptedTaps: number;
-  /** True when this response is a replay of a previously processed batch,
-   *  not a freshly-processed one. */
+  /** Taps banked toward the next whole Relic (display = balance + carryTaps/TAPS_PER_RELIC). */
+  carryTaps: number;
+  supplyExhausted: boolean;
+  gate: { blocked: boolean; task: TaskView | null };
   duplicate: boolean;
 }
 
-interface MiningStateDoc {
-  _id: number; // telegramId
-  carryTaps: number; // taps banked toward the next whole Relic
-  lastSyncAt: Date;
-}
-
+interface MiningStateDoc { _id: number; carryTaps: number; lastSyncAt: Date }
 interface MiningBatchDoc {
-  _id: string; // `${telegramId}:${batchId}` — the real idempotency guard
+  _id: string; // `${telegramId}:${batchId}`
   telegramId: number;
-  result: { creditedRelic: number; newBalance: number; acceptedTaps: number };
+  result: Omit<MiningCreditResult, "duplicate" | "gate">;
   createdAt: Date;
 }
 
-async function stateCollection() {
-  const db = await getDb();
-  return db.collection<MiningStateDoc>("wallet_mining_state");
-}
+async function stateCollection() { return (await getDb()).collection<MiningStateDoc>("wallet_mining_state"); }
+async function batchCollection() { return (await getDb()).collection<MiningBatchDoc>("wallet_mining_batches"); }
 
-async function batchCollection() {
-  const db = await getDb();
-  return db.collection<MiningBatchDoc>("wallet_mining_batches");
-}
-
-/** Marker used to abort the transaction cleanly when a genuinely
- *  concurrent duplicate insert of the SAME batch loses the race — caught
- *  outside and turned into a plain replay of the winner's result. */
 class BatchAlreadyProcessedError extends Error {}
 
 export async function ensureWalletMiningIndexes(): Promise<void> {
   const batches = await batchCollection();
-  await batches.createIndexes([
-    // `_id` is already unique by default — this TTL index only bounds
-    // storage growth for a collection that otherwise gets one document
-    // per sync call, forever, for every active miner.
-    { key: { createdAt: 1 }, name: "createdAt_ttl", expireAfterSeconds: BATCH_RETENTION_MS / 1000 },
-  ]);
+  await batches.createIndexes([{ key: { createdAt: 1 }, name: "createdAt_ttl", expireAfterSeconds: BATCH_RETENTION_MS / 1000 }]);
 }
 
 /**
- * Call with the number of taps the client claims happened since its last
- * sync, and a `batchId` the client generated ONCE for this specific batch
- * (and must resend unchanged if it has to retry the same HTTP call — see
- * PREMIUM_WALLET/script.js). Returns exactly how many raw taps were
- * accepted and how much whole Relic that produced (always server-computed,
- * never the client's own math).
- *
- * FIXED (v1.5.0) — durable idempotency. The previous version only
- * remembered the MOST RECENT batchId (`lastBatchId`/`lastBatchResult` on
- * the mining-state document). That protects an immediate retry, but NOT
- * this real scenario: batch A succeeds, batch B succeeds (overwriting
- * "most recent"), then a DELAYED retry of batch A finally arrives — its id
- * no longer matches "the most recent one", so it would be treated as a
- * brand-new batch and could credit Relic a second time for taps already
- * paid out. Every processed batchId is now recorded PERMANENTLY (well,
- * for `BATCH_RETENTION_MS`) in its own collection
- * (`wallet_mining_batches`), keyed by `${telegramId}:${batchId}` with
- * MongoDB's own unique-`_id` constraint as the real guard — so ANY
- * batchId ever processed is protected, not just the latest one, and this
- * survives cold starts / restarts since it lives in MongoDB, not memory.
- *
- * Race-condition protection (v1.4.0) is unchanged: the whole
- * read -> compute -> write sequence still runs inside one MongoDB
- * transaction.
+ * Credits mined Relic to the user's WALLET account (never to Nava's balance).
+ *  - exactly-once per (user,batchId): the batch row is inserted in the same transaction;
+ *  - tap-rate cap server side;
+ *  - mining gate: taps beyond a gate threshold are not accepted until the gate task is done;
+ *  - supply cap: Relic only comes out of the finite `remaining` supply.
  */
 export async function creditMiningTaps(telegramId: number, claimedTaps: number, batchId: string): Promise<MiningCreditResult> {
-  const client = await getClient();
   const state = await stateCollection();
   const batches = await batchCollection();
-  const db = await getDb();
-  const usersCol = db.collection<{ _id: number; relicBalance: number }>("users");
-  const ledger = db.collection<any>("relic_transactions");
-
   const batchKey = `${telegramId}:${batchId}`;
 
-  // Fast path — this exact batch (from any point in the retention window,
-  // not just "the last one") was already durably processed: no need to
-  // even open a transaction.
-  const existing = await batches.findOne({ _id: batchKey });
-  if (existing) {
-    return { ...existing.result, duplicate: true };
-  }
+  const acct0 = await getOrCreateAccount(telegramId);
+  const withGate = async (r: Omit<MiningCreditResult, "duplicate" | "gate">, duplicate: boolean): Promise<MiningCreditResult> => {
+    const a = await getOrCreateAccount(telegramId);
+    const g = await gateFor(telegramId, a.tapsTotal);
+    return { ...r, gate: { blocked: g.blocked, task: g.task }, duplicate };
+  };
 
-  const session = client.startSession();
-  let result!: MiningCreditResult;
+  const existing = await batches.findOne({ _id: batchKey });
+  if (existing) return withGate(existing.result, true);
+
+  const gateNow = await gateFor(telegramId, acct0.tapsTotal);
+
+  let result!: Omit<MiningCreditResult, "duplicate" | "gate">;
   try {
-    await session.withTransaction(async () => {
+    await runTx(async (session) => {
       const now = new Date();
+      const accts = await accounts();
       const currentState = await state.findOne({ _id: telegramId }, { session });
 
       const elapsedSeconds = currentState ? Math.max(0, (now.getTime() - currentState.lastSyncAt.getTime()) / 1000) : 0;
       const maxAllowedTaps = currentState ? Math.ceil(elapsedSeconds * MAX_TAPS_PER_SECOND) + 5 : Math.min(claimedTaps, 50);
-      const acceptedTaps = Math.max(0, Math.min(claimedTaps, maxAllowedTaps));
+      let acceptedTaps = Math.max(0, Math.min(claimedTaps, maxAllowedTaps));
+      if (Number.isFinite(gateNow.allowedTaps)) acceptedTaps = Math.min(acceptedTaps, gateNow.allowedTaps);
 
       const totalTaps = (currentState?.carryTaps ?? 0) + acceptedTaps;
-      const wholeRelic = Math.floor(totalTaps / TAPS_PER_RELIC);
-      const remainderTaps = totalTaps % TAPS_PER_RELIC;
+      let wholeRelic = Math.floor(totalTaps / TAPS_PER_RELIC);
+      let supplyExhausted = false;
+      if (wholeRelic > 0) {
+        const supply = await getSupply();
+        if (supply.remaining < wholeRelic) {
+          wholeRelic = Math.max(0, supply.remaining);
+          supplyExhausted = true;
+        }
+      }
+      // taps that could not be paid stay banked (never discarded), but cap the bank so it can't grow unbounded
+      const carry = Math.min(totalTaps - wholeRelic * TAPS_PER_RELIC, TAPS_PER_RELIC * 2 - 1);
 
       if (wholeRelic > 0) {
-        await ledger.insertOne(
-          {
-            _id: `mining:${batchKey}`,
-            userId: telegramId,
-            amount: wholeRelic,
-            type: "WALLET_MINING",
-            status: "completed",
-            sourceApp: "wallet",
-            createdAt: now,
-            completedAt: now,
-          },
-          { session }
-        );
-        await usersCol.updateOne({ _id: telegramId }, { $inc: { relicBalance: wholeRelic } }, { session });
+        await issueFromSupply(wholeRelic, session);
+        await insertLedger({ _id: `mining:${batchKey}`, kind: "mining", amount: wholeRelic, fromUser: null, toUser: telegramId, from: "supply", to: `wallet:${telegramId}` }, session);
       }
+      await accts.updateOne({ _id: telegramId }, { $inc: { balance: wholeRelic, tapsTotal: acceptedTaps } }, { session });
+      const fresh = await accts.findOne({ _id: telegramId }, { session });
 
-      const user = await usersCol.findOne({ _id: telegramId }, { projection: { relicBalance: 1 }, session });
-      const batchResult = { creditedRelic: wholeRelic, newBalance: user?.relicBalance ?? 0, acceptedTaps };
+      await state.updateOne({ _id: telegramId }, { $set: { carryTaps: carry, lastSyncAt: now } }, { upsert: true, session });
 
-      await state.updateOne({ _id: telegramId }, { $set: { carryTaps: remainderTaps, lastSyncAt: now } }, { upsert: true, session });
-
+      result = { creditedRelic: wholeRelic, newBalance: fresh?.balance ?? 0, acceptedTaps, carryTaps: carry, supplyExhausted };
       try {
-        await batches.insertOne({ _id: batchKey, telegramId, result: batchResult, createdAt: now }, { session });
+        await batches.insertOne({ _id: batchKey, telegramId, result, createdAt: now }, { session });
       } catch (err: any) {
-        // A genuinely concurrent duplicate call for this exact batch lost
-        // the race to commit — MongoDB's unique `_id` is the final guard.
-        // Aborting here discards THIS transaction's speculative
-        // ledger/balance writes above; the winner's writes are the only
-        // ones that actually persist.
         if (err?.code === 11000) throw new BatchAlreadyProcessedError();
         throw err;
       }
-
-      result = { ...batchResult, duplicate: false };
     });
   } catch (err) {
     if (err instanceof BatchAlreadyProcessedError) {
       const winner = await batches.findOne({ _id: batchKey });
-      if (!winner) throw err; // should be unreachable — don't silently swallow if it somehow is
-      result = { ...winner.result, duplicate: true };
-    } else {
-      throw err;
+      if (!winner) throw err;
+      return withGate(winner.result, true);
     }
-  } finally {
-    await session.endSession();
+    throw err;
   }
+  return withGate(result, false);
+}
 
-  return result;
+export async function getMiningCarry(telegramId: number): Promise<number> {
+  const s = await (await stateCollection()).findOne({ _id: telegramId });
+  return s?.carryTaps ?? 0;
 }

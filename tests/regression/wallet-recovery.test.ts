@@ -22,9 +22,12 @@ const R = await import("../../src/db/models/walletRecovery.js");
 beforeEach(async () => {
   resetFakeMongo();
   await R.ensureWalletRecoveryIndexes();
-  seedUser({ id: 1, relicBalance: 40 }); // the wallet that will be recovered
-  seedUser({ id: 2, relicBalance: 3 }); // the NEW telegram account
-  seedUser({ id: 3, relicBalance: 0 }); // an attacker / other account
+  seedUser({ id: 1 }); // the wallet that will be recovered
+  seedUser({ id: 2 }); // the NEW telegram account
+  seedUser({ id: 3 }); // an attacker / other account
+  for (const [id, balance] of [[1, 40], [2, 3], [3, 0]] as const) {
+    await col("wallet_accounts").insertOne({ _id: id, token: `RLC-TEST-${id}`, balance, tapsTotal: 0, createdAt: new Date() } as any);
+  }
 });
 
 async function securedPhrase(owner = 1): Promise<string> {
@@ -34,7 +37,7 @@ async function securedPhrase(owner = 1): Promise<string> {
   assert.equal((await R.confirmRecoveryPhrase(owner, phrase)).status, "confirmed");
   return phrase;
 }
-const total = () => col("users").all().reduce((s: number, u: any) => s + (u.relicBalance ?? 0), 0);
+const total = () => col("wallet_accounts").all().reduce((s: number, u: any) => s + (u.balance ?? 0), 0);
 
 test("generate: 12 real BIP39 words (valid checksum), different every time, CSPRNG-sourced", async () => {
   const seen = new Set<string>();
@@ -82,7 +85,7 @@ test("backup confirmation is mandatory: an unconfirmed phrase cannot recover any
   const phrase = g.words.join(" ");
   assert.equal(await R.getRecoveryState(1), "pending_backup");
   assert.deepEqual(await R.claimRecoveryPhrase(2, phrase), { status: "invalid" });
-  assert.equal(col("users").byId(1).relicBalance, 40);
+  assert.equal(col("wallet_accounts").byId(1).balance, 40);
 
   const other = R.generatePhrase();
   assert.equal((await R.confirmRecoveryPhrase(1, other)).status, "mismatch");
@@ -114,16 +117,15 @@ test("claim: balance moves once to the new account; ledger pair written; old wal
   assert.equal(r.status, "claimed");
   assert.equal(r.movedAmount, 40);
   assert.equal(r.newBalance, 43);
-  assert.equal(col("users").byId(1).relicBalance, 0);
-  assert.equal(col("users").byId(2).relicBalance, 43);
-  assert.equal(col("users").byId(1).walletRecoveredTo, 2);
+  assert.equal(col("wallet_accounts").byId(1).balance, 0);
+  assert.equal(col("wallet_accounts").byId(2).balance, 43);
   assert.equal(total(), before, "no Relic created or destroyed");
 
-  const out = col("relic_transactions").all().find((t: any) => t.type === "RECOVERY_OUT");
-  const inn = col("relic_transactions").all().find((t: any) => t.type === "RECOVERY_IN");
-  assert.equal(out.amount, -40);
-  assert.equal(inn.amount, 40);
-  assert.ok(!JSON.stringify([out, inn]).includes(phrase));
+  const row = col("wallet_ledger").all().find((t: any) => t.kind === "recovery");
+  assert.equal(row.amount, 40);
+  assert.equal(row.fromUser, 1);
+  assert.equal(row.toUser, 2);
+  assert.ok(!JSON.stringify(row).includes(phrase));
 
   const doc = col("wallet_recovery").all()[0];
   assert.equal(doc.status, "claimed");
@@ -136,9 +138,9 @@ test("replay by the same claimer moves nothing more; anyone else is told 'invali
   await R.claimRecoveryPhrase(2, phrase);
   assert.deepEqual(await R.claimRecoveryPhrase(2, phrase), { status: "already_claimed_by_you", newBalance: 43 });
   assert.deepEqual(await R.claimRecoveryPhrase(3, phrase), { status: "invalid" });
-  assert.equal(col("users").byId(2).relicBalance, 43);
-  assert.equal(col("users").byId(3).relicBalance, 0);
-  assert.equal(col("relic_transactions").all().filter((t: any) => t.type.startsWith("RECOVERY")).length, 2);
+  assert.equal(col("wallet_accounts").byId(2).balance, 43);
+  assert.equal(col("wallet_accounts").byId(3).balance, 0);
+  assert.equal(col("wallet_ledger").all().filter((t: any) => t.kind === "recovery").length, 1);
 });
 
 test("RACE: two different accounts claim the same phrase at once — exactly one wins, nothing is duplicated", async () => {
@@ -148,9 +150,9 @@ test("RACE: two different accounts claim the same phrase at once — exactly one
   const statuses = results.map((r) => r.status).sort();
   assert.deepEqual(statuses, ["claimed", "invalid"]);
   assert.equal(total(), before);
-  assert.equal(col("users").byId(1).relicBalance, 0);
-  assert.equal(col("users").all().filter((u: any) => (u.relicBalance ?? 0) >= 40).length, 1, "only one account holds the recovered balance");
-  assert.equal(col("relic_transactions").all().filter((t: any) => t.type === "RECOVERY_IN").length, 1);
+  assert.equal(col("wallet_accounts").byId(1).balance, 0);
+  assert.equal(col("wallet_accounts").all().filter((u: any) => (u.balance ?? 0) >= 40).length, 1, "only one account holds the recovered balance");
+  assert.equal(col("wallet_ledger").all().filter((t: any) => t.kind === "recovery").length, 1);
 });
 
 test("RACE: the same account fires the claim many times at once — moved exactly once", async () => {
@@ -158,8 +160,8 @@ test("RACE: the same account fires the claim many times at once — moved exactl
   const results = await Promise.all(Array.from({ length: 6 }, () => R.claimRecoveryPhrase(2, phrase)));
   assert.equal(results.filter((r) => r.status === "claimed").length, 1);
   assert.ok(results.every((r) => ["claimed", "already_claimed_by_you", "invalid"].includes(r.status)));
-  assert.equal(col("users").byId(2).relicBalance, 43);
-  assert.equal(col("relic_transactions").all().filter((t: any) => t.type === "RECOVERY_IN").length, 1);
+  assert.equal(col("wallet_accounts").byId(2).balance, 43);
+  assert.equal(col("wallet_ledger").all().filter((t: any) => t.kind === "recovery").length, 1);
 });
 
 test("claim rolls back completely when the claimer or the old wallet is banned", async () => {
@@ -167,12 +169,12 @@ test("claim rolls back completely when the claimer or the old wallet is banned",
   await col("users").updateOne({ _id: 2 }, { $set: { banned: true } });
   assert.equal((await R.claimRecoveryPhrase(2, phrase)).status, "blocked");
   assert.equal(col("wallet_recovery").all()[0].status, "active", "phrase NOT burned by a rolled-back claim");
-  assert.equal(col("users").byId(1).relicBalance, 40);
+  assert.equal(col("wallet_accounts").byId(1).balance, 40);
 
   await col("users").updateOne({ _id: 2 }, { $set: { banned: false } });
   await col("users").updateOne({ _id: 1 }, { $set: { banned: true } });
   assert.equal((await R.claimRecoveryPhrase(2, phrase)).status, "blocked");
-  assert.equal(col("users").byId(1).relicBalance, 40);
+  assert.equal(col("wallet_accounts").byId(1).balance, 40);
 
   await col("users").updateOne({ _id: 1 }, { $set: { banned: false } });
   assert.equal((await R.claimRecoveryPhrase(2, phrase)).status, "claimed", "still claimable once the block is gone");
@@ -181,7 +183,7 @@ test("claim rolls back completely when the claimer or the old wallet is banned",
 test("claiming your own wallet's phrase is rejected and changes nothing", async () => {
   const phrase = await securedPhrase();
   assert.deepEqual(await R.claimRecoveryPhrase(1, phrase), { status: "same_account" });
-  assert.equal(col("users").byId(1).relicBalance, 40);
+  assert.equal(col("wallet_accounts").byId(1).balance, 40);
   assert.equal(col("wallet_recovery").all()[0].status, "active");
 });
 

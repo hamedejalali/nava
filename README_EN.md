@@ -1,4 +1,4 @@
-# Nava Bot — Version 1.10.0
+# Nava Bot — Version 1.11.0
 
 A Persian anonymous chat & matchmaking Telegram bot. Node.js + TypeScript + grammY + MongoDB + Vercel Serverless.
 
@@ -173,9 +173,16 @@ Admin:
 
 ---
 
-## Mini Apps & monitoring (v1.10.0)
+## Mini Apps & monitoring (v1.11.0)
 - **User Mini App**: `PUBLIC_URL/miniapp/` (or `NAVA_MINIAPP_URL`).
 - **Monitoring (owner/admin only)**: `/monitor` command. No `npm run set-webhook` needed. Optional env: `MONITOR_MINIAPP_URL`, `MONITOR_ERROR_RATE_PCT`, `MONITOR_MIN_REQUESTS`, `MONITOR_DB_LATENCY_MS`, `MONITOR_PENDING_UPDATES`, `MONITOR_ALERT_COOLDOWN_MIN`.
 - "System load %" is not measurable on serverless and is shown as "unavailable"; real signals (traffic, error rate, latency, Telegram pending updates) are shown instead.
 - For alerts while the bot is fully down, point an external uptime pinger at `/api/health`.
 - `npm test` runs everything against an in-memory fake Mongo/Telegram.
+
+---
+
+## Premium Wallet (v1.11.0)
+- The wallet balance is separate from Nava's. Transfers: wallet↔wallet, wallet→Nava (token based) and partners (e.g. the downloader bot) via `docs/PARTNER_API.md`.
+- All settings (supply cap, fees, transaction channel, task review channel, tasks, bonuses, texts) live in the DB and are edited from the wallet bot's admin panel («⚙️ تنظیمات ولت»). No new env vars.
+- The wallet bot must be admin of the transactions channel, the task review channel and any join-task channels.

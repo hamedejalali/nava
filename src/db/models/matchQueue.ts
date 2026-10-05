@@ -65,9 +65,26 @@ export async function removeQueueEntry(telegramId: number): Promise<void> {
   await col.deleteOne({ _id: telegramId });
 }
 
-export async function setQueueStatusMessageId(telegramId: number, messageId: number): Promise<void> {
+/** Returns false when the entry no longer exists (the user was matched/cancelled in the meantime). */
+export async function setQueueStatusMessageId(telegramId: number, messageId: number): Promise<boolean> {
   const col = await queueCollection();
-  await col.updateOne({ _id: telegramId }, { $set: { statusMessageId: messageId } });
+  const r = await col.updateOne({ _id: telegramId }, { $set: { statusMessageId: messageId } });
+  return r.matchedCount === 1;
+}
+
+/** Existence check that deliberately IGNORES `expiresAt`: the countdown owns the deadline itself, and an
+ *  entry whose TTL moment just passed must still be handled (timeout message), never silently dropped. */
+export async function queueEntryExists(telegramId: number): Promise<boolean> {
+  const col = await queueCollection();
+  return (await col.countDocuments({ _id: telegramId })) > 0;
+}
+
+/** Atomically removes the user's queue entry and tells the caller whether IT removed it. Whoever gets
+ *  the document back "owns" the outcome (cancel / timeout), so cancel-vs-match and timeout-vs-match
+ *  races can never produce two different answers. */
+export async function claimQueueEntry(telegramId: number): Promise<MatchQueueDoc | null> {
+  const col = await queueCollection();
+  return col.findOneAndDelete({ _id: telegramId });
 }
 
 /** For the timeout-notification cron job: entries whose deadline already

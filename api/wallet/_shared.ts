@@ -4,6 +4,10 @@ import { env } from "../../src/config/env.js";
 import { ensureWalletMiningIndexes } from "../../src/db/models/walletMining.js";
 import { ensureRelicLedgerIndexes } from "../../src/db/models/relic.js";
 import { ensureWalletRecoveryIndexes } from "../../src/db/models/walletRecovery.js";
+import { ensureWalletCoreIndexes } from "../../src/db/models/walletCore.js";
+import { ensureWalletTaskIndexes } from "../../src/db/models/walletTasks.js";
+import { WalletError } from "../../src/db/models/walletCore.js";
+import type { VercelResponse as Res } from "@vercel/node";
 
 // Fire-and-forget index setup for the wallet API's own collections — the
 // Nava bot's cold-start index setup (src/bot.ts) never runs for these
@@ -16,7 +20,7 @@ let walletIndexesEnsured = false;
 function ensureWalletIndexesOnce(): void {
   if (walletIndexesEnsured) return;
   walletIndexesEnsured = true;
-  Promise.all([ensureWalletMiningIndexes(), ensureRelicLedgerIndexes(), ensureWalletRecoveryIndexes()]).catch((err) => {
+  Promise.all([ensureWalletMiningIndexes(), ensureRelicLedgerIndexes(), ensureWalletRecoveryIndexes(), ensureWalletCoreIndexes(), ensureWalletTaskIndexes()]).catch((err) => {
     walletIndexesEnsured = false; // let the next request retry
     // eslint-disable-next-line no-console
     console.error("[wallet] index setup failed (will retry on next request):", err);
@@ -55,4 +59,15 @@ export function authenticateWalletRequest(req: VercelRequest): TelegramWebAppUse
   if (!initData || typeof initData !== "string") return null;
 
   return verifyTelegramWebAppInitData(initData, token);
+}
+
+/** Maps a thrown error to the JSON error contract. Unknown errors become a generic 500 and
+ *  log ONLY the error name (messages can embed document values). */
+export function sendWalletError(res: Res, err: unknown): void {
+  if (err instanceof WalletError) {
+    res.status(err.status).json({ error: err.code });
+    return;
+  }
+  console.error("[wallet] request failed:", err instanceof Error ? err.name : "unknown");
+  res.status(500).json({ error: "server_error" });
 }

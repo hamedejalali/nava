@@ -3,7 +3,7 @@
   "functions": {
     "api/webhook.ts": {
       "memory": 512,
-      "maxDuration": 45
+      "maxDuration": 60
     }
   },
   "crons": [
