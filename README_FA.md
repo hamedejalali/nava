@@ -197,7 +197,7 @@ Matchmaking و چت:
 3. کد رو پوش کن تا Vercel خودش دیپلوی کنه:
    ```bash
    git add .
-   git commit -m "v1.12.0"
+   git commit -m "v1.13.0"
    git push
    ```
    (اگه با CLI دیپلوی می‌کنی: `vercel --prod`)

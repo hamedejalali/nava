@@ -229,6 +229,13 @@ export async function handlePartnerRequest(p: PartnerDoc, bodyIn: any): Promise<
   const db = await getDb();
 
   const lookupWallet = async (rawToken: unknown) => {
+    if (rawToken === undefined && Number.isInteger(bodyIn?.userId)) {
+      const acct = await (await accounts()).findOne({ _id: bodyIn.userId });
+      if (!acct) throw new WalletError("target_not_found", 404);
+      const u = await db.collection<UserDoc>("users").findOne({ _id: acct._id });
+      if (!u || u.banned) throw new WalletError("target_not_found", 404);
+      return { acct, u };
+    }
     const token = normalizeWalletToken(rawToken);
     if (!token) throw new WalletError("invalid_token");
     const acct = await getAccountByToken(token);
@@ -242,7 +249,13 @@ export async function handlePartnerRequest(p: PartnerDoc, bodyIn: any): Promise<
     if (!/^[A-Za-z0-9:_\-.]{1,80}$/.test(v)) throw new WalletError("invalid_external_id");
     return v;
   };
-  const amountOf = () => {
+  const amountOf = async () => {
+    // A purchase-button id (set by the owner in the admin panel) can replace `amount`: the Relic amount then comes from the owner's config.
+    if (action === "credit" && typeof bodyIn?.packageId === "string") {
+      const pk = ((await getSettings()).packages ?? []).find((x) => x.id === bodyIn.packageId);
+      if (!pk) throw new WalletError("package_not_found", 404);
+      return pk.relic;
+    }
     const a = bodyIn?.amount;
     if (!Number.isInteger(a) || a <= 0 || a > 100_000_000) throw new WalletError("invalid_amount");
     return a as number;
@@ -256,7 +269,7 @@ export async function handlePartnerRequest(p: PartnerDoc, bodyIn: any): Promise<
 
     if (action === "deposit" || action === "credit") {
       const { acct, u } = await lookupWallet(bodyIn?.token);
-      const amount = amountOf();
+      const amount = await amountOf();
       const ext = externalId();
       if (action === "credit" && !p.canIssue) throw new WalletError("not_allowed", 403);
       const ledgerId = `${action === "credit" ? "pcredit" : "pdeposit"}:${p._id}:${ext}`;
@@ -282,7 +295,9 @@ export async function handlePartnerRequest(p: PartnerDoc, bodyIn: any): Promise<
         throw err;
       }
       const fresh = await (await accounts()).findOne({ _id: acct._id });
-      return { status: 200, body: { ok: true, duplicate: false, txId: ledgerId, status: "completed", walletBalance: fresh?.balance ?? null } };
+      const rowC = await (await ledgerCol()).findOne({ _id: ledgerId });
+      if (action === "credit") await notifyTx(ledgerId);
+      return { status: 200, body: { ok: true, duplicate: false, txId: ledgerId, code: rowC?.code ?? null, status: "completed", walletBalance: fresh?.balance ?? null } };
     }
 
     if (action === "status") {

@@ -179,47 +179,59 @@ test("task review buttons: only admins; approve pays once and notifies the user"
   assert.ok(sent(1).some((m) => /تایید شد/.test(m)));
 });
 
-test("buy flow: package -> receipt -> owner gets message -> approve issues from supply once, buyer gets tracking code", async () => {
-  await C.updateSettings({ packages: [{ relic: 50, priceToman: 100000 }], texts: { buy: "کارت: 6037" } });
+test("buy: owner builds glass buttons in the admin panel; user sees them with their own token; payment API credit adds the owner-set Relic once", async () => {
+  await text(OWNER, "/start");
+  await press(OWNER, "wa:pk:new");
+  await text(OWNER, "۵۰ رلیک ۱۰۰ هزار تومان");
+  await text(OWNER, "https://pay.example/buy?u={uid}&t={token}");
+  await text(OWNER, "50");
+  const pk = (await C.getSettings()).packages!;
+  assert.equal(pk.length, 1);
+  assert.equal(pk[0]!.relic, 50);
+
   await text(1, "/start");
-  notes.length = 0; calls = [];
-  await text(1, "🛒 خرید رلیک");
-  assert.ok(cbOf(/^wb:p:0$/));
-  await press(1, "wb:p:0");
-  assert.match(lastSent(), /کارت: 6037/);
-  const order = col("wallet_orders").all()[0];
-  assert.equal(order.status, "awaiting_receipt");
   calls = [];
-  await text(1, "رسید 12345");
-  assert.equal(col("wallet_orders").byId(order._id).status, "submitted");
-  assert.ok(sent(OWNER).some((m) => /درخواست خرید/.test(m)), "owner DM fallback (no review channel set)");
-  await press(2, `wbuy:ok:${order._id}`); // non-admin
-  assert.equal(col("wallet_accounts").byId(1).balance, 0);
-  await press(OWNER, `wbuy:ok:${order._id}`);
-  await press(OWNER, `wbuy:ok:${order._id}`);
+  await text(1, "🛒 خرید رلیک");
+  const btn = buttonsOf(lastMarkup()).find((b) => b.url);
+  assert.equal(btn.text, "۵۰ رلیک ۱۰۰ هزار تومان");
+  const token = col("wallet_accounts").byId(1).token;
+  assert.ok(btn.url.includes("u=1") && btn.url.includes(encodeURIComponent(token)));
+
+  // payment confirmation through the partner API (can issue)
+  const P = await import("../../src/db/models/walletPartners.js");
+  const k = await P.createPartner({ id: "shop", name: "Shop", baseUrl: "https://shop.example", canIssue: true });
+  const partner = (await P.authenticatePartner(`Bearer ${k.apiKey}`))!;
+  notes.length = 0;
+  const r1 = await P.handlePartnerRequest(partner, { action: "credit", token, packageId: pk[0]!.id, externalId: "pay-1" });
+  const r2 = await P.handlePartnerRequest(partner, { action: "credit", token, packageId: pk[0]!.id, externalId: "pay-1" });
+  assert.equal(r1.status, 200);
+  assert.equal((r2.body as any).duplicate, true);
   assert.equal(col("wallet_accounts").byId(1).balance, 50);
   assert.equal(col("wallet_supply").byId("supply").remaining, 950);
-  const row = col("wallet_ledger").byId(`order:${order._id}`);
-  assert.match(row.code, /^TX-[A-Z2-9]{8}$/);
-  assert.ok(notes.some((n) => n.chat === 1 && n.text.includes(row.code)), "buyer notified with the code");
-  assert.equal(notes.filter((n) => n.chat === 1).length, 1, "notified once");
+  assert.equal(notes.filter((n) => n.chat === 1).length, 1);
+  assert.match(notes[0]!.text, /TX-/);
+  // unknown package is refused, nothing credited
+  const r3 = await P.handlePartnerRequest(partner, { action: "credit", token, packageId: "nope", externalId: "pay-2" });
+  assert.equal(r3.status, 404);
+  assert.equal(col("wallet_accounts").byId(1).balance, 50);
+  // balance button shows it
+  calls = [];
+  await text(1, "💰 موجودی");
+  assert.match(lastSent(), /50/);
 });
 
-test("buy: disabled without payment text; exhausted supply blocks approval cleanly", async () => {
-  await C.updateSettings({ packages: [{ relic: 50, priceToman: 1 }] });
-  await text(1, "/start");
+test("admin hub: inline menu opens every section", async () => {
+  await text(OWNER, "/start");
   calls = [];
-  await text(1, "🛒 خرید رلیک");
-  assert.match(lastSent(), /فعال نیست/);
-  await C.updateSettings({ texts: { buy: "pay" } });
-  await text(1, "🛒 خرید رلیک");
-  await press(1, "wb:p:0");
-  await text(1, "r");
-  await col("wallet_supply").updateOne({ _id: "supply" }, { $set: { remaining: 10 } });
-  const id = col("wallet_orders").all()[0]._id;
-  await press(OWNER, `wbuy:ok:${id}`);
-  assert.equal(col("wallet_orders").byId(id).status, "submitted");
-  assert.equal(col("wallet_accounts").byId(1).balance, 0);
+  await text(OWNER, "⚙️ تنظیمات ولت");
+  const keys = ["stats", "topup", "bonus", "fees", "limits", "txch", "revch", "tasks", "packs", "texts", "partners", "pending", "track"];
+  for (const k of keys) assert.ok(cbOf(new RegExp(`^wa:m:${k}$`)), `hub button ${k}`);
+  for (const k of keys) {
+    calls = [];
+    await press(OWNER, `wa:m:${k}`);
+    assert.ok(calls.some((c) => c.method === "sendMessage"), `section ${k} replies`);
+    await text(OWNER, "/start");
+  }
 });
 
 test("transfer: both parties get the tracking code; owner finds it in the admin panel", async () => {
@@ -242,4 +254,21 @@ test("transfer: both parties get the tracking code; owner finds it in the admin 
   await text(OWNER, "🔎 پیگیری تراکنش");
   await text(OWNER, "TX-ZZZZZZZZ");
   assert.match(lastSent(), /code_not_found/);
+});
+
+test("admin wizard: add a manual task end-to-end (title -> desc -> type -> url -> reward -> gate)", async () => {
+  await text(OWNER, "/start");
+  calls = [];
+  await text(OWNER, "✅ تسک‌ها");
+  assert.ok(cbOf(/^wa:t:new$/), "new-task button shown");
+  await press(OWNER, "wa:t:new");
+  await text(OWNER, "عضویت در اینستاگرام");
+  await text(OWNER, "-");
+  await press(OWNER, "wa:t:type:instagram");
+  await text(OWNER, "https://instagram.com/x");
+  await text(OWNER, "5");
+  await press(OWNER, "wa:t:gate:no");
+  const tasks = col("wallet_tasks").all();
+  assert.equal(tasks.length, 1, "task created");
+  assert.equal(tasks[0].reward, 5);
 });

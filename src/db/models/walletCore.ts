@@ -44,7 +44,8 @@ export interface WalletSupplyDoc {
 }
 export interface FeeRule { pct: number; fixed: number }
 export interface WalletTexts { welcome?: string; receive?: string; sendIntro?: string; balance?: string; buy?: string }
-export interface BuyPackage { relic: number; priceToman: number }
+/** A purchase button shown in the wallet bot: label + payment link (placeholders {uid} {token}) + Relic credited when the payment API confirms. */
+export interface BuyPackage { id: string; title: string; url: string; relic: number }
 export interface WalletSettingsDoc {
   _id: "settings";
   txLogChatId?: number;

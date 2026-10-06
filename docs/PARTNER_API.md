@@ -31,7 +31,7 @@ Headers on every call: `X-Wallet-Timestamp: <unix seconds>`, `X-Wallet-Signature
 |---|---|---|
 | `resolve` | `{token}` wallet token `RLC-…` | `{ok, displayName}` (show it to your user to confirm) |
 | `deposit` | `{token, amount, externalId, reason?}` | `{ok, duplicate, txId, walletBalance}` — debit your user FIRST, then call; on `ok:false` with a definitive error, refund your user |
-| `credit` | `{token, amount, externalId, reason?}` | issues new Relic (needs permission) |
+| `credit` | `{token \| userId, amount \| packageId, externalId, reason?}` | issues new Relic (needs permission). `packageId` = id of a purchase button defined in the admin panel («🛒 دکمه‌های خرید»): the Relic amount then comes from the owner's config, not from the caller. Idempotent per `externalId`; the user gets a message with a tracking code. |
 | `status` | `{transferId}` | `{ok, state: completed|pending|refunded}` |
 | `balance` | `{}` | `{ok, balance}` your float held by the wallet |
 Errors: `{ok:false, error}` with `invalid_token`, `target_not_found`, `invalid_amount`, `invalid_external_id`, `insufficient_partner_balance`, `supply_exhausted`, `not_allowed`, `bad_action`; HTTP 401 for a bad key.

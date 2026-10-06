@@ -10,7 +10,6 @@ import { getMiningCarry } from "./db/models/walletMining.js";
 import { flushTxLog } from "./services/walletTxLog.js";
 import { isWalletAdmin, registerWalletAdmin, ADMIN_BUTTON } from "./features/walletAdmin.js";
 import { reviewClaim } from "./db/models/walletTasks.js";
-import { createOrder, getOrder, reviewOrder, submitReceipt } from "./db/models/walletOrders.js";
 
 /**
  * Premium Wallet bot (v1.11.0). Colored reply-keyboard buttons, each doing its own job:
@@ -42,7 +41,6 @@ export const ERR_FA: Record<string, string> = {
   invalid_amount: "مقدار نامعتبر است (عدد صحیح مثبت بفرست).", intent_expired: "زمان تایید تموم شد؛ دوباره شروع کن.", intent_not_found: "این درخواست دیگه معتبر نیست.",
   rate_limited: "تعداد تلاش‌ها زیاد بود؛ کمی بعد دوباره امتحان کن.", banned: "حساب شما محدود شده است.", partner_unavailable: "ربات مقصد فعلاً در دسترس نیست؛ بعداً امتحان کن.",
   partner_refused: "ربات مقصد پذیرفت نکرد؛ مبلغ کامل به ولتت برگشت.", not_found: "ابتدا /start بزن.", server_error: "خطای موقت؛ دوباره تلاش کن.",
-  package_not_found: "این بسته دیگر وجود ندارد.", buy_disabled: "خرید فعلاً فعال نیست.", order_not_open: "این سفارش دیگر منتظر رسید نیست.", receipt_empty: "رسید خالی است؛ عکس یا متن رسید را بفرست.",
   pending_elsewhere: "درخواست در حال انجام است؛ چند ثانیه بعد موجودی رو ببین.",
 };
 export const errText = (err: unknown) => (err instanceof WalletError ? ERR_FA[err.code] ?? "عملیات انجام نشد." : ERR_FA.server_error!);
@@ -93,76 +91,25 @@ export function createWalletBot() {
   });
 
 
-  // ---- 🛒 buy Relic (owner-defined packages; payment text from the admin panel; owner approves the receipt)
-  const reviewTarget = async () => (await getSettings()).taskReviewChatId ?? env.OWNER_ID;
-  const startBuy = async (ctx: Context) => {
-    const s = await getSettings();
-    const pk = s.packages ?? [];
-    if (!pk.length || !s.texts.buy?.trim()) return void (await ctx.reply("🛒 خرید رلیک فعلاً فعال نیست."));
-    const kb = new InlineKeyboard();
-    pk.forEach((p, i) => kb.row().text(`${p.relic.toLocaleString("fa-IR")} رلیک — ${p.priceToman.toLocaleString("fa-IR")} تومان`, `wb:p:${i}`));
-    await ctx.reply("🛒 یکی از بسته‌ها را انتخاب کن:", { reply_markup: kb });
-  };
+  // ---- 🛒 buy Relic: glass (inline) buttons fully defined by the owner in the admin panel (title + payment link + Relic amount).
+  // Payment itself happens on the owner's link; when the payment API confirms (partner `credit` with packageId) the Relic is
+  // credited to the wallet and the user is notified with a tracking code.
   bot.hears(BTN.buy, async (ctx) => {
     if (!ctx.from || !isPrivate(ctx)) return;
     const user = await getUser(ctx.from.id);
     if (!user) return void (await ctx.reply("ابتدا /start بزن."));
     if (user.banned) return void (await ctx.reply(ERR_FA.banned!));
     await clearState(ctx.from.id);
-    await startBuy(ctx);
-  });
-  bot.callbackQuery(/^wb:p:(\d{1,3})$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    try {
-      const user = await getUser(ctx.from.id);
-      if (!user || user.banned) return void (await ctx.reply(ERR_FA.banned!));
-      const o = await createOrder(ctx.from.id, Number(ctx.match[1]));
-      await setState(ctx.from.id, "buy_receipt", { orderId: o._id });
-      const s = await getSettings();
-      await ctx.reply(`${s.texts.buy}\n\n📦 بسته: ${o.relic} رلیک\n💵 مبلغ: ${o.priceToman.toLocaleString("fa-IR")} تومان\n🧾 سفارش: ${o._id}\n\nبعد از پرداخت، «عکس رسید» یا متن رسید (مثلاً شماره پیگیری) را همین‌جا بفرست.`);
-    } catch (err) {
-      await ctx.reply(`⚠️ ${errText(err)}`);
+    const s = await getSettings();
+    const pk = s.packages ?? [];
+    if (!pk.length) return void (await ctx.reply("🛒 خرید رلیک فعلاً فعال نیست."));
+    const acct = await getOrCreateAccount(ctx.from.id);
+    const kb = new InlineKeyboard();
+    for (const p of pk) {
+      const url = p.url.replaceAll("{uid}", String(ctx.from.id)).replaceAll("{token}", encodeURIComponent(acct.token));
+      kb.row().url(p.title, url);
     }
-  });
-  const forwardReceipt = async (ctx: Context, orderId: string, fileId?: string, text?: string) => {
-    const o = await submitReceipt(orderId, ctx.from!.id, { text, fileId });
-    await clearState(ctx.from!.id);
-    const to = await reviewTarget();
-    const caption = `🛒 درخواست خرید رلیک\n\nکاربر: ${displayNameOf(await getUser(ctx.from!.id))} (${ctx.from!.id})\nبسته: ${o.relic} رلیک — ${o.priceToman.toLocaleString("fa-IR")} تومان\nسفارش: ${o._id}${text ? `\nمتن رسید: ${text}` : ""}`;
-    const kb = new InlineKeyboard().text("✅ تایید و شارژ", `wbuy:ok:${o._id}`).text("❌ رد", `wbuy:no:${o._id}`);
-    if (to) {
-      if (fileId) await ctx.api.sendPhoto(to, fileId, { caption, reply_markup: kb }).catch(() => ctx.api.sendMessage(to, caption, { reply_markup: kb }));
-      else await ctx.api.sendMessage(to, caption, { reply_markup: kb });
-    }
-    await ctx.reply("✅ رسید ثبت شد. بعد از بررسی مالک، رلیک به ولتت اضافه می‌شود و پیام می‌گیری.");
-  };
-  bot.on("message:photo", async (ctx, next) => {
-    if (!ctx.from || !isPrivate(ctx)) return next();
-    const st = await getState(ctx.from.id);
-    if (!st || st.step !== "buy_receipt") return next();
-    try {
-      const photos = ctx.message.photo;
-      await forwardReceipt(ctx, st.data.orderId, photos[photos.length - 1]!.file_id, ctx.message.caption?.trim());
-    } catch (err) {
-      await ctx.reply(`⚠️ ${errText(err)}`);
-    }
-  });
-  bot.callbackQuery(/^wbuy:(ok|no):(.+)$/, async (ctx) => {
-    if (!(await isWalletAdmin(ctx.from.id))) return void (await ctx.answerCallbackQuery({ text: "دسترسی ندارید.", show_alert: true }));
-    const approve = ctx.match[1] === "ok";
-    const orderId = ctx.match[2]!;
-    const r = await reviewOrder(orderId, approve, ctx.from.id);
-    const label = { approved: "✅ تایید و شارژ شد", rejected: "❌ رد شد", already: "قبلاً تصمیم گرفته شده", not_found: "پیدا نشد", supply_exhausted: "⚠️ موجودی کل رلیک تمام شده؛ ابتدا شارژ کن" }[r];
-    await ctx.answerCallbackQuery({ text: label });
-    if (r === "approved" || r === "rejected") {
-      const m: any = ctx.callbackQuery.message;
-      const base = m?.caption ?? m?.text ?? "";
-      if (m?.caption !== undefined) await ctx.editMessageCaption({ caption: `${base}\n\n${label} — ${ctx.from.first_name}` }).catch(() => {});
-      else await ctx.editMessageText(`${base}\n\n${label} — ${ctx.from.first_name}`).catch(() => {});
-      const o = await getOrder(orderId);
-      if (o && r === "rejected") await bot.api.sendMessage(o.userId, `❌ سفارش ${o._id} تایید نشد. اگر پرداخت کرده‌ای با پشتیبانی تماس بگیر.`).catch(() => {});
-      // approval message (with the tracking code) is sent by notifyTx inside reviewOrder
-    }
+    await ctx.reply(s.texts.buy?.trim() || "🛒 یکی از بسته‌ها را انتخاب کن. بعد از پرداخت موفق، رلیک خودکار به ولتت اضافه می‌شود و پیام تایید می‌گیری.", { reply_markup: kb });
   });
 
   registerWalletAdmin(bot);
@@ -175,10 +122,11 @@ export function createWalletBot() {
     if (!user) return void (await ctx.reply("ابتدا /start بزن."));
     if (user.banned) return void (await ctx.reply(ERR_FA.banned!));
     const [acct, s, carry, supply] = await Promise.all([getOrCreateAccount(ctx.from.id), getSettings(), getMiningCarry(ctx.from.id), getSupply()]);
-    const frac = carry / 475;
+    // Same number as the Mini App shows: whole Relic + the share already mined toward the next one.
+    const total = acct.balance + carry / 475;
     await ctx.reply(
-      `${await textOf("balance")}\n\n◆ ${acct.balance} رلیک` + (frac > 0 ? ` (+${frac.toFixed(4)} در حال ماین)` : "") +
-        `\n≈ ${(acct.balance * s.tomanRate).toLocaleString("fa-IR")} تومان\n\nموجودی ربات نوا (جدا از ولت): ${user.relicBalance ?? 0}\nرلیک باقی‌مانده کل: ${supply.remaining.toLocaleString("fa-IR")} از ${supply.cap.toLocaleString("fa-IR")}`,
+      `${await textOf("balance")}\n\n◆ ${total.toFixed(4)} رلیک` +
+        `\nقابل ارسال (کامل): ${acct.balance} رلیک\n≈ ${Math.floor(total * s.tomanRate).toLocaleString("fa-IR")} تومان\n\nموجودی ربات نوا (جدا از ولت): ${user.relicBalance ?? 0}\nرلیک باقی‌مانده کل: ${supply.remaining.toLocaleString("fa-IR")} از ${supply.cap.toLocaleString("fa-IR")}`,
     );
   });
 
@@ -264,9 +212,7 @@ export function createWalletBot() {
     if (!st) return;
     const text = ctx.message.text.trim();
     try {
-      if (st.step === "buy_receipt") {
-        await forwardReceipt(ctx, st.data.orderId, undefined, text.slice(0, 800));
-      } else if (st.step === "send_token") {
+      if (st.step === "send_token") {
         const dest = await resolveDestination(ctx.from.id, { dest: st.data.dest, partnerId: st.data.partnerId, token: text });
         await setState(ctx.from.id, "send_owner", { ...st.data, token: text });
         await ctx.reply(

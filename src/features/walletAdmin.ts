@@ -30,22 +30,6 @@ const TYPE_FA: Record<string, string> = { channel: "جوین کانال (برر�
 const esc = (t: string) => t.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
 const toNum = (t: string) => Number(t.trim().replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[,٬\s]/g, ""));
 
-function adminKeyboard() {
-  const b = (text: string, style?: string) => (style ? { text, style } : { text }) as any;
-  return {
-    keyboard: [
-      [b(L.stats, "primary"), b(L.topup, "success")],
-      [b(L.bonus), b(L.fees), b(L.limits)],
-      [b(L.txch), b(L.revch)],
-      [b(L.tasks, "success"), b(L.partners, "success")],
-      [b(L.packs, "success"), b(L.track, "primary")],
-      [b(L.texts), b(L.pending)],
-      [b(L.back, "danger")],
-    ] as any,
-    resize_keyboard: true,
-  };
-}
-
 export function registerWalletAdmin(bot: Bot<Context>) {
   const guard = async (ctx: Context): Promise<boolean> => {
     if (!ctx.from || ctx.chat?.type !== "private") return false;
@@ -56,21 +40,51 @@ export function registerWalletAdmin(bot: Bot<Context>) {
     await ctx.reply(prompt);
   };
 
+  // Every admin section is reachable both from the inline hub (below) and by its old keyboard label.
+  const sec = (label: string, key: string, fn: (ctx: Context) => Promise<void>) => {
+    bot.hears(label, fn);
+    bot.callbackQuery(`wa:m:${key}`, async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      await fn(ctx);
+    });
+  };
+
+  const hub = () => {
+    const kb = new InlineKeyboard()
+      .text(L.stats, "wa:m:stats").text(L.topup, "wa:m:topup").row()
+      .text(L.bonus, "wa:m:bonus").text(L.fees, "wa:m:fees").text(L.limits, "wa:m:limits").row()
+      .text(L.txch, "wa:m:txch").text(L.revch, "wa:m:revch").row()
+      .text(L.tasks, "wa:m:tasks").text(L.packs, "wa:m:packs").text(L.texts, "wa:m:texts").row()
+      .text(L.partners, "wa:m:partners").text(L.pending, "wa:m:pending").row()
+      .text(L.track, "wa:m:track").row()
+      .text("✖️ بستن", "wa:close");
+    const text =
+      "⚙️ پنل مدیریت ولت\n\n" +
+      "📊 آمار و موجودی: وضعیت کل رلیک، شارژ یا تغییر سقف\n" +
+      "🎁 پاداش / 💸 کارمزد / 💱 نرخ: مقدارهای ولت\n" +
+      "📣 کانال تراکنش‌ها: هر تراکنش آنجا گزارش می‌شود\n" +
+      "📝 کانال بررسی: درخواست تسک دستی (اگر خالی باشد به PV شما می‌آید)\n" +
+      "✅ تسک‌ها: ساخت و مدیریت تسک‌ها\n" +
+      "🛒 دکمه‌های خرید: دکمه‌های شیشه‌ای خرید رلیک (نام، لینک، مقدار)\n" +
+      "🧾 متن‌ها: متن‌های ربات\n" +
+      "🔌 پارتنرها: ربات‌های متصل و کلید API (شامل API تایید خرید)\n" +
+      "🔁 تحویل‌های معلق: انتقال‌های در انتظار پارتنر\n" +
+      "🔎 پیگیری تراکنش: با کد TX-… ببین چه شده";
+    return { text, kb };
+  };
   bot.hears(ADMIN_BUTTON, async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
-    await ctx.reply("⚙️ پنل مدیریت ولت (فقط مالک/ادمین):", { reply_markup: adminKeyboard() });
+    const h = hub();
+    await ctx.reply(h.text, { reply_markup: h.kb });
   });
-
-  bot.hears(L.back, async (ctx) => {
-    if (!(await guard(ctx))) return;
-    await clearState(ctx.from!.id);
-    const { mainKeyboard } = await import("../walletBot.js");
-    await ctx.reply("منوی اصلی", { reply_markup: await mainKeyboard(ctx.from!.id) });
+  bot.callbackQuery("wa:close", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.deleteMessage().catch(() => {});
   });
 
   // ------------------------------------------------------------ stats
-  bot.hears(L.stats, async (ctx) => {
+  sec(L.stats, "stats", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     const [s, st, n, ledPend, claimsPend] = await Promise.all([
@@ -88,7 +102,7 @@ export function registerWalletAdmin(bot: Bot<Context>) {
   });
 
   // ------------------------------------------------------------ supply
-  bot.hears(L.topup, async (ctx) => {
+  sec(L.topup, "topup", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     const s = await getSupply();
@@ -102,14 +116,14 @@ export function registerWalletAdmin(bot: Bot<Context>) {
     await ask(ctx, ctx.match[1] === "add" ? "a_supply_add" : "a_supply_cap", ctx.match[1] === "add" ? "چه مقدار رلیک به موجودی کل اضافه شود؟ (عدد)" : "سقف جدید کل رلیک چقدر باشد؟ (نمی‌تواند کمتر از مقدار پخش‌شده باشد)");
   });
 
-  bot.hears(L.bonus, async (ctx) => {
+  sec(L.bonus, "bonus", async (ctx) => {
     if (!(await guard(ctx))) return;
     const s = await getSettings();
     await ask(ctx, "a_bonus", `پاداش ثبت‌نام فعلی: ${s.signupBonus} رلیک.\nمقدار جدید (۰ = غیرفعال):`);
   });
 
   // ------------------------------------------------------------ fees / limits
-  bot.hears(L.fees, async (ctx) => {
+  sec(L.fees, "fees", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     const [s, partners] = await Promise.all([getSettings(), listPartners()]);
@@ -124,7 +138,7 @@ export function registerWalletAdmin(bot: Bot<Context>) {
     await ask(ctx, "a_fee", "کارمزد را به شکل «درصد ثابت» بفرست. مثال: «2 1» یعنی ۲٪ + ۱ رلیک ثابت. برای بدون کارمزد: «0 0»", { target: ctx.match[1] });
   });
 
-  bot.hears(L.limits, async (ctx) => {
+  sec(L.limits, "limits", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     const s = await getSettings();
@@ -139,11 +153,11 @@ export function registerWalletAdmin(bot: Bot<Context>) {
   });
 
   // ------------------------------------------------------------ channels
-  bot.hears(L.txch, async (ctx) => {
+  sec(L.txch, "txch", async (ctx) => {
     if (!(await guard(ctx))) return;
     await ask(ctx, "a_txch", "📣 ربات را ادمین کانال «تراکنش‌ها» کن، بعد یک پیام از آن کانال اینجا فوروارد کن (یا آیدی عددی کانال مثل -100123… را بفرست).");
   });
-  bot.hears(L.revch, async (ctx) => {
+  sec(L.revch, "revch", async (ctx) => {
     if (!(await guard(ctx))) return;
     await ask(ctx, "a_revch", "📝 ربات را ادمین کانال «بررسی تسک‌ها» کن، بعد یک پیام از آن کانال فوروارد کن (یا آیدی عددی کانال را بفرست). عکس/درخواست‌های بررسی با دکمه تایید/رد آنجا می‌آید.");
   });
@@ -160,7 +174,7 @@ export function registerWalletAdmin(bot: Bot<Context>) {
     }
     await ctx.reply("—", { reply_markup: new InlineKeyboard().text("➕ تسک جدید", "wa:t:new") });
   };
-  bot.hears(L.tasks, async (ctx) => {
+  sec(L.tasks, "tasks", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     await taskList(ctx);
@@ -200,7 +214,7 @@ export function registerWalletAdmin(bot: Bot<Context>) {
   };
 
   // ------------------------------------------------------------ partners
-  bot.hears(L.partners, async (ctx) => {
+  sec(L.partners, "partners", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     const ps = await listPartners();
@@ -240,7 +254,7 @@ export function registerWalletAdmin(bot: Bot<Context>) {
   });
 
   // ------------------------------------------------------------ texts
-  bot.hears(L.texts, async (ctx) => {
+  sec(L.texts, "texts", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
     const kb = new InlineKeyboard();
@@ -257,24 +271,27 @@ export function registerWalletAdmin(bot: Bot<Context>) {
   });
 
 
-  // ------------------------------------------------------------ purchase packages
-  const packList = async (ctx: Context) => {
-    const s = await getSettings();
-    const pk = s.packages ?? [];
-    const kb = new InlineKeyboard();
-    pk.forEach((p, i) => kb.row().text(`🗑 ${p.relic} رلیک — ${p.priceToman} تومان`, `wa:pk:del:${i}`));
-    kb.row().text("➕ بسته جدید", "wa:pk:new");
-    await ctx.reply(`🛒 بسته‌های خرید (${pk.length})\nمتن پرداخت: ${s.texts.buy ? "تنظیم شده ✅" : "تنظیم نشده ❌ (از «🧾 متن‌ها» → «متن پرداخت خرید» بنویس؛ بدون آن خرید فعال نمی‌شود)"}\nبرای حذف روی بسته بزن.`, { reply_markup: kb });
-  };
-  bot.hears(L.packs, async (ctx) => {
+  // ------------------------------------------------------------ purchase buttons (glass buttons in the wallet bot)
+  sec(L.packs, "packs", async (ctx) => {
     if (!(await guard(ctx))) return;
     await clearState(ctx.from!.id);
-    await packList(ctx);
+    const s = await getSettings();
+    const pk = s.packages ?? [];
+    const lines = pk.map((p, i) => `${i + 1}. ${p.title}\n   +${p.relic} رلیک | شناسه: ${p.id}\n   ${p.url}`).join("\n\n");
+    const kb = new InlineKeyboard();
+    pk.forEach((p, i) => kb.row().text(`🗑 حذف: ${p.title}`.slice(0, 60), `wa:pk:del:${i}`));
+    kb.row().text("➕ دکمه خرید جدید", "wa:pk:new");
+    await ctx.reply(
+      `🛒 دکمه‌های خرید رلیک (${pk.length})\n\n${lines || "هنوز دکمه‌ای نساخته‌ای."}\n\n` +
+        "کاربر با زدن «🛒 خرید رلیک» این دکمه‌ها را می‌بیند. بعد از پرداخت، سایت/ربات پرداخت تو باید با API ولت (پارتنر با مجوز «شارژ») اعلام کند:\n" +
+        "action=credit, token (یا userId), packageId, externalId\nمستندات: docs/PARTNER_API.md",
+      { reply_markup: kb },
+    );
   });
   bot.callbackQuery("wa:pk:new", async (ctx) => {
     if (!(await guard(ctx))) return void (await ctx.answerCallbackQuery());
     await ctx.answerCallbackQuery();
-    await ask(ctx, "a_pk_relic", "بسته چند رلیک باشد؟ (عدد صحیح)");
+    await ask(ctx, "a_pk_title", "نام روی دکمه چه باشد؟ مثال: «۵۰ رلیک ۱۰۰ هزار تومان»");
   });
   bot.callbackQuery(/^wa:pk:del:(\d+)$/, async (ctx) => {
     if (!(await guard(ctx))) return void (await ctx.answerCallbackQuery());
@@ -283,11 +300,11 @@ export function registerWalletAdmin(bot: Bot<Context>) {
     pk.splice(Number(ctx.match[1]), 1);
     await updateSettings({ packages: pk });
     await ctx.answerCallbackQuery({ text: "حذف شد" });
-    await ctx.editMessageText("🗑 بسته حذف شد.").catch(() => {});
+    await ctx.editMessageText("🗑 دکمه حذف شد.").catch(() => {});
   });
 
   // ------------------------------------------------------------ tracking-code lookup
-  bot.hears(L.track, async (ctx) => {
+  sec(L.track, "track", async (ctx) => {
     if (!(await guard(ctx))) return;
     await ask(ctx, "a_track", "🔎 کد پیگیری را بفرست (مثل TX-7K3M9QX2):");
   });
@@ -312,7 +329,7 @@ export function registerWalletAdmin(bot: Bot<Context>) {
   });
 
   // ------------------------------------------------------------ pending deliveries
-  bot.hears(L.pending, async (ctx) => {
+  sec(L.pending, "pending", async (ctx) => {
     if (!(await guard(ctx))) return;
     const rows = await (await ledgerCol()).find({ kind: "to_partner", status: "pending" }).sort({ createdAt: 1 }).limit(20).toArray();
     if (!rows.length) return void (await ctx.reply("✅ هیچ تحویل معلقی نیست."));
@@ -407,19 +424,22 @@ export function registerWalletAdmin(bot: Bot<Context>) {
           await clearState(ctx.from.id);
           return void (await showTrack(ctx, text));
         }
+        case "a_pk_title":
+          if (!text || text.length > 60) return void (await bad("نام دکمه تا ۶۰ کاراکتر."));
+          return void (await ask(ctx, "a_pk_url", "لینک پرداخت را بفرست (https://...). می‌توانی {uid} (آیدی عددی کاربر) و {token} (توکن ولت کاربر) را داخل لینک بگذاری.", { title: text }));
+        case "a_pk_url":
+          if (!/^https:\/\/\S+$/.test(text) || text.length > 500) return void (await bad("لینک باید با https:// شروع شود."));
+          return void (await ask(ctx, "a_pk_relic", "برای این دکمه چند رلیک به کاربر اضافه شود؟ (مثلاً 50)", { ...st.data, url: text }));
         case "a_pk_relic": {
-          if (!Number.isInteger(num) || num <= 0 || num > 10_000_000) return void (await bad("یک عدد صحیح مثبت بفرست."));
-          return void (await ask(ctx, "a_pk_price", "قیمت این بسته چند تومان باشد؟ (عدد صحیح)", { relic: num }));
-        }
-        case "a_pk_price": {
-          if (!Number.isInteger(num) || num <= 0) return void (await bad("یک عدد صحیح مثبت بفرست."));
+          if (!Number.isInteger(num) || num <= 0 || num > 100_000_000) return void (await bad("یک عدد صحیح مثبت بفرست."));
           const s = await getSettings();
           const pk = [...(s.packages ?? [])];
-          if (pk.length >= 12) return void (await bad("حداکثر ۱۲ بسته."));
-          pk.push({ relic: st.data.relic, priceToman: num });
+          if (pk.length >= 10) return void (await bad("حداکثر ۱۰ دکمه."));
+          const id = `pk_${Math.random().toString(36).slice(2, 8)}`;
+          pk.push({ id, title: st.data.title, url: st.data.url, relic: num });
           await updateSettings({ packages: pk });
           await clearState(ctx.from.id);
-          return void (await ctx.reply("✅ بسته اضافه شد."));
+          return void (await ctx.reply(`✅ دکمه ساخته شد.\nشناسه برای API تایید خرید: ${id}\n(+${num} رلیک)`));
         }
         case "a_t_title":
           if (!text) return void (await bad());
@@ -437,9 +457,12 @@ export function registerWalletAdmin(bot: Bot<Context>) {
           if (st.data.type === "channel") return void (await ask(ctx, "a_t_chat", "آیدی کانال برای بررسی خودکار عضویت را بفرست (مثل @mychannel یا -100123…). ربات باید ادمین آن کانال باشد:", { ...st.data, url }));
           return void (await ask(ctx, "a_t_reward", "جایزه این تسک چند رلیک باشد؟", { ...st.data, url, chatRef: null }));
         }
-        case "a_t_chat":
-          if (!/^(@[A-Za-z0-9_]{4,}|-?\d{5,})$/.test(text)) return void (await bad("مثل @mychannel یا -100123456789"));
-          return void (await ask(ctx, "a_t_reward", "جایزه این تسک چند رلیک باشد؟", { ...st.data, chatRef: text }));
+        case "a_t_chat": {
+          const fwd = channelFrom(ctx);
+          const ref = /^@[A-Za-z0-9_]{4,}$/.test(text) ? text : fwd !== null ? String(fwd) : null;
+          if (!ref) return void (await bad("آیدی کانال مثل @mychannel یا -100123456789 بفرست، یا یک پیام از کانال فوروارد کن."));
+          return void (await ask(ctx, "a_t_reward", "جایزه این تسک چند رلیک باشد؟", { ...st.data, chatRef: ref }));
+        }
         case "a_t_reward": {
           if (!Number.isInteger(num) || num < 0) return void (await bad());
           await setState(ctx.from.id, "a_t_gate", { ...st.data, reward: num });
