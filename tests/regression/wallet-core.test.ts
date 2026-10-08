@@ -364,3 +364,21 @@ test("first use after deploy: the supply singleton is created lazily (default ca
   assert.equal(s.cap, 21_000_000);
   assert.equal(s.remaining, 21_000_000 - 3);
 });
+
+test("owner holds the whole undistributed supply: sees it, spends from it, conservation holds", async () => {
+  process.env.OWNER_ID = "3"; // module env is read lazily via getter
+  const { env } = await import("../../src/config/env.js");
+  assert.equal(env.OWNER_ID, 3);
+  const q = await T.createQuote(3, { dest: "wallet", token: (await C.getOrCreateAccount(1)).token, amount: 400 });
+  assert.equal((await T.confirmQuote(3, q.intentId)).newBalance, CAP - 400);
+  assert.equal(col("wallet_accounts").byId(1).balance, 400);
+  assert.equal(col("wallet_supply").byId("supply").remaining, CAP - 400);
+  assert.equal(conserved(), CAP);
+  await assert.rejects(T.createQuote(3, { dest: "wallet", token: (await C.getOrCreateAccount(1)).token, amount: CAP }), /insufficient_balance|above_max/);
+  const m = await M.creditMiningTaps(3, 40, "own1");
+  assert.equal(m.creditedRelic, 0);
+  assert.equal(await C.effectiveBalance(3, 0), CAP - 400);
+  // a normal user is unaffected
+  assert.equal(await C.effectiveBalance(1, 7), 7);
+  delete process.env.OWNER_ID;
+});

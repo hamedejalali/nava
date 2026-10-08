@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { handlePreflight, authenticateWalletRequest, sendWalletError } from "./_shared.js";
 import { getUser } from "../../src/db/models/user.js";
-import { TAPS_PER_RELIC, WalletError, displayNameOf, getOrCreateAccount, getSettings, getSupply } from "../../src/db/models/walletCore.js";
+import { TAPS_PER_RELIC, WalletError, effectiveBalance, displayNameOf, getOrCreateAccount, getSettings, getSupply } from "../../src/db/models/walletCore.js";
 import { claimTask, gateFor, listTasksForUser } from "../../src/db/models/walletTasks.js";
 import { listHistory } from "../../src/db/models/walletTransfers.js";
 import { getMiningCarry } from "../../src/db/models/walletMining.js";
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(200).json({
         telegramId: user._id, anonId: user.anonId, nickname: user.nickname ?? null,
         relicBalance: user.relicBalance ?? 0, // Nava balance (legacy field name kept)
-        walletBalance: acct.balance, walletToken: acct.token,
+        walletBalance: await effectiveBalance(user._id, acct.balance), walletToken: acct.token,
       });
       return;
     }
@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         name: displayNameOf(user),
         navaBalance: user.relicBalance ?? 0,
         wallet: {
-          balance: acct.balance, token: acct.token, carryTaps: carry, tapsPerRelic: TAPS_PER_RELIC, tapsTotal: acct.tapsTotal,
+          balance: await effectiveBalance(user._id, acct.balance), token: acct.token, carryTaps: carry, tapsPerRelic: TAPS_PER_RELIC, tapsTotal: acct.tapsTotal,
           tomanRate: settings.tomanRate, supply: { cap: supply.cap, remaining: supply.remaining },
         },
         gate: { blocked: gate.blocked, task: gate.task },

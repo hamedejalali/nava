@@ -2,7 +2,7 @@ import { notifyTx } from "../../services/walletNotify.js";
 import { getDb } from "../connect.js";
 import type { UserDoc } from "./user.js";
 import {
-  INTENT_TTL_MS, WalletError, accounts, computeFee, displayNameOf, getOrCreateAccount, getSettings, insertLedger, ledgerCol,
+  INTENT_TTL_MS, WalletError, effectiveBalance, isWalletOwner, tryIssueFromSupply, accounts, computeFee, displayNameOf, getOrCreateAccount, getSettings, insertLedger, ledgerCol,
   newIntentId, resolveLocalDest, runTx, supplyCol, takeRate, type DestInfo, type WalletLedgerDoc,
 } from "./walletCore.js";
 import { deliverToPartner, getPartner, partnersCol, resolvePartnerDest } from "./walletPartners.js";
@@ -75,7 +75,7 @@ export async function createQuote(senderId: number, bodyIn: { dest?: unknown; pa
   const fee = computeFee(amount, feeRuleFor(kind, settings, partner));
 
   const acct = await getOrCreateAccount(senderId);
-  if (acct.balance < amount + fee) throw new WalletError("insufficient_balance");
+  if ((await effectiveBalance(senderId, acct.balance)) < amount + fee) throw new WalletError("insufficient_balance");
   if (kind === "wallet") await getOrCreateAccount(dest.targetUserId!);
 
   const now = new Date();
@@ -116,7 +116,7 @@ export async function confirmQuote(senderId: number, intentId: unknown): Promise
     const row = await (await ledgerCol()).findOne({ _id: txId });
     if (!row || row.fromUser !== senderId) return null;
     const acct = await getOrCreateAccount(senderId);
-    return { status: row.status === "completed" ? "completed" : "pending", txId, code: row.code ?? null, newBalance: acct.balance, duplicate: true };
+    return { status: row.status === "completed" ? "completed" : "pending", txId, code: row.code ?? null, newBalance: await effectiveBalance(senderId, acct.balance), duplicate: true };
   };
 
   const done = await replay();
@@ -137,8 +137,19 @@ export async function confirmQuote(senderId: number, intentId: unknown): Promise
       const sender = await users.findOne({ _id: senderId }, { session });
       if (!sender || sender.banned) throw new WalletError("banned", 403);
 
-      const debit = await (await accounts()).updateOne({ _id: senderId, balance: { $gte: total } }, { $inc: { balance: -total } }, { session });
-      if (debit.matchedCount !== 1) throw new WalletError("insufficient_balance");
+      if (isWalletOwner(senderId)) {
+        // owner: spend own balance first, the rest comes out of the undistributed supply the owner holds
+        const mine = await (await accounts()).findOne({ _id: senderId }, { session });
+        const own = Math.min(mine?.balance ?? 0, total);
+        if (own > 0) {
+          const d = await (await accounts()).updateOne({ _id: senderId, balance: { $gte: own } }, { $inc: { balance: -own } }, { session });
+          if (d.matchedCount !== 1) throw new WalletError("insufficient_balance");
+        }
+        if (total - own > 0 && !(await tryIssueFromSupply(total - own, session))) throw new WalletError("insufficient_balance");
+      } else {
+        const debit = await (await accounts()).updateOne({ _id: senderId, balance: { $gte: total } }, { $inc: { balance: -total } }, { session });
+        if (debit.matchedCount !== 1) throw new WalletError("insufficient_balance");
+      }
 
       const base = { _id: txId, amount: it.amount, fee: it.fee, fromUser: senderId, from: `wallet:${senderId}`, fromName: displayNameOf(sender), toName: it.dest.displayName };
       const addFee = async () => {
@@ -202,7 +213,7 @@ export async function confirmQuote(senderId: number, intentId: unknown): Promise
   }
   const acct = await getOrCreateAccount(senderId);
   await notifyTx(txId).catch(() => {});
-  return { status, txId, code: ledgerRow.code ?? null, newBalance: acct.balance, duplicate: false };
+  return { status, txId, code: ledgerRow.code ?? null, newBalance: await effectiveBalance(senderId, acct.balance), duplicate: false };
 }
 
 // ---------------------------------------------------------------- history

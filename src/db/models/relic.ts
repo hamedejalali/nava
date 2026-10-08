@@ -1,7 +1,7 @@
 import type { ClientSession, Collection } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { getDb, getClient } from "../connect.js";
-import { tryIssueFromSupply } from "./walletCore.js";
+import { getSupply, tryIssueFromSupply } from "./walletCore.js";
 
 /**
  * Central Relic ledger. Relic belongs to the GLOBAL user account
@@ -124,6 +124,8 @@ async function creditLedgerOnce(
   const client = await getClient();
   const usersCol = (await getDb()).collection<any>("users");
   const ledger = await ledgerCollection();
+  // make sure the supply document exists BEFORE the transaction starts (never create collections mid-transaction)
+  if (SUPPLY_BACKED_TYPES.has(type)) await getSupply();
   const session = client.startSession();
   try {
     await session.withTransaction(async () => {
@@ -215,6 +217,7 @@ export async function grantInitialBalanceIfNeeded(userId: number, usersCol: Coll
     return;
   }
 
+  await getSupply(); // exists before the transaction starts
   const client = await getClient();
   const localSession = client.startSession();
   try {

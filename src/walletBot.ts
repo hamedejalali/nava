@@ -2,7 +2,7 @@ import { Bot, InlineKeyboard, type Context } from "grammy";
 import { env } from "./config/env.js";
 import { getOrCreateUser, getUser } from "./db/models/user.js";
 import { telegramRetryTransformer } from "./ui/telegramRetry.js";
-import { WalletError, displayNameOf, getOrCreateAccount, getSettings, getSupply } from "./db/models/walletCore.js";
+import { WalletError, effectiveBalance, displayNameOf, getOrCreateAccount, getSettings, getSupply } from "./db/models/walletCore.js";
 import { listPartners } from "./db/models/walletPartners.js";
 import { cancelQuote, confirmQuote, createQuote, resolveDestination } from "./db/models/walletTransfers.js";
 import { clearState, getState, setState } from "./db/models/walletBotState.js";
@@ -123,10 +123,11 @@ export function createWalletBot() {
     if (user.banned) return void (await ctx.reply(ERR_FA.banned!));
     const [acct, s, carry, supply] = await Promise.all([getOrCreateAccount(ctx.from.id), getSettings(), getMiningCarry(ctx.from.id), getSupply()]);
     // Same number as the Mini App shows: whole Relic + the share already mined toward the next one.
-    const total = acct.balance + carry / 475;
+    const whole = await effectiveBalance(ctx.from.id, acct.balance);
+    const total = whole + carry / 475;
     await ctx.reply(
       `${await textOf("balance")}\n\n◆ ${total.toFixed(4)} رلیک` +
-        `\nقابل ارسال (کامل): ${acct.balance} رلیک\n≈ ${Math.floor(total * s.tomanRate).toLocaleString("fa-IR")} تومان\n\nموجودی ربات نوا (جدا از ولت): ${user.relicBalance ?? 0}\nرلیک باقی‌مانده کل: ${supply.remaining.toLocaleString("fa-IR")} از ${supply.cap.toLocaleString("fa-IR")}`,
+        `\nقابل ارسال (کامل): ${whole} رلیک\n≈ ${Math.floor(total * s.tomanRate).toLocaleString("fa-IR")} تومان\n\nموجودی ربات نوا (جدا از ولت): ${user.relicBalance ?? 0}\nرلیک باقی‌مانده کل: ${supply.remaining.toLocaleString("fa-IR")} از ${supply.cap.toLocaleString("fa-IR")}`,
     );
   });
 

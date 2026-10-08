@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { handlePreflight, authenticateWalletRequest, sendWalletError } from "./_shared.js";
+import { effectiveBalance } from "../../src/db/models/walletCore.js";
 import { creditMiningTaps } from "../../src/db/models/walletMining.js";
 import { getUser } from "../../src/db/models/user.js";
 import { flushTxLog } from "../../src/services/walletTxLog.js";
@@ -42,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const result = await creditMiningTaps(tgUser.id, Math.floor(rawTaps), batchId);
     if (result.creditedRelic > 0) await flushTxLog(5);
-    res.status(200).json(result);
+    res.status(200).json({ ...result, newBalance: await effectiveBalance(tgUser.id, result.newBalance) });
   } catch (err) {
     sendWalletError(res, err);
   }

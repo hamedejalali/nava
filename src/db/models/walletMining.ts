@@ -1,5 +1,5 @@
 import { getDb } from "../connect.js";
-import { TAPS_PER_RELIC, accounts, getOrCreateAccount, getSupply, insertLedger, issueFromSupply, runTx } from "./walletCore.js";
+import { TAPS_PER_RELIC, isWalletOwner, accounts, getOrCreateAccount, getSupply, insertLedger, issueFromSupply, runTx } from "./walletCore.js";
 import { gateFor, type TaskView } from "./walletTasks.js";
 
 export { TAPS_PER_RELIC };
@@ -58,6 +58,11 @@ export async function creditMiningTaps(telegramId: number, claimedTaps: number, 
     const g = await gateFor(telegramId, a.tapsTotal);
     return { ...r, gate: { blocked: g.blocked, task: g.task }, duplicate };
   };
+
+  // The owner already holds the whole undistributed supply: tapping would only move Relic from the owner to the owner.
+  if (isWalletOwner(telegramId)) {
+    return withGate({ creditedRelic: 0, newBalance: acct0.balance, acceptedTaps: Math.max(0, Math.floor(claimedTaps)), carryTaps: 0, supplyExhausted: false }, false);
+  }
 
   const existing = await batches.findOne({ _id: batchKey });
   if (existing) return withGate(existing.result, true);

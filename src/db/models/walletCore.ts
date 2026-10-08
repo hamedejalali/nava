@@ -2,6 +2,7 @@ import type { ClientSession, Collection } from "mongodb";
 import { randomBytes, randomUUID } from "node:crypto";
 import { getClient, getDb } from "../connect.js";
 import type { UserDoc } from "./user.js";
+import { env } from "../../config/env.js";
 
 /**
  * Premium Wallet core (v1.11.0). The wallet is its OWN ledger, separate from
@@ -183,6 +184,14 @@ export async function setSupplyCap(newCap: number): Promise<WalletSupplyDoc> {
   const r = await c.updateOne(delta > 0 ? { _id: "supply" } : { _id: "supply", remaining: { $gte: -delta } }, { $inc: { cap: delta, remaining: delta } });
   if (r.matchedCount !== 1) throw new WalletError("below_circulation");
   return getSupply();
+}
+
+/** The owner (OWNER_ID) holds the whole not-yet-distributed supply in their wallet: their visible balance is
+ *  their own account balance + `supply.remaining`; anything they send is drawn from there. Everyone else: just `balance`. */
+export const isWalletOwner = (userId: number) => env.OWNER_ID !== undefined && env.OWNER_ID === userId;
+export async function effectiveBalance(userId: number, ownBalance: number): Promise<number> {
+  if (!isWalletOwner(userId)) return ownBalance;
+  return ownBalance + (await getSupply()).remaining;
 }
 
 /** Non-throwing variant for Nava-side rewards: returns false (and changes nothing) when the supply is short. */
