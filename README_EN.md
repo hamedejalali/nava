@@ -158,7 +158,6 @@ Admin:
 - `STARS_PACKAGES` prices are placeholders.
 - Safe chat / chat request / direct message / add contact / block / report / notify-on-end / broadcast buttons are UI-only per the spec's staged approach.
 - Referral & profile-completion rewards: architecture only, per explicit spec instruction.
-- Premium Wallet: shared-architecture foundation only — full Mini App is a future deliverable per the spec.
 - Cron is limited to once/day on Vercel's free plan.
 
 ## 14. Troubleshooting
@@ -179,10 +178,3 @@ Admin:
 - "System load %" is not measurable on serverless and is shown as "unavailable"; real signals (traffic, error rate, latency, Telegram pending updates) are shown instead.
 - For alerts while the bot is fully down, point an external uptime pinger at `/api/health`.
 - `npm test` runs everything against an in-memory fake Mongo/Telegram.
-
----
-
-## Premium Wallet (v1.11.0)
-- The wallet balance is separate from Nava's. Transfers: wallet↔wallet, wallet→Nava (token based) and partners (e.g. the downloader bot) via `docs/PARTNER_API.md`.
-- All settings (supply cap, fees, transaction channel, task review channel, tasks, bonuses, texts) live in the DB and are edited from the wallet bot's admin panel («⚙️ تنظیمات ولت»). No new env vars.
-- The wallet bot must be admin of the transactions channel, the task review channel and any join-task channels.

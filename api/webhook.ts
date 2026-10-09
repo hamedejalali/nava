@@ -98,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // This is now safe to change because the financial/reward operations
   // Telegram might retry are all idempotent (deterministic ledger ids,
   // the mining `batchId`, the transfer `clientRequestId` — see
-  // src/db/models/relic.ts and src/db/models/walletMining.ts): a genuine
+  // src/db/models/relic.ts): a genuine
   // Telegram retry of the same update re-running the same handler again
   // cannot double-charge or double-credit anyone. A response other than
   // 200 tells Telegram to retry with backoff; if the same update keeps

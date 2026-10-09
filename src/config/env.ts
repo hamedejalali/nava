@@ -44,17 +44,6 @@ export const env = {
   get CRON_SECRET() {
     return optional("CRON_SECRET");
   },
-  get WALLET_BOT_TOKEN() {
-    return optional("WALLET_BOT_TOKEN");
-  },
-  get WALLET_WEBHOOK_SECRET() {
-    return optional("WALLET_WEBHOOK_SECRET");
-  },
-  get WALLET_MINIAPP_URL() {
-    // trimmed + no trailing slash: a stray space/newline pasted into the
-    // env value used to produce a broken Mini App link.
-    return optional("WALLET_MINIAPP_URL")?.trim().replace(/\/+$/, "");
-  },
   /** URL of the Nava user Mini App (public/miniapp). Defaults to
    *  PUBLIC_URL + "/miniapp/". */
   get NAVA_MINIAPP_URL(): string | undefined {
@@ -106,12 +95,6 @@ export const env = {
    *  links). Default: NavaChatBot. */
   get BOT_USERNAME() {
     return optional("BOT_USERNAME");
-  },
-
-  /** @username (without @) of the separate wallet bot that finishes gateway
-   *  payments. Empty = gateway checkout not connected yet. */
-  get WALLET_BOT_USERNAME() {
-    return optional("WALLET_BOT_USERNAME");
   },
 
   /** Cost (in Relic) a profile owner pays to see WHO looked up their Nava

@@ -86,7 +86,7 @@ test("j. two imports of the same sheet at the same time create no duplicates and
   }
 });
 
-test("j. export writes profile + wallet fields only (no photos / secrets) and round-trips through import", async () => {
+test("j. export writes profile + relic fields only (no photos / secrets) and round-trips through import", async () => {
   const { exportUsersToExcel } = await import("../../src/services/userExport.js");
   const { importUsersFromExcel } = await import("../../src/services/userImport.js");
   seedUser({ id: 700, relicBalance: 12, profilePhotoFileId: "SECRET_PHOTO_FILE_ID", bio: "private bio" });

@@ -91,29 +91,9 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
     );
   });
 
-  // Gateway checkout isn't connected in Nava bot yet (no merchant
-  // credentials configured) — per current plan, the actual payment step
-  // happens inside the Premium Wallet mini-app instead. This just hands
-  // the user off there with the package they picked already in mind.
+  // Gateway checkout isn't connected yet — friendly notice only.
   composer.callbackQuery(new RegExp(`^${BUY_GATEWAY_PREFIX}(\\d+)$`), async (ctx) => {
-    const index = Number(ctx.match![1]);
-    const packages = await getPackages("gateway");
-    const pkg = packages[index];
-    if (!pkg) {
-      await ctx.answerCallbackQuery({ text: "این پکیج دیگه معتبر نیست." });
-      return;
-    }
-    // Not connected yet -> friendly notice. Once the wallet bot is ready,
-    // set WALLET_BOT_USERNAME in env and this hands the buyer over to it.
-    const wallet = env.WALLET_BOT_USERNAME?.replace(/^@/, "");
-    if (!wallet) {
-      await ctx.answerCallbackQuery({ text: "درگاه پرداخت هنوز فعال نشده؛ به‌زودی فعال میشه 🙏", show_alert: true });
-      return;
-    }
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
-      `برای تکمیل خرید ${pkg.relic} رلیک با ${pkg.price.toLocaleString("fa-IR")} تومان، به ربات ولت نوا برو و پرداختت رو اونجا کامل کن:\nhttps://t.me/${wallet}`
-    );
+    await ctx.answerCallbackQuery({ text: "درگاه پرداخت هنوز فعال نشده؛ به‌زودی فعال میشه 🙏", show_alert: true });
   });
 }
 

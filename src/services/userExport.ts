@@ -4,7 +4,7 @@ import type { UserDoc } from "../db/models/user.js";
 
 /**
  * Columns included in the admin Excel export. Deliberately limited to
- * profile + wallet-relevant fields: NEVER secrets, chat content, photos, or
+ * profile + relic fields: NEVER secrets, chat content, photos, or
  * precise GPS location (per the feature requirement — "never secrets, chat
  * content, or photos"). `telegramId` + `anonId` are the two identifiers
  * userImport.ts keys a restore on.

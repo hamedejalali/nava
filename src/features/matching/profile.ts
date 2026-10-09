@@ -92,6 +92,9 @@ export function buildProfileText(lang: Language, target: UserDoc, viewer?: UserD
   // make copyable with a single tap — intentionally with NO "@" prefix so
   // it isn't mistaken for a tappable mention/link (per owner request).
   lines.push(`${idLabel} <code>${target.anonId}</code>`);
+  // Mini App @username (v1.15.0) — same profile, shown in the bot too.
+  const mini = (target as UserDoc & { miniUsername?: string }).miniUsername;
+  if (mini) lines.push(`🏷 یوزرنیم مینی‌اپ: <code>@${escapeHtml(mini)}</code>`);
 
   // Distance: only ever shown when BOTH sides have shared a location —
   // never a "location not set" placeholder, just omitted entirely,
