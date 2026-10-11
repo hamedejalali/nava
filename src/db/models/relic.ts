@@ -38,6 +38,7 @@ export type RelicTransactionType =
   | "PROFILE_COMPLETION_REWARD"
   | "REPORT_REWARD"
   | "PROFILE_VIEW_REVEAL"
+  | "GIFT_SENT"
   | "ADMIN_ADJUSTMENT"
   | "BONUS";
 

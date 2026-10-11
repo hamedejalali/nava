@@ -5,6 +5,7 @@ import { findExpiredUnnotified, removeQueueEntry } from "../../src/db/models/mat
 import { getUser } from "../../src/db/models/user.js";
 import { dictionary } from "../../src/i18n/index.js";
 import { maybeRunAlertCheck, defaultSend } from "../../src/services/monitor.js";
+import { cleanupStories } from "../../src/services/nava/stories.js";
 
 /**
  * MongoDB's TTL index eventually deletes expired match_queue documents on
@@ -49,5 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Backstop alert evaluation (never throws); covers quiet periods with no webhook traffic.
   await maybeRunAlertCheck({ send: defaultSend });
 
-  res.status(200).json({ processed: expired.length, notified });
+  // Navagram housekeeping: drops stories older than the 30-day archive (never throws).
+  const storiesDropped = await cleanupStories();
+
+  res.status(200).json({ processed: expired.length, notified, storiesDropped });
 }

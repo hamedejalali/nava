@@ -1,4 +1,4 @@
-/** Instagram-style Mini App backend (v1.15.0): username claim, feed/search, likes, bio, photo upload, staff gate. */
+/** Navagram Mini App backend: username claim, explore/search, profile likes, bio, photo upload, staff gate. */
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
@@ -60,37 +60,36 @@ test("two simultaneous claims of the same username: exactly one wins", async () 
   assert.equal(col("users").all().filter((u: any) => u.miniUsernameLower === "newname").length, 1);
 });
 
-test("feed/explore list only eligible users (photo, not banned, not me), paged; search is prefix on username", async () => {
-  const f = await call(1, { action: "feed_page", offset: 0 });
+test("explore shows EVERY visible user (also without photo), never me / banned; search is precise", async () => {
+  const f = await call(1, { action: "explore", offset: 0 });
   assert.equal(f.status, 200);
-  assert.deepEqual(f.payload.items.map((c: any) => c.id).sort(), ["user_AAA2", "user_AAA3"]);
+  assert.deepEqual(f.payload.items.map((c: any) => c.id).sort(), ["user_AAA2", "user_AAA3", "user_AAA4", "user_OWN0"]); // AAA4 has no photo, still listed
   assert.equal(f.payload.hasMore, false);
-  assert.equal(f.payload.items.some((c: any) => "telegramId" in c || "_id" in c), false); // no telegram ids leak
-  const top = await call(1, { action: "explore", offset: 0 });
-  assert.equal(top.payload.items[0].id, "user_AAA3"); // most liked first
+  assert.equal(JSON.stringify(f.payload).includes("P3"), false); // no telegram file ids leak
+  assert.equal(f.payload.items.some((c: any) => "telegramId" in c || "_id" in c), false);
   assert.deepEqual((await call(1, { action: "search", q: "@SA" })).payload.items.map((c: any) => c.username), ["sara"]);
   assert.deepEqual((await call(1, { action: "search", q: "zzz" })).payload.items, []);
-  assert.deepEqual((await call(1, { action: "search", q: "bad query!" })).payload.items, []);
 });
 
 test("like is idempotent both ways and never goes negative", async () => {
-  const a = await call(1, { action: "like", id: "user_AAA3", like: true });
-  const b = await call(1, { action: "like", id: "user_AAA3", like: true });
+  const a = await call(1, { action: "like", pid: "pp:user_AAA3", like: true });
+  const b = await call(1, { action: "like", pid: "pp:user_AAA3", like: true });
   assert.deepEqual([a.payload.likes, b.payload.likes, b.payload.liked], [5, 5, true]);
   assert.equal(col("users").byId(3).likesCount, 5);
-  const c = await call(1, { action: "like", id: "user_AAA3", like: false });
-  const d = await call(1, { action: "like", id: "user_AAA3", like: false });
+  const c = await call(1, { action: "like", pid: "pp:user_AAA3", like: false });
+  const d = await call(1, { action: "like", pid: "pp:user_AAA3", like: false });
   assert.deepEqual([c.payload.likes, d.payload.likes, d.payload.liked], [4, 4, false]);
-  assert.equal((await call(1, { action: "like", id: "user_AAA1", like: true })).status, 404); // self
-  assert.equal((await call(1, { action: "like", id: "user_AAA5", like: true })).status, 404); // banned
-  const card = (await call(1, { action: "user", id: "user_AAA3" })).payload.user;
+  assert.equal((await call(1, { action: "like", pid: "pp:user_AAA5", like: true })).status, 404); // banned
+  const card = (await call(1, { action: "profile", id: "user_AAA3" })).payload.profile;
   assert.equal(card.liked, false);
 });
 
 test("bio: trimmed, capped, shows in the bot's profile text together with the @username", async () => {
   const r = await call(1, { action: "set_bio", bio: "  سلام\n\n\n\nدنیا  " });
   assert.equal(r.payload.bio, "سلام\n\nدنیا");
-  assert.equal((await call(1, { action: "set_bio", bio: "x".repeat(151) })).payload.error, "bio_too_long");
+  assert.equal((await call(1, { action: "set_bio", bio: "x".repeat(300) })).status, 200); // same 300 limit as the bot
+  assert.equal((await call(1, { action: "set_bio", bio: "x".repeat(301) })).payload.error, "bio_too_long");
+  await call(1, { action: "set_bio", bio: "  سلام\n\n\n\nدنیا  " });
   assert.equal(col("users").byId(1).bio, "سلام\n\nدنیا");
   await call(1, { action: "set_username", username: "Hamed" });
   const { buildProfileText } = await import("../../src/features/matching/profile.js");
@@ -120,7 +119,8 @@ test("photo upload: safe image auto-approved, flagged goes to admins as pending,
   assert.equal(col("users").byId(3).profilePhotoFileId, "P3");
   assert.ok(sent.some((s) => s.chat === 900 && s.o?.reply_markup));
   assert.equal(col("image_moderation").all().filter((d: any) => d.status === "pending").length, 1);
-  assert.equal((await S.myProfile(col("users").byId(3) as any)).photoPending, true);
+  const { getProfile } = await import("../../src/services/nava/profile.js");
+  assert.equal((await getProfile(col("users").byId(3) as any, "user_AAA3"))!.photoPending, true);
   await assert.rejects(async () => S.decodeImage("data:image/jpeg;base64,AAAA"), (e: any) => e.code === "bad_image");
   await assert.rejects(async () => S.decodeImage(Buffer.alloc(500, 1).toString("base64")), (e: any) => e.code === "bad_image");
   await assert.rejects(S.uploadProfilePhoto(col("users").byId(4) as any, jpeg, { api, check: async () => ({ serviceUnavailable: false, flagged: false, score: 0, classification: "safe" }), recipients: async () => [] }), (e: any) => e.code === "unavailable");
@@ -132,6 +132,6 @@ test("whoami: staff -> monitor role; normal user -> social app; unregistered / f
   assert.equal(u.payload.role, "user"); assert.equal(u.payload.me.id, "user_AAA1");
   assert.equal((await call(999, { action: "whoami" })).status, 403);
   let status = 0; const res: any = { setHeader() {}, status(c: number) { status = c; return res; }, json() { return res; } };
-  await handler({ method: "POST", body: { action: "feed_page", initData: "x" } } as any, res);
+  await handler({ method: "POST", body: { action: "home", initData: "x" } } as any, res);
   assert.equal(status, 401);
 });

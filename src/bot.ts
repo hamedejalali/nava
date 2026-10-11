@@ -40,6 +40,7 @@ import { registerPricingAdmin } from "./features/admin/pricingAdmin.js";
 import { registerAdminStats } from "./features/admin/stats.js";
 import { registerAdminActivityLog } from "./features/admin/activityLog.js";
 import { registerAdminSettings } from "./features/admin/settingsAdmin.js";
+import { registerNavagramAdmin } from "./features/admin/navagramAdmin.js";
 import { registerAdminReports } from "./features/admin/reportsAdmin.js";
 import { registerAdminBroadcast } from "./features/admin/broadcast.js";
 import { registerOwnerAdminPanelClose } from "./features/admin/ownerBypass.js";
@@ -185,6 +186,7 @@ export function createBot(): Bot<NavaContext> {
   registerAdminStats(features);
   registerAdminActivityLog(features);
   registerAdminSettings(features);
+  registerNavagramAdmin(features);
   registerAdminReports(features);
   registerAdminBroadcast(features);
   registerAdminVerifiedUsers(features);

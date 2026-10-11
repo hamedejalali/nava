@@ -20,7 +20,7 @@ function requestCaption(from: UserDoc): string {
   const age = from.age ? `، ${from.age} ساله` : "";
   return (
     `💬 <b>درخواست چت</b>\n\n` +
-    `${name}${age} از مینی‌اپ نوا می‌خواد باهات چت کنه.\n` +
+    `${name}${age} از نوا گرام می‌خواد باهات چت کنه.\n` +
     `<blockquote>با قبول کردن، از هر دو نفر ۱ رلیک کم میشه و چت ناشناس شروع میشه.</blockquote>`
   );
 }
@@ -97,7 +97,7 @@ export function registerChatRequest(composer: Composer<NavaContext>) {
     const other = result.fromId === me ? result.toId : result.fromId;
     const otherUser = await getUser(other);
     const otherLang: Language = otherUser?.languageCode ?? "fa";
-    await notifyMatch(ctx, me, ctx.userLang, result.sessionId).catch((e) => console.error("[chatRequest] notify acceptor failed:", e));
-    await notifyMatch(ctx, other, otherLang, result.sessionId).catch((e) => console.error("[chatRequest] notify requester failed:", e));
+    await notifyMatch(ctx, me, ctx.userLang, result.sessionId, { requestAccepted: true }).catch((e) => console.error("[chatRequest] notify acceptor failed:", e));
+    await notifyMatch(ctx, other, otherLang, result.sessionId, { requestAccepted: true }).catch((e) => console.error("[chatRequest] notify requester failed:", e));
   });
 }

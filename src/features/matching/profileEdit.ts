@@ -14,9 +14,9 @@ import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
 import { startVerifyRequest } from "./verifyFlow.js";
 import { VERIFY_REQUEST_CALLBACK } from "./constants.js";
 
-const MIN_AGE = 9;
-const MAX_AGE = 99;
-const MAX_BIO_LENGTH = 300;
+export const MIN_AGE = 9;
+export const MAX_AGE = 99;
+export const MAX_BIO_LENGTH = 300;
 
 type AwaitingField = "bio" | "province" | "city" | "location" | "nickname_request" | "age_request";
 
@@ -250,6 +250,19 @@ async function notifyAdminsOfRequest(
   previousValue: string,
   newValue: string
 ): Promise<void> {
+  await notifyRecipientsOfEditRequest(ctx.api, requestId, user, field, previousValue, newValue);
+}
+
+/** Same notification the bot sends, usable without a grammY context (the Mini App uses it,
+ *  so a name/age change asked from the Mini App goes through the very same owner approval). */
+export async function notifyRecipientsOfEditRequest(
+  api: { sendMessage: (chatId: number, text: string, other?: any) => Promise<unknown> },
+  requestId: string,
+  user: { _id: number; anonId: string },
+  field: "nickname" | "age",
+  previousValue: string,
+  newValue: string
+): Promise<void> {
   const fieldFa = field === "nickname" ? "نام مستعار" : "سن";
   const text =
     `📝 درخواست تغییر ${fieldFa}\n\n` +
@@ -263,7 +276,7 @@ async function notifyAdminsOfRequest(
     ],
   ]);
   for (const adminId of await getRequestRecipientIds()) {
-    await ctx.api.sendMessage(adminId, text, { reply_markup: kb }).catch(() => {});
+    await api.sendMessage(adminId, text, { reply_markup: kb }).catch(() => {});
   }
 }
 

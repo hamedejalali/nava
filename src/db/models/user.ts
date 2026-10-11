@@ -54,6 +54,7 @@ export interface UserDoc {
    *  src/db/models/photoModeration.ts. Never set directly from a raw
    *  upload. */
   profilePhotoFileId?: string;
+  profilePhotoAt?: Date;
   /** Cached live Relic balance — see src/db/models/relic.ts for the
    *  ledger that is the actual source of truth. */
   relicBalance?: number;
@@ -388,7 +389,9 @@ export async function incrementLikes(telegramId: number): Promise<void> {
 
 export async function setProfilePhoto(telegramId: number, fileId: string): Promise<void> {
   const col = await usersCollection();
-  await col.updateOne({ _id: telegramId }, { $set: { profilePhotoFileId: fileId } });
+  // profilePhotoAt = when the current profile photo was approved: it is the date of the
+  // "profile photo post" in the Mini App feed (and changes the cached-picture version).
+  await col.updateOne({ _id: telegramId }, { $set: { profilePhotoFileId: fileId, profilePhotoAt: new Date() } });
 }
 
 export async function setUserLocation(telegramId: number, lat: number, lng: number): Promise<void> {
@@ -429,6 +432,7 @@ export async function resetUserToZero(telegramId: number): Promise<UserDoc | nul
         nickname: "",
         bio: "",
         profilePhotoFileId: "",
+        profilePhotoAt: "",
         location: "",
         verified: "",
         level: "",

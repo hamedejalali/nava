@@ -45,9 +45,13 @@ function countdownKeyboard(lang: Language, elapsedSeconds: number) {
   ]);
 }
 
-export async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language, sessionId: string) {
+/** Shown to BOTH people when a chat REQUEST (from the Mini App) is accepted — a random-search match
+ *  keeps the "found you a partner" text, but here nobody was "found": the request was accepted. */
+export const CHAT_REQUEST_ACCEPTED_TEXT = "✅ درخواست چت قبول شد و الان می‌تونید باهم صحبت کنید.";
+
+export async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language, sessionId: string, opts: { requestAccepted?: boolean } = {}) {
   const t = dictionary(lang);
-  const found = requireLocked(lang, "matching.foundPartner", t.matching.foundPartner);
+  const found = opts.requestAccepted ? CHAT_REQUEST_ACCEPTED_TEXT : requireLocked(lang, "matching.foundPartner", t.matching.foundPartner);
   const warning = requireLocked(lang, "matching.trustWarning", t.matching.trustWarning);
 
   await ctx.api.sendMessage(telegramId, found);

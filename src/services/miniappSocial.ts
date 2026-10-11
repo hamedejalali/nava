@@ -1,33 +1,26 @@
 import { InputFile, type Api } from "grammy";
 import { getDb } from "../db/connect.js";
-import { getBlockedCounterparts } from "../db/models/blocks.js";
 import { createModerationRecord } from "../db/models/imageModeration.js";
 import { setProfilePhoto, type UserDoc } from "../db/models/user.js";
-import { levelDisplay } from "../config/levels.js";
 import { env } from "../config/env.js";
 import { dictionary } from "../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../ui/keyboard.js";
 import { getRequestRecipientIds } from "../features/admin/constants.js";
 import { adminCaption } from "../features/photo/moderation.js";
 import { checkImage, type ModerationCheckResult } from "./sightengine.js";
-import { botApi, eligibleCandidateFilter } from "./miniapp.js";
+import { botApi } from "./miniapp.js";
+import { SocialError, findVisibleUser } from "./nava/common.js";
+import { decodeImage } from "./nava/media.js";
 
 /**
- * Instagram-style Mini App backend (v1.15.0): Mini-App-only @username,
- * feed / explore / search over registered users with an approved photo,
- * likes, bio and photo upload. Everything is stored on the existing `users`
- * document so the bot's profile reflects the same data.
+ * Navagram (نوا گرام) Mini App — the parts that live on the existing `users` document so the bot's
+ * profile and the Mini App always show the same data: Mini-App @username, bio, profile-photo upload
+ * (same moderation pipeline as the bot) and profile likes. Posts / stories / follows / gifts are in ./nava/.
  */
 
-export class SocialError extends Error {
-  constructor(public code: string) {
-    super(code);
-  }
-}
+export { SocialError };
 
-export const PAGE_SIZE = 12;
-export const MAX_BIO = 150;
-export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+export const MAX_BIO = 300; // same limit as the bot's own bio editor
 export const PHOTO_COOLDOWN_MS = 30_000;
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 24;
@@ -48,7 +41,35 @@ export function ensureSocialIndexesOnce(): void {
         unique: true,
         partialFilterExpression: { miniUsernameLower: { $type: "string" } },
       },
+      { key: { createdAt: -1, _id: 1 }, name: "explore_order" },
     ]);
+    await db.collection("mini_posts").createIndexes([
+      { key: { ownerId: 1, createdAt: -1 }, name: "owner_created" },
+      { key: { createdAt: -1 }, name: "created" },
+    ]);
+    await db.collection("mini_comments").createIndexes([{ key: { postId: 1, createdAt: -1 }, name: "post_created" }, { key: { ownerId: 1, createdAt: -1 }, name: "owner_created" }]);
+    await db.collection("mini_follows").createIndexes([
+      { key: { followeeId: 1, createdAt: -1 }, name: "followee_created" },
+      { key: { followerId: 1, createdAt: -1 }, name: "follower_created" },
+    ]);
+    await db.collection("mini_stories").createIndexes([
+      { key: { ownerId: 1, expiresAt: 1 }, name: "owner_expires" },
+      { key: { expiresAt: 1 }, name: "expires" },
+      { key: { createdAt: 1 }, name: "created" },
+    ]);
+    await db.collection("mini_story_views").createIndexes([{ key: { storyId: 1 }, name: "story" }]);
+    await db.collection("mini_gifts").createIndexes([{ key: { receiverId: 1, createdAt: -1 }, name: "receiver_created" }]);
+    await db.collection("mini_highlights").createIndexes([{ key: { ownerId: 1, createdAt: 1 }, name: "owner_created" }]);
+    await db.collection("mini_recent_search").createIndexes([{ key: { userId: 1, at: -1 }, name: "user_at" }]);
+
+    // Users who already had a profile photo before v1.16 get a "photo date" (their registration date) so
+    // their profile-photo post has a proper place in the feed.
+    const old = await db
+      .collection<any>("users")
+      .find({ profilePhotoFileId: { $type: "string", $ne: "" }, profilePhotoAt: { $exists: false } }, { projection: { _id: 1, createdAt: 1 } })
+      .limit(500)
+      .toArray();
+    for (const u of old) await db.collection<any>("users").updateOne({ _id: u._id, profilePhotoAt: { $exists: false } }, { $set: { profilePhotoAt: u.createdAt ?? new Date() } });
   })().catch((err) => {
     ensured = false;
     console.error("[miniapp-social] index setup failed (will retry on next request):", err instanceof Error ? err.message : err);
@@ -106,98 +127,14 @@ export async function setMiniUsername(user: UserDoc, raw: unknown, isStaff = fal
   return name;
 }
 
-/* ------------------------------------------------------------------ cards */
-
-export interface Card {
-  id: string; // public Nava ID (anonId) — Telegram ids never leave the server
-  username: string | null;
-  name: string;
-  verified: boolean;
-  age: number | string | null;
-  province: string | null;
-  city: string | null;
-  bio: string;
-  likes: number;
-  liked: boolean;
-}
-
-async function likedSet(viewerId: number, targets: UserDoc[]): Promise<Set<number>> {
-  if (!targets.length) return new Set();
-  const db = await getDb();
-  const rows = await db
-    .collection<{ _id: string }>("profile_likes")
-    .find({ _id: { $in: targets.map((t) => `${viewerId}:${t._id}`) } })
-    .toArray();
-  return new Set(rows.map((r) => Number(String(r._id).split(":")[1])));
-}
-
-export async function toCards(viewerId: number, docs: UserDoc[]): Promise<Card[]> {
-  const liked = await likedSet(viewerId, docs);
-  return docs.map((u: any) => ({
-    id: u.anonId,
-    username: u.miniUsername ?? null,
-    name: u.nickname ?? "-",
-    verified: !!u.verified,
-    age: u.age ?? null,
-    province: u.province ?? null,
-    city: u.city ?? null,
-    bio: u.bio ?? "",
-    likes: u.likesCount ?? 0,
-    liked: liked.has(u._id),
-  }));
-}
-
-async function baseFilter(viewerId: number): Promise<Record<string, unknown>> {
-  const blocked = await getBlockedCounterparts(viewerId);
-  return eligibleCandidateFilter(viewerId, blocked, []);
-}
-
-export type ListOrder = "new" | "top";
-
-export async function listUsers(viewerId: number, opts: { order: ListOrder; offset: number }): Promise<{ items: Card[]; hasMore: boolean }> {
-  const db = await getDb();
-  const offset = Math.max(0, Math.min(10_000, Math.floor(opts.offset) || 0));
-  const sort: Record<string, 1 | -1> = opts.order === "top" ? { likesCount: -1, _id: -1 } : { _id: -1 };
-  const docs = await db
-    .collection<UserDoc>("users")
-    .find(await baseFilter(viewerId) as any)
-    .sort(sort)
-    .skip(offset)
-    .limit(PAGE_SIZE + 1)
-    .toArray();
-  const hasMore = docs.length > PAGE_SIZE;
-  return { items: await toCards(viewerId, docs.slice(0, PAGE_SIZE)), hasMore };
-}
-
-export async function getCard(viewerId: number, anonId: unknown): Promise<Card | null> {
-  if (typeof anonId !== "string" || !anonId || anonId.length > 32) return null;
-  const db = await getDb();
-  const doc = await db.collection<UserDoc>("users").findOne({ ...(await baseFilter(viewerId)), anonId } as any);
-  return doc ? (await toCards(viewerId, [doc]))[0]! : null;
-}
-
-export async function searchUsers(viewerId: number, rawQuery: unknown): Promise<Card[]> {
-  if (typeof rawQuery !== "string") return [];
-  const q = normalizeUsername(rawQuery.trim()).toLowerCase();
-  if (!q || q.length > USERNAME_MAX || !/^[a-z0-9._]+$/.test(q)) return [];
-  const db = await getDb();
-  const docs = await db
-    .collection<UserDoc>("users")
-    .find({ ...(await baseFilter(viewerId)), miniUsernameLower: { $gte: q, $lt: q + "￿" } } as any)
-    .sort({ miniUsernameLower: 1 })
-    .limit(30)
-    .toArray();
-  return toCards(viewerId, docs);
-}
-
 /* ------------------------------------------------------------------ likes */
 
-/** Idempotent: `like=true` twice counts once, `like=false` twice un-counts once. */
+/** Like / unlike a profile (= the "profile photo post"). Idempotent: `like=true` twice counts once,
+ *  `like=false` twice un-counts once. Returns null when the profile is not visible to the viewer. */
 export async function setLike(viewer: UserDoc, anonId: unknown, like: boolean): Promise<{ liked: boolean; likes: number } | null> {
-  if (typeof anonId !== "string" || !anonId || anonId.length > 32) return null;
-  const db = await getDb();
-  const target = await db.collection<UserDoc>("users").findOne({ ...(await baseFilter(viewer._id)), anonId } as any);
+  const target = await findVisibleUser(viewer._id, anonId, { includeSelf: true });
   if (!target) return null;
+  const db = await getDb();
   const likes = db.collection<{ _id: string; createdAt: Date }>("profile_likes");
   const users = db.collection<UserDoc>("users");
   const key = `${viewer._id}:${target._id}`;
@@ -233,27 +170,6 @@ export async function setBio(user: UserDoc, raw: unknown): Promise<string> {
   return bio;
 }
 
-export async function myProfile(user: UserDoc) {
-  const db = await getDb();
-  const fresh = (await db.collection<any>("users").findOne({ _id: user._id })) ?? user;
-  const pending = await db.collection<any>("image_moderation").findOne({ senderId: user._id, type: "profile_photo", status: "pending" });
-  return {
-    id: fresh.anonId,
-    username: fresh.miniUsername ?? null,
-    name: fresh.nickname ?? "-",
-    verified: !!fresh.verified,
-    age: fresh.age ?? null,
-    province: fresh.province ?? null,
-    city: fresh.city ?? null,
-    bio: fresh.bio ?? "",
-    likes: fresh.likesCount ?? 0,
-    relic: fresh.relicBalance ?? 0,
-    level: levelDisplay(fresh.level),
-    hasPhoto: !!fresh.profilePhotoFileId,
-    photoPending: !!pending,
-  };
-}
-
 /* ----------------------------------------------------------- photo upload */
 
 export interface UploadDeps {
@@ -262,18 +178,7 @@ export interface UploadDeps {
   recipients: () => Promise<number[]>;
 }
 
-export function decodeImage(raw: unknown): Buffer {
-  if (typeof raw !== "string" || raw.length > MAX_PHOTO_BYTES * 1.4) throw new SocialError("bad_image");
-  const b64 = raw.replace(/^data:image\/(jpeg|png|webp);base64,/, "");
-  if (!/^[A-Za-z0-9+/=\s]+$/.test(b64)) throw new SocialError("bad_image");
-  const buf = Buffer.from(b64, "base64");
-  if (buf.length < 100 || buf.length > MAX_PHOTO_BYTES) throw new SocialError("bad_image");
-  const jpeg = buf[0] === 0xff && buf[1] === 0xd8;
-  const png = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
-  const webp = buf.subarray(0, 4).toString() === "RIFF" && buf.subarray(8, 12).toString() === "WEBP";
-  if (!jpeg && !png && !webp) throw new SocialError("bad_image");
-  return buf;
-}
+export { decodeImage };
 
 /** Same moderation pipeline as a photo sent in the bot: Sightengine
  *  auto-approves safe photos, anything else waits for an admin. */

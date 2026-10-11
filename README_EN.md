@@ -173,7 +173,7 @@ Admin:
 ---
 
 ## Mini Apps & monitoring (v1.11.0)
-- **User Mini App**: `PUBLIC_URL/miniapp/` (or `NAVA_MINIAPP_URL`).
+- **User Mini App "Nava Gram" (v1.16.0)**: `PUBLIC_URL/miniapp/` (or `NAVA_MINIAPP_URL`). Owner/admins reach it from the monitor page link (`/miniapp/?as=user`). Post-channel copy and gift prices live in the admin panel ("Nava Gram"). Sharing the real photo + caption needs Bot API 8.0 plus `BOT_USERNAME` and `PUBLIC_URL`.
 - **Monitoring (owner/admin only)**: `/monitor` command. No `npm run set-webhook` needed. Optional env: `MONITOR_MINIAPP_URL`, `MONITOR_ERROR_RATE_PCT`, `MONITOR_MIN_REQUESTS`, `MONITOR_DB_LATENCY_MS`, `MONITOR_PENDING_UPDATES`, `MONITOR_ALERT_COOLDOWN_MIN`.
 - "System load %" is not measurable on serverless and is shown as "unavailable"; real signals (traffic, error rate, latency, Telegram pending updates) are shown instead.
 - For alerts while the bot is fully down, point an external uptime pinger at `/api/health`.

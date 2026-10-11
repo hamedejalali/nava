@@ -211,7 +211,7 @@ Matchmaking و چت:
 ---
 
 ## مینی‌اپ‌ها و مانیتورینگ (v1.11.0)
-- **مینی‌اپ کاربران**: `PUBLIC_URL/miniapp/` (یا `NAVA_MINIAPP_URL`).
+- **مینی‌اپ کاربران «نوا گرام» (v1.16.0)**: `PUBLIC_URL/miniapp/` (یا `NAVA_MINIAPP_URL`). مالک/ادمین برای دیدن اپ از صفحه‌ی مانیتورینگ روی «باز کردن نوا گرام به‌عنوان کاربر» بزنند (`/miniapp/?as=user`). تنظیمات کانال کپی پست‌ها و قیمت هدیه‌ها: پنل ادمین ← «نوا گرام». اشتراک‌گذاری عکس+کپشن نیاز به Bot API 8.0 و تنظیم `BOT_USERNAME` و `PUBLIC_URL` دارد.
 - **مانیتورینگ (فقط مالک/ادمین)**: دستور `/monitor` در ربات. نیازی به `npm run set-webhook` نیست. env های اختیاری: `MONITOR_MINIAPP_URL`, `MONITOR_ERROR_RATE_PCT`, `MONITOR_MIN_REQUESTS`, `MONITOR_DB_LATENCY_MS`, `MONITOR_PENDING_UPDATES`, `MONITOR_ALERT_COOLDOWN_MIN`.
 - «بار سیستم ٪» روی سرورلس قابل اندازه‌گیری نیست و عمداً «در دسترس نیست» نشون داده میشه؛ به‌جاش ترافیک/خطا/تأخیر/صف تلگرام نمایش داده میشه.
 - برای هشدار وقتی ربات کاملاً قطع باشه، یک سرویس پینگ خارجی روی `/api/health` بذار.
