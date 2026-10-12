@@ -5,6 +5,7 @@ import { getBotSettings, setMaintenanceMode } from "../../db/models/settings.js"
 import { isAdmin } from "./constants.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
+import { NG_CB } from "./navagramAdmin.js";
 
 const CB = { toggleMaintenance: "admin:settings:toggle_maintenance" };
 
@@ -13,6 +14,7 @@ async function screen(ctx: NavaContext) {
   await ctx.reply(`⚙️ تنظیمات ربات\n\nحالت تعمیر و نگهداری: ${settings.maintenanceMode ? "🟢 فعال" : "🔴 غیرفعال"}`, {
     reply_markup: inlineKeyboard([
       [glassButton(settings.maintenanceMode ? "غیرفعال کردن حالت تعمیر" : "فعال کردن حالت تعمیر", CB.toggleMaintenance, "primary")],
+      [glassButton("📸 تنظیمات نوا گرام", NG_CB.open, "primary")],
     ]),
   });
 }

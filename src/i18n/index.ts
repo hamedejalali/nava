@@ -12,6 +12,18 @@ export function dictionary(lang: Language): Dictionary {
   return locales[lang];
 }
 
+/**
+ * True when a language has its LOCKED onboarding wording supplied. English and
+ * Arabic are intentionally still empty (see locales/en.ts, ar.ts), so a user
+ * who picks them would otherwise land on a screen made of "…" placeholders
+ * (production) or an exception (dev/test) with no way forward. Callers use this
+ * to keep such users on the language screen instead of dead-ending them.
+ */
+export function isLanguageReady(lang: Language): boolean {
+  const o = locales[lang]?.onboarding;
+  return !!o && o.genderPrompt !== undefined && o.genderButtonMale !== undefined && o.genderButtonFemale !== undefined;
+}
+
 export function isRtl(lang: Language): boolean {
   // Persian and Arabic are RTL; English is LTR (Feature 01 requirement).
   return lang === "fa" || lang === "ar";

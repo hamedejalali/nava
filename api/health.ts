@@ -20,17 +20,13 @@ import { env } from "../src/config/env.js";
  * before; the public response now only ever says "unreachable".
  *
  * This does NOT tell you whether Telegram's webhook is correctly pointed
- * at this deployment — for that, run `npm run webhook-info` /
- * `npm run wallet-webhook-info` locally (they call Telegram directly).
+ * at this deployment — for that, run `npm run webhook-info` locally (it calls Telegram directly).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const envPresence = {
     BOT_TOKEN: !!process.env.BOT_TOKEN,
     WEBHOOK_SECRET: !!process.env.WEBHOOK_SECRET,
     MONGODB_URI: !!process.env.MONGODB_URI,
-    WALLET_BOT_TOKEN: !!process.env.WALLET_BOT_TOKEN,
-    WALLET_WEBHOOK_SECRET: !!process.env.WALLET_WEBHOOK_SECRET,
-    WALLET_MINIAPP_URL: !!process.env.WALLET_MINIAPP_URL,
   };
 
   let mongo: { reachable: boolean; ms: number | null } = { reachable: false, ms: null };

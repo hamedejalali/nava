@@ -120,7 +120,10 @@ export async function createHarness(extraEnv: Record<string, string | undefined>
     } else if (method === "getFile") {
       result = { file_id: payload.file_id, file_unique_id: "u", file_path: "photos/file_1.jpg" };
     } else if (method === "getChatMember") {
-      result = { status: "member", user: from(payload.user_id) };
+      // the bot itself is an admin of every chat in the harness (channel-copy setup); everybody else is a member
+      result = { status: payload.user_id === 123456 ? "administrator" : "member", user: from(payload.user_id) };
+    } else if (method === "getChat") {
+      result = { id: payload.chat_id, type: "channel", title: "Test Channel" };
     } else if (method === "getMe") {
       result = bot.botInfo;
     }

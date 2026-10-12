@@ -40,6 +40,7 @@ import { registerPricingAdmin } from "./features/admin/pricingAdmin.js";
 import { registerAdminStats } from "./features/admin/stats.js";
 import { registerAdminActivityLog } from "./features/admin/activityLog.js";
 import { registerAdminSettings } from "./features/admin/settingsAdmin.js";
+import { registerNavagramAdmin } from "./features/admin/navagramAdmin.js";
 import { registerAdminReports } from "./features/admin/reportsAdmin.js";
 import { registerAdminBroadcast } from "./features/admin/broadcast.js";
 import { registerOwnerAdminPanelClose } from "./features/admin/ownerBypass.js";
@@ -58,6 +59,7 @@ import { registerChatRequest } from "./features/matching/chatRequest.js";
 import { ensureChatRequestIndexes } from "./db/models/chatRequest.js";
 import { registerProfileReveal } from "./features/matching/profileReveal.js";
 import { ensureProfileRevealIndexes } from "./db/models/profileReveal.js";
+import { ensureStarsOrderIndexes } from "./db/models/starsOrder.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
@@ -82,6 +84,7 @@ export function createBot(): Bot<NavaContext> {
     ensurePhotoModerationLogIndexes(),
     ensureChatRelayMapIndexes(),
     ensureChatRequestIndexes(),
+    ensureStarsOrderIndexes(),
   ]).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[bot] Index setup failed (will retry on next cold start):", err);
@@ -119,6 +122,9 @@ export function createBot(): Bot<NavaContext> {
               // user's request.
             });
           }
+        }).catch(() => {
+          // getAllAdminIds() failing (DB hiccup) must never become an unhandled rejection: on Node that can
+          // take the whole serverless instance down in the middle of the new user's own request.
         });
       }
     } else {
@@ -185,6 +191,7 @@ export function createBot(): Bot<NavaContext> {
   registerAdminStats(features);
   registerAdminActivityLog(features);
   registerAdminSettings(features);
+  registerNavagramAdmin(features);
   registerAdminReports(features);
   registerAdminBroadcast(features);
   registerAdminVerifiedUsers(features);

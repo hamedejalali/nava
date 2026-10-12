@@ -158,7 +158,6 @@ Admin:
 - `STARS_PACKAGES` prices are placeholders.
 - Safe chat / chat request / direct message / add contact / block / report / notify-on-end / broadcast buttons are UI-only per the spec's staged approach.
 - Referral & profile-completion rewards: architecture only, per explicit spec instruction.
-- Premium Wallet: shared-architecture foundation only — full Mini App is a future deliverable per the spec.
 - Cron is limited to once/day on Vercel's free plan.
 
 ## 14. Troubleshooting
@@ -174,15 +173,8 @@ Admin:
 ---
 
 ## Mini Apps & monitoring (v1.11.0)
-- **User Mini App**: `PUBLIC_URL/miniapp/` (or `NAVA_MINIAPP_URL`).
+- **User Mini App "Nava Gram" (v1.16.0)**: `PUBLIC_URL/miniapp/` (or `NAVA_MINIAPP_URL`). Owner/admins reach it from the monitor page link (`/miniapp/?as=user`). Post-channel copy and gift prices live in the admin panel ("Nava Gram"). Sharing the real photo + caption needs Bot API 8.0 plus `BOT_USERNAME` and `PUBLIC_URL`.
 - **Monitoring (owner/admin only)**: `/monitor` command. No `npm run set-webhook` needed. Optional env: `MONITOR_MINIAPP_URL`, `MONITOR_ERROR_RATE_PCT`, `MONITOR_MIN_REQUESTS`, `MONITOR_DB_LATENCY_MS`, `MONITOR_PENDING_UPDATES`, `MONITOR_ALERT_COOLDOWN_MIN`.
 - "System load %" is not measurable on serverless and is shown as "unavailable"; real signals (traffic, error rate, latency, Telegram pending updates) are shown instead.
 - For alerts while the bot is fully down, point an external uptime pinger at `/api/health`.
 - `npm test` runs everything against an in-memory fake Mongo/Telegram.
-
----
-
-## Premium Wallet (v1.11.0)
-- The wallet balance is separate from Nava's. Transfers: wallet↔wallet, wallet→Nava (token based) and partners (e.g. the downloader bot) via `docs/PARTNER_API.md`.
-- All settings (supply cap, fees, transaction channel, task review channel, tasks, bonuses, texts) live in the DB and are edited from the wallet bot's admin panel («⚙️ تنظیمات ولت»). No new env vars.
-- The wallet bot must be admin of the transactions channel, the task review channel and any join-task channels.

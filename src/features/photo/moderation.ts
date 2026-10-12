@@ -12,7 +12,7 @@ import { resolveFileUrl } from "../../services/telegramFiles.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 
-function adminCaption(user: UserDoc): string {
+export function adminCaption(user: UserDoc): string {
   return [
     `📸 درخواست تایید عکس پروفایل`,
     ``,

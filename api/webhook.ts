@@ -3,6 +3,7 @@ import type { Update } from "grammy/types";
 import { createBot } from "../src/bot.js";
 import { waitUntil } from "@vercel/functions";
 import { env } from "../src/config/env.js";
+import { safeEqual } from "../src/utils/secureCompare.js";
 import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
@@ -66,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let secretOk: boolean;
   try {
-    secretOk = req.headers["x-telegram-bot-api-secret-token"] === env.WEBHOOK_SECRET;
+    secretOk = safeEqual(req.headers["x-telegram-bot-api-secret-token"], env.WEBHOOK_SECRET);
   } catch (err) {
     // env.WEBHOOK_SECRET is a required() getter — this only throws if the
     // env var is genuinely missing in this deployment.
@@ -98,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // This is now safe to change because the financial/reward operations
   // Telegram might retry are all idempotent (deterministic ledger ids,
   // the mining `batchId`, the transfer `clientRequestId` — see
-  // src/db/models/relic.ts and src/db/models/walletMining.ts): a genuine
+  // src/db/models/relic.ts): a genuine
   // Telegram retry of the same update re-running the same handler again
   // cannot double-charge or double-credit anyone. A response other than
   // 200 tells Telegram to retry with backoff; if the same update keeps

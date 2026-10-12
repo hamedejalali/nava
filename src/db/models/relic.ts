@@ -5,8 +5,7 @@ import { getDb, getClient } from "../connect.js";
 /**
  * Central Relic ledger. Relic belongs to the GLOBAL user account
  * (keyed by Telegram numeric user ID), not to Nava specifically — this is
- * the same collection/record the Premium Wallet project reads and writes,
- * so the balance is always shared rather than duplicated.
+ * the single source of truth for the balance.
  *
  * The live balance is cached on the user document (`relicBalance`) for
  * fast reads, but every balance-changing operation ALSO writes an
@@ -38,12 +37,9 @@ export type RelicTransactionType =
   | "REFERRAL_REWARD"
   | "PROFILE_COMPLETION_REWARD"
   | "REPORT_REWARD"
-  | "WALLET_MINING"
   | "PROFILE_VIEW_REVEAL"
+  | "GIFT_SENT"
   | "ADMIN_ADJUSTMENT"
-  | "RECOVERY_OUT"
-  | "RECOVERY_IN"
-  | "WALLET_TRANSFER_IN"
   | "BONUS";
 
 export interface RelicTransactionDoc {
@@ -60,7 +56,7 @@ export interface RelicTransactionDoc {
   /** Free-form reference to the related object (chat session id, original
    *  transaction id for a REFUND, purchase id, etc). */
   reference?: string;
-  sourceApp: "nava" | "wallet";
+  sourceApp: "nava";
   metadata?: Record<string, unknown>;
   createdAt: Date;
   completedAt?: Date;
@@ -93,6 +89,7 @@ export class InsufficientBalanceError extends Error {
  *  applied before) — caught outside the transaction and turned into a
  *  plain `false` / no-op return, never a real error to the caller. */
 class AlreadyProcessedError extends Error {}
+class RecipientMissingError extends Error {}
 
 /**
  * Shared building block for every "credit or refund N Relic to this user,
@@ -292,7 +289,7 @@ export async function transferRelicOnce(
   recipientId: number,
   amount: number
 ): Promise<{ status: "completed" } | { status: "insufficient" } | { status: "invalid" } | { status: "already_processed" }> {
-  if (senderId === recipientId || !Number.isInteger(amount) || amount <= 0) return { status: "invalid" };
+  if (senderId === recipientId || !Number.isSafeInteger(amount) || amount <= 0) return { status: "invalid" };
 
   const db = await getDb();
   const client = await getClient();
@@ -318,7 +315,10 @@ export async function transferRelicOnce(
         throw new InsufficientBalanceError(senderId);
       }
 
-      await usersCol.updateOne({ _id: recipientId }, { $inc: { relicBalance: amount } }, { session: mongoSession });
+      const credited = await usersCol.updateOne({ _id: recipientId }, { $inc: { relicBalance: amount } }, { session: mongoSession });
+      // Recipient document missing: abort so the sender's debit is rolled back (no Relic may vanish and the
+      // ledger must never show a credit that no balance received).
+      if (credited.matchedCount !== 1) throw new RecipientMissingError();
 
       try {
         await ledger.insertOne(
@@ -365,6 +365,7 @@ export async function transferRelicOnce(
   } catch (err) {
     if (err instanceof InsufficientBalanceError) return { status: "insufficient" };
     if (err instanceof AlreadyProcessedError) return { status: "already_processed" };
+    if (err instanceof RecipientMissingError) return { status: "invalid" };
     throw err;
   } finally {
     await mongoSession.endSession();
