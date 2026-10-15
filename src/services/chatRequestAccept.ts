@@ -4,6 +4,8 @@ import { chargeChatCost, InsufficientBalanceError } from "../db/models/relic.js"
 import type { UserDoc } from "../db/models/user.js";
 import type { ChatRequestDoc } from "../db/models/chatRequest.js";
 import { isBlockedEitherWay } from "../db/models/blocks.js";
+import { voidSearchNotices } from "../db/models/searchNotice.js";
+import { insertDeliveries, newDeliveryDocs } from "../db/models/matchDelivery.js";
 
 export type AcceptResult =
   | { status: "accepted"; sessionId: string; fromId: number; toId: number }
@@ -80,8 +82,11 @@ export async function acceptChatRequest(token: string, acceptorId: number, now =
           { session: mongoSession }
         );
         await requests.updateOne({ _id: token }, { $set: { sessionId } }, { session: mongoSession });
+        // durable "tell both people" work, committed together with the session (see matchDelivery.ts)
+        await insertDeliveries(newDeliveryDocs(sessionId, [fromId, toId], "request", now), mongoSession);
         // neither user should still be waiting in the random-search queue
         await queue.deleteMany({ _id: { $in: [fromId, toId] } }, { session: mongoSession });
+        await voidSearchNotices([fromId, toId], mongoSession);
 
         result = { status: "accepted", sessionId, fromId, toId };
       });

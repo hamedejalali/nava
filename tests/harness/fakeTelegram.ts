@@ -80,6 +80,8 @@ export interface Harness {
   reaction(userId: number, chatId: number, messageId: number, emoji?: string): Promise<void>;
   /** Make a given Bot API method throw (e.g. 403 blocked by user) for a chat. */
   failFor(method: string, chatId: number, description?: string): void;
+  /** Make a Bot API method return a given result (e.g. getAvailableGifts). */
+  stub(method: string, result: unknown): void;
   clearFailures(): void;
 }
 
@@ -104,6 +106,7 @@ export async function createHarness(extraEnv: Record<string, string | undefined>
 
   const calls: Call[] = [];
   const failures = new Set<string>();
+  const stubs = new Map<string, unknown>();
 
   bot.api.config.use(async (_prev: any, method: string, payload: any) => {
     const chatId = typeof payload?.chat_id === "number" ? payload.chat_id : undefined;
@@ -127,6 +130,7 @@ export async function createHarness(extraEnv: Record<string, string | undefined>
     } else if (method === "getMe") {
       result = bot.botInfo;
     }
+    if (stubs.has(method)) result = stubs.get(method);
     return { ok: true, result } as any;
   });
 
@@ -226,6 +230,9 @@ export async function createHarness(extraEnv: Record<string, string | undefined>
     },
     clearFailures() {
       failures.clear();
+    },
+    stub(method, result) {
+      stubs.set(method, result);
     },
   };
   return h;

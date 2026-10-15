@@ -59,7 +59,14 @@ export function ensureSocialIndexesOnce(): void {
       { key: { createdAt: 1 }, name: "created" },
     ]);
     await db.collection("mini_story_views").createIndexes([{ key: { storyId: 1 }, name: "story" }]);
-    await db.collection("mini_gifts").createIndexes([{ key: { receiverId: 1, createdAt: -1 }, name: "receiver_created" }]);
+    await db.collection("mini_gifts").createIndexes([
+      { key: { receiverId: 1, createdAt: -1 }, name: "receiver_created" },
+      { key: { pub: 1 }, name: "pub", partialFilterExpression: { pub: { $type: "string" } } },
+      // a UNIQUE gift can exist only once: the database itself refuses a second copy
+      { key: { giftId: 1 }, name: "unique_gift_once", unique: true, partialFilterExpression: { uniqueGift: true } },
+    ]);
+    await db.collection("post_reports").createIndexes([{ key: { postId: 1, createdAt: -1 }, name: "post_created" }]);
+    await db.collection("mini_gift_defs").createIndexes([{ key: { createdAt: 1 }, name: "created" }]);
     await db.collection("mini_highlights").createIndexes([{ key: { ownerId: 1, createdAt: 1 }, name: "owner_created" }, { key: { storyIds: 1 }, name: "story_ids" }]);
     await db.collection("mini_recent_search").createIndexes([{ key: { userId: 1, at: -1 }, name: "user_at" }]);
 

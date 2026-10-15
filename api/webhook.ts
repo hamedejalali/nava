@@ -4,6 +4,10 @@ import { createBot } from "../src/bot.js";
 import { waitUntil } from "@vercel/functions";
 import { env } from "../src/config/env.js";
 import { safeEqual } from "../src/utils/secureCompare.js";
+import { processUpdateOnce } from "../src/webhook/processUpdate.js";
+import { maybeProcessSearchNotices } from "../src/features/matching/searchNotices.js";
+import { maybeProcessDueGiftEvents } from "../src/services/nava/giftEvents.js";
+import { maybeProcessDueDeliveries } from "../src/features/matching/matchDelivery.js";
 import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
@@ -59,6 +63,13 @@ async function ensureInit(): Promise<void> {
   await botInitPromise;
 }
 
+/** Best-effort notice to the person whose update could not be processed after all attempts. */
+async function notifyDeadUpdate(update: Update): Promise<void> {
+  const chatId = update.message?.chat.id ?? update.callback_query?.from.id;
+  if (!chatId || !bot) return;
+  await bot.api.sendMessage(chatId, "⚠️ مشکلی پیش اومد و درخواستت انجام نشد. لطفاً دوباره امتحان کن.");
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.status(200).send(bot ? "Nava Bot webhook is alive." : "Nava Bot webhook is alive but failed to start — check server logs.");
@@ -86,26 +97,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // FIXED — HTTP status on a genuine processing failure (v1.4.0). This used
-  // to always answer Telegram with 200 even when `ensureInit()` or
-  // `handleUpdate()` threw. Telegram treats HTTP 200 as "delivered
-  // successfully" and will NOT retry that update — so a transient failure
-  // (a momentary MongoDB hiccup, a brief Telegram API error while
-  // fetching something mid-update, ...) silently dropped that one user
-  // action forever, AND made `getWebhookInfo`'s `pending_update_count` /
-  // `last_error_message` useless as a diagnostic (Telegram genuinely
-  // believed nothing was wrong).
-  //
-  // This is now safe to change because the financial/reward operations
-  // Telegram might retry are all idempotent (deterministic ledger ids,
-  // the mining `batchId`, the transfer `clientRequestId` — see
-  // src/db/models/relic.ts): a genuine
-  // Telegram retry of the same update re-running the same handler again
-  // cannot double-charge or double-credit anyone. A response other than
-  // 200 tells Telegram to retry with backoff; if the same update keeps
-  // failing forever (a real bug, not a transient blip), Telegram's own
-  // backoff/give-up behavior bounds the cost — we deliberately do not add
-  // our own retry-counting on top of that.
+  // Failure strategy (v1.16.3, see src/webhook/processUpdate.ts):
+  //   200 = processed, a harmless duplicate of an already-processed update, or deliberately parked
+  //         (dead-letter) after the bounded number of attempts;
+  //   5xx = NOT done — Telegram redelivers with backoff (init failure 503, handler failure 500,
+  //         concurrent duplicate 500, inbox database unavailable 503).
+  // Money-moving operations are idempotent (deterministic ledger ids), so a redelivery can never double-apply.
   try {
     await ensureInit();
   } catch (err) {
@@ -115,16 +112,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const startedAt = Date.now();
-  try {
-    await bot!.handleUpdate(req.body as Update);
-  } catch (err) {
-    console.error("[nava:webhook] handleUpdate failed:", err);
-    // Monitoring only: both helpers swallow their own errors and run after the response.
+  const update = req.body as Update;
+  // Idempotent inbox (see src/webhook/processUpdate.ts): 200 = processed or deliberately parked, 5xx = please redeliver.
+  const result = await processUpdateOnce(update, (u) => bot!.handleUpdate(u), { onDead: notifyDeadUpdate });
+  if (result.http !== 200) {
+    console.error(`[nava:webhook] update not completed (${result.outcome})`);
     waitUntil(recordWebhookMetric(false, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
-    res.status(500).send("processing failed");
+    res.status(result.http).send(result.outcome === "inbox_unavailable" ? "inbox unavailable" : "processing failed");
     return;
   }
 
-  waitUntil(recordWebhookMetric(true, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
+  waitUntil(recordWebhookMetric(result.outcome !== "dead_letter", Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
+  waitUntil(maybeProcessDueDeliveries(bot!.api).catch(() => {}));
+  waitUntil(maybeProcessSearchNotices(bot!.api).catch(() => {}));
+  waitUntil(maybeProcessDueGiftEvents(bot!.api).catch(() => {}));
   res.status(200).send("ok");
 }

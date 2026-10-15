@@ -10,12 +10,15 @@
     o = o || {};
     var root = el('<div class="sv"><div class="frame"></div></div>'), frame = root.firstChild;
     document.body.appendChild(root);
+    var fromTap = NG.lastTap && Date.now() - NG.lastTap.t < 1500 ? NG.lastTap : null;
+    if (fromTap) { root.style.transformOrigin = fromTap.x + "px " + fromTap.y + "px"; root.classList.add("grow"); }
+    var firstShow = true;
     var closed = false, rm, raf = 0, last = 0, elapsed = 0, paused = false, ready = false, hold = 0, g = null, si = 0, token = 0;
-    var viewed = {};
+    var viewed = {}, prevGi = gi;
 
     function close() {
       if (closed) return; closed = true; rm(); cancelAnimationFrame(raf);
-      root.classList.add("out"); setTimeout(function () { root.remove(); }, 230);
+      root.classList.add("out"); setTimeout(function () { root.remove(); }, 270);
       if (o.onClose) o.onClose();
     }
     rm = NG.addLayer(close);
@@ -51,7 +54,10 @@
         g = gr; gi = i;
         var list = g.data.stories;
         si = startAt === "last" ? list.length - 1 : startAt === "first" ? 0 : (function () { for (var k = 0; k < list.length; k++) if (!list[k].seen) return k; return 0; })();
+        var dir = gi > prevGi ? -1 : 1; prevGi = gi;
         renderStory();
+        if (!firstShow) { frame.style.setProperty("--gdir", (dir * 36) + "px"); frame.classList.remove("gin"); void frame.offsetWidth; frame.classList.add("gin"); }
+        firstShow = false;
         preload(gi + 1);
       });
     }
@@ -59,7 +65,9 @@
     function renderStory() {
       var my = ++token; var list = g.data.stories, s = list[si], owner = g.data.owner, mine = NG.me && owner.id === NG.me.id;
       elapsed = 0; last = 0; ready = false; paused = false;
-      frame.innerHTML = "";
+      // keep the previous picture underneath until the new one is loaded (no black flash between stories)
+      var oldImg = frame.querySelector("img.m");
+      Array.prototype.slice.call(frame.children).forEach(function (n) { if (n !== oldImg) n.remove(); });
       var bars = el('<div class="bars"></div>');
       list.forEach(function (_, k) { bars.appendChild(el("<i" + (k < si ? ' class="done"' : "") + "><b></b></i>")); });
       var head = el('<div class="shead"><div class="rr"></div><div class="nm"><span>' + esc(g.data.title || NG.nameOf(owner)) + "</span>" + (g.data.title ? "" : (owner.verified ? NG.VERIFIED : "")) + '<span class="tm">' + (g.data.title ? "" : NG.ago(s.at)) + '</span></div><button class="mo" aria-label="more">' + svg("dots") + '</button><button class="xx" aria-label="close">' + svg("close") + "</button></div>");
@@ -67,8 +75,9 @@
       ring.style.cursor = "pointer"; ring.onpointerdown = function (e) { e.stopPropagation(); };
       ring.onclick = function () { var id = owner.id; close(); setTimeout(function () { NG.openProfile(id); }, 240); };
       var img = NG.img(s.src, "m"); img.classList.remove("fadeimg");
-      img.onload = function () { img.classList.add("on"); if (my === token) ready = true; };
-      img.onerror = function () { if (my === token) ready = true; };
+      var dropOld = function () { if (oldImg && oldImg.parentNode) { oldImg.classList.add("gone"); setTimeout(function () { if (oldImg.parentNode) oldImg.remove(); }, 280); } };
+      img.onload = function () { img.classList.add("on"); if (my === token) ready = true; dropOld(); };
+      img.onerror = function () { if (my === token) ready = true; dropOld(); };
       img.style.transition = "opacity .2s";
       frame.appendChild(img);
       frame.appendChild(bars); frame.appendChild(head);
@@ -210,7 +219,7 @@
   /* ----------------------------------------------------------- create story */
   NG.createStory = function () {
     NG.pickImage(function (file) {
-      NG.cropFlow(file, { ratios: [{ k: "9:16", r: 9 / 16 }], out: 1080, title: "استوری جدید", cta: "اشتراک", caption: 120, captionHint: "متن (اختیاری)" }, function (res, done) {
+      NG.cropFlow(file, { ratios: [{ k: "9:16", r: 9 / 16 }], out: 1080, title: "استوری جدید", cta: "اشتراک", caption: 120, captionHint: "کپشن زیر استوری (اختیاری)", textOverlay: true }, function (res, done) {
         NG.api("story_create", { image: res.data, caption: res.caption }).then(function (r) {
           if (!r.ok) { done(false); return NG.toast(NG.errText(r)); }
           done(true); NG.haptic("ok"); NG.toast("✅ استوری گذاشته شد؛ ۲۴ ساعت دیده می‌شه");

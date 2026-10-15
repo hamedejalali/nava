@@ -212,7 +212,7 @@
     NG.api("whoami").then(function (r) {
       if (!r.ok) { NG.fail(r); return; }
       if (r.data.role === "staff") { location.replace("/monitor/"); return; }
-      NG.me = r.data.me; NG.bot = r.data.bot || null;
+      NG.me = r.data.me; NG.bot = r.data.bot || null; NG.staff = !!r.data.staff; // owner / admins may remove any post, story or comment
       buildShell(); renderExploreShell();
       pages.home.classList.add("on"); movePill();
       var done = NG.renderHome(pages.home);

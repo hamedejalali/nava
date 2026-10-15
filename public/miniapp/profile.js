@@ -28,8 +28,10 @@
     o = o || {};
     var pat = ""; for (var i = 0; i < 16; i++) pat += "<span>" + def.pattern + "</span>";
     var c = el('<div class="gc' + (o.cls ? " " + o.cls : "") + '" style="background:linear-gradient(160deg,' + def.c1 + "," + def.c2 + ')"><div class="pat">' + pat + '</div>' +
-      (o.price != null ? '<div class="pr">' + num(o.price) + " رلیک</div>" : "") + '<div class="em">' + def.emoji + "</div>" +
-      (o.name ? '<div class="nm">' + esc(def.name) + "</div>" : "") + (o.by ? '<div class="by">از ' + esc(o.by) + "</div>" : "") + "</div>");
+      (o.price != null ? '<div class="pr">' + num(o.price) + " رلیک</div>" : "") + '<div class="gem"><div class="em">' + def.emoji + "</div></div>" +
+      (o.name ? '<div class="nm">' + esc(def.name) + "</div>" : "") + (o.by ? '<div class="by">از ' + esc(o.by) + "</div>" : "") +
+      (def.unique ? '<div class="tagu">✨ یکتا</div>' : "") + (o.sold && def.soldOut ? '<div class="sold">فروخته شد</div>' : "") + "</div>");
+    if (def.anim) NG.mountAnim(c.querySelector(".gem"), def.anim); // original Telegram animation (TGS / WebM)
     return c;
   }
 
@@ -41,12 +43,15 @@
   NG.openGiftSheet = function (to) {
     NG.getCatalog(true).then(function (cat) {
       if (!cat.items.length) return NG.toast("فعلاً هدیه‌ای فعال نیست.");
-      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> رلیک</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
+      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> رلیک</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>اگه روشن باشه، فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon" aria-label="anonymous"></button></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
         var grid = sh.querySelector("#gg"), go = sh.querySelector("#go"), err = sh.querySelector("#ge"), msg = sh.querySelector("#gm");
-        var sel = null, cid = null, busy = false;
+        var sel = null, cid = null, busy = false, anon = false;
+        var at = sh.querySelector("#anon"); at.onclick = function () { anon = !anon; at.classList.toggle("on", anon); NG.haptic("sel"); };
         cat.items.forEach(function (g) {
-          var c = giftCard(g, { price: g.price, name: true });
+          var c = giftCard(g, { price: g.price, name: true, sold: true });
+          if (g.soldOut) c.classList.add("dis");
           c.onclick = function () {
+            if (g.soldOut) { NG.haptic("err"); return NG.toast("این هدیه‌ی یکتا قبلاً فروخته شده."); }
             Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove("sel"); });
             c.classList.add("sel"); sel = g; cid = clientId(); NG.haptic("sel");
             go.disabled = false; go.textContent = "ارسال " + g.name + " — " + num(g.price) + " رلیک"; err.classList.remove("show");
@@ -55,7 +60,7 @@
         });
         go.onclick = function () {
           if (!sel || busy) return; busy = true; go.disabled = true; var label = go.textContent; go.textContent = "…"; err.classList.remove("show");
-          NG.api("gift_send", { id: to.id, giftId: sel.id, message: msg.value, clientId: cid }).then(function (r) {
+          NG.api("gift_send", { id: to.id, giftId: sel.id, message: msg.value, clientId: cid, anonymous: anon }).then(function (r) {
             busy = false;
             if (r.ok) {
               NG.me.relic = r.data.balance; NG.emit("me", { old: NG.me, me: NG.me });
@@ -72,6 +77,8 @@
             if (r.data && r.data.error === "insufficient") {
               err.textContent = "رلیک کافی نیست. قیمت این هدیه " + num(sel.price) + " رلیکه و موجودی تو " + num(catalog.balance) + " رلیکه. از داخل ربات می‌تونی رلیک تهیه کنی.";
               NG.getCatalog(true).then(function (c2) { var b = sh.querySelector("#bal"); if (b) b.textContent = num(c2.balance); });
+            } else if (r.data && r.data.error === "sold_out") {
+              err.textContent = NG.errText(r); NG.getCatalog(true);
             } else err.textContent = NG.errText(r);
             err.classList.add("show");
           }).catch(function () { busy = false; go.disabled = false; go.textContent = label; NG.netErr(); });
@@ -82,7 +89,7 @@
 
   function giftDetail(g, ownerBrief, isMe) {
     var def = giftDef(g.giftId); if (!def) return;
-    NG.sheet('<div class="gdetail" id="gd"></div><div class="pad"><button class="btn tall" id="cl" style="width:100%">بستن</button></div>', function (sh, close) {
+    NG.sheet('<div class="gdetail" id="gd"></div><div class="pad">' + (isMe ? '<button class="btn blue tall" id="rg" style="width:100%;margin-bottom:8px">🎁 ارسال این هدیه به یه نفر دیگه</button>' : "") + '<button class="btn tall" id="cl" style="width:100%">بستن</button></div>', function (sh, close) {
       var box = sh.querySelector("#gd");
       box.appendChild(giftCard(def, { cls: "lg", name: true }));
       if (g.from) {
@@ -90,10 +97,56 @@
         var r = NG.ring(g.from, { noStory: true }); r.setAttribute("data-fixed", "1"); r.className = "ring none"; w.insertBefore(r, w.firstChild);
         w.onclick = function () { close(function () { NG.openProfile(g.from.id); }); };
         box.appendChild(w);
+      } else {
+        box.appendChild(el('<div class="who" style="cursor:default"><span style="color:var(--muted)">از</span><b>ناشناس</b></div>'));
       }
       if (g.message) box.appendChild(el('<div class="msg">«' + esc(g.message) + "»</div>"));
       box.appendChild(el('<div style="color:var(--muted);font-size:12px">' + NG.ago(g.at) + "</div>"));
       sh.querySelector("#cl").onclick = function () { close(); };
+      var rg = sh.querySelector("#rg");
+      if (rg) rg.onclick = function () { close(function () { regiftPick(g, def); }); };
+    });
+  }
+
+  /* ------------------------------------------------- send a gift I own to somebody else */
+  function regiftPick(g, def) {
+    NG.sheet('<div class="shd">این هدیه رو برای کی بفرستم؟</div><div class="pad"><input class="inp" id="q" placeholder="نام یا یوزرنیم کاربر…" autocomplete="off"></div><div class="scroll" id="rs" style="min-height:120px"></div>', function (sh, close) {
+      var q = sh.querySelector("#q"), box = sh.querySelector("#rs"), t = 0, seq = 0;
+      function run() {
+        var my = ++seq, v = q.value.trim();
+        if (!v) { box.innerHTML = '<div class="note" style="padding:20px">اسم یا یوزرنیم رو بنویس.</div>'; return; }
+        NG.api("search", { q: v }).then(function (r) {
+          if (my !== seq) return;
+          box.innerHTML = "";
+          var items = (r.ok && r.data.items) || [];
+          if (!items.length) { box.innerHTML = '<div class="note" style="padding:20px">کاربری پیدا نشد.</div>'; return; }
+          items.slice(0, 20).forEach(function (u) {
+            if (NG.me && u.id === NG.me.id) return;
+            var row = el('<button class="item" style="display:flex;align-items:center;gap:10px;width:100%;text-align:start"></button>');
+            var ring = NG.ring(u, { noStory: true }); ring.className = "ring none"; ring.style.width = "36px"; ring.style.height = "36px";
+            row.appendChild(ring); row.appendChild(el("<span>" + esc(NG.nameOf(u)) + "</span>"));
+            row.onclick = function () { close(function () { regiftConfirm(g, def, u); }); };
+            box.appendChild(row);
+          });
+        }).catch(NG.netErr);
+      }
+      q.oninput = function () { clearTimeout(t); t = setTimeout(run, 280); };
+      run(); setTimeout(function () { try { q.focus(); } catch (e) {} }, 300);
+    }, { cls: "tall2" });
+  }
+  function regiftConfirm(g, def, to) {
+    NG.sheet('<div class="shd">ارسال ' + esc(def.name) + " به " + esc(NG.nameOf(to)) + '</div><div class="ctx">این هدیه از پروفایل تو برداشته می‌شه و میره پروفایل ' + esc(NG.nameOf(to)) + '. رایگانه و برگشت نداره.</div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon"></button></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%;margin-top:12px">ارسال</button></div><button class="item" id="no">انصراف</button>', function (sh, close) {
+      var anon = false, at = sh.querySelector("#anon"), go = sh.querySelector("#go");
+      at.onclick = function () { anon = !anon; at.classList.toggle("on", anon); NG.haptic("sel"); };
+      sh.querySelector("#no").onclick = function () { close(); };
+      go.onclick = function () {
+        go.disabled = true; go.textContent = "…";
+        NG.api("gift_regift", { gift: g.id, id: to.id, message: sh.querySelector("#gm").value, anonymous: anon }).then(function (r) {
+          if (!r.ok) { go.disabled = false; go.textContent = "ارسال"; NG.haptic("err"); return NG.toast(NG.errText(r)); }
+          NG.haptic("ok");
+          close(function () { NG.confetti(); NG.toast("🎁 هدیه برای " + NG.nameOf(to) + " ارسال شد"); NG.emit("gift:regifted", { gift: g.id }); });
+        }).catch(function () { go.disabled = false; go.textContent = "ارسال"; NG.netErr(); });
+      };
     });
   }
 
@@ -260,7 +313,11 @@
           }).catch(function () { P.iFollow = !want; P.followers += want ? -1 : 1; fl(); NG.netErr(); });
         };
         var c = el('<button class="btn"></button>');
-        function cs() { c.disabled = P.chat !== "none"; c.innerHTML = svg("chat", "ico") + (P.chat === "requested" ? "درخواست ارسال شد" : P.chat === "busy" ? "در چت دیگری است" : "درخواست چت"); c.querySelector("svg").style.width = "18px"; }
+        function cs() {
+          c.disabled = P.chat !== "none"; c.classList.toggle("chatlive", P.chat === "with_you");
+          c.innerHTML = P.chat === "with_you" ? '<span class="chatnow"><i></i>در حال چت با شما هست</span>' : svg("chat", "ico") + (P.chat === "requested" ? "درخواست ارسال شد" : P.chat === "busy" ? "در چت دیگری است" : "درخواست چت");
+          var sv = c.querySelector("svg"); if (sv) sv.style.width = "18px";
+        }
         cs(); c.onclick = function () { NG.requestChat(P); };
         var g = el('<button class="btn sq" aria-label="gift">' + svg("gift") + "</button>"); g.onclick = function () { NG.openGiftSheet(P); };
         btns.appendChild(f); btns.appendChild(c); btns.appendChild(g);
@@ -385,6 +442,7 @@
     NG.on("post:deleted", function () { if (P) { P.posts = Math.max(0, P.posts - 1); } if (document.body.contains(root)) { reloadSoft(); } });
     NG.on("post:created", function () { if (document.body.contains(root) && P && P.isMe) reloadSoft(); });
     NG.on("chat:requested", function (uid) { if (P && P.id === uid) { P.chat = "requested"; if (P._cs) P._cs(); } });
+    NG.on("gift:regifted", function () { if (P && P.isMe && tab === "gifts" && document.body.contains(root)) { P.gifts = Math.max(0, (P.gifts || 1) - 1); renderBody(true); } });
     NG.on("gift:sent", function (d) { if (P && P.id === d.to && tab === "gifts" && document.body.contains(root)) { P.gifts++; renderBody(true); } });
     function reloadSoft() { if (tab === "posts") { reload(); } else reload(); }
 

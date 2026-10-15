@@ -9,14 +9,16 @@ export interface MiniSettings {
   postsChannelTitle: string | null;
   giftPrices: Record<string, number>;
   giftsDisabled: Record<string, boolean>;
+  /** gifts of which only ONE copy may ever exist (sold once; resold only by being re-gifted) */
+  giftUnique: Record<string, boolean>;
 }
 
-const DEFAULTS: MiniSettings = { _id: "singleton", postsChannelEnabled: false, postsChannelId: null, postsChannelTitle: null, giftPrices: {}, giftsDisabled: {} };
+const DEFAULTS: MiniSettings = { _id: "singleton", postsChannelEnabled: false, postsChannelId: null, postsChannelTitle: null, giftPrices: {}, giftsDisabled: {}, giftUnique: {} };
 
 export async function getMiniSettings(): Promise<MiniSettings> {
   const c = await col<MiniSettings>(C.settings);
   const doc = await c.findOne({ _id: "singleton" });
-  return { ...DEFAULTS, ...(doc ?? {}), giftPrices: { ...(doc?.giftPrices ?? {}) }, giftsDisabled: { ...(doc?.giftsDisabled ?? {}) } };
+  return { ...DEFAULTS, ...(doc ?? {}), giftPrices: { ...(doc?.giftPrices ?? {}) }, giftsDisabled: { ...(doc?.giftsDisabled ?? {}) }, giftUnique: { ...(doc?.giftUnique ?? {}) } };
 }
 
 async function patch(update: Record<string, unknown>): Promise<void> {
@@ -33,4 +35,8 @@ export async function setGiftPrice(giftId: string, price: number): Promise<void>
 export async function setGiftEnabled(giftId: string, enabled: boolean): Promise<void> {
   const s = await getMiniSettings();
   await patch({ giftsDisabled: { ...s.giftsDisabled, [giftId]: !enabled } });
+}
+export async function setGiftUnique(giftId: string, unique: boolean): Promise<void> {
+  const s = await getMiniSettings();
+  await patch({ giftUnique: { ...s.giftUnique, [giftId]: unique } });
 }

@@ -109,21 +109,71 @@
     share_unavailable: "الان اشتراک‌گذاری ممکن نیست.", unavailable: "فعلاً امکانش نیست.", self: "این کار روی خودت ممکن نیست.",
     bad_gift: "این هدیه در دسترس نیست.", bad_name: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
     same_value: "این مقدار همونیه که الان داری.", pending_request: "یه درخواست در حال بررسی داری.", bio_too_long: "بیوگرافی حداکثر ۳۰۰ کاراکتر.",
-    taken: "این یوزرنیم قبلاً انتخاب شده"
+    taken: "این یوزرنیم قبلاً انتخاب شده", sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
   };
   NG.errText = function (r, fallback) { var e = r && r.data && r.data.error; return ERR[e] || fallback || "انجام نشد. دوباره امتحان کن."; };
-  NG.fatal = function (title, text) {
-    NG.col.innerHTML = '<div class="fatal"><h3>' + NG.esc(title) + "</h3>" + NG.esc(text) + "</div>";
+  /** Full-screen message. `action` = { label, url } adds a button that opens a link (e.g. the support chat). */
+  NG.fatal = function (title, text, action) {
+    NG.col.innerHTML = '<div class="fatal"><h3>' + NG.esc(title) + "</h3>" + NG.esc(text) + (action && action.url ? '<div><a class="btn blue tall fatalbtn" href="#" id="fatalgo">' + NG.esc(action.label) + "</a></div>" : "") + "</div>";
+    var go = NG.col.querySelector("#fatalgo");
+    if (go) go.onclick = function (e) {
+      e.preventDefault();
+      try { if (window.Telegram && Telegram.WebApp && /^https:\/\/t\.me\//i.test(action.url)) return Telegram.WebApp.openTelegramLink(action.url); } catch (x) {}
+      window.open(action.url, "_blank");
+    };
     NG.hideSplash();
   };
   NG.fail = function (r) {
     var e = r && r.data && r.data.error;
     if (e === "join_required") return NG.fatal("عضویت در کانال‌ها لازمه", "اول داخل کانال‌های ربات عضو شو، بعد دوباره مینی‌اپ رو باز کن.");
     if (e === "not_registered") return NG.fatal("ثبت‌نام کامل نیست", "اول ثبت‌نام رو داخل ربات کامل کن (/start).");
-    if (e === "banned") return NG.fatal("دسترسی محدوده", "حساب شما اجازه‌ی استفاده از این بخش رو نداره.");
+    if (e === "banned") return NG.fatal("شما مسدود شدید", "برای رفع مسدودیت به پشتیبانی پیام بدین.", r.data.support ? { label: "📩 پیام به پشتیبانی", url: r.data.support } : null);
     if (r && r.status === 401) return NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن.");
     NG.toast(NG.errText(r));
   };
+  /* ------------------------------------------------ animated (Telegram) gifts */
+  var lottieP = null;
+  NG.loadLottie = function () {
+    if (window.lottie) return Promise.resolve(window.lottie);
+    if (!lottieP) lottieP = new Promise(function (ok, no) {
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.17.0";
+      sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
+      document.head.appendChild(sc);
+    });
+    return lottieP;
+  };
+  var io = null;
+  function visObserver() {
+    if (io || !("IntersectionObserver" in window)) return io;
+    io = new IntersectionObserver(function (es) { es.forEach(function (e) { var f = e.target.__anim; if (f) f(e.isIntersecting); }); }, { rootMargin: "80px" });
+    return io;
+  }
+  /** Puts a Telegram animation (TGS/Lottie, WebM video or still WebP) into `box`; plays only while visible. Falls back silently to the emoji. */
+  NG.mountAnim = function (box, anim) {
+    if (!anim || !anim.url) return;
+    var fmt = anim.format;
+    if (fmt === "webm") {
+      var v = document.createElement("video"); v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "metadata"; v.src = anim.url; v.className = "ganim";
+      v.oncanplay = function () { box.classList.add("hasanim"); };
+      box.appendChild(v);
+      box.__anim = function (on) { try { if (on) v.play().catch(function () {}); else v.pause(); } catch (e) {} };
+    } else if (fmt === "webp") {
+      var im = document.createElement("img"); im.className = "ganim"; im.alt = ""; im.onload = function () { box.classList.add("hasanim"); }; im.src = anim.url; box.appendChild(im);
+    } else {
+      NG.loadLottie().then(function (lt) {
+        var holder = document.createElement("div"); holder.className = "ganim"; box.appendChild(holder);
+        var a = lt.loadAnimation({ container: holder, renderer: "svg", loop: true, autoplay: false, path: anim.url, rendererSettings: { progressiveLoad: true } });
+        a.addEventListener("DOMLoaded", function () { box.classList.add("hasanim"); a.play(); });
+        a.addEventListener("data_failed", function () { holder.remove(); });
+        box.__anim = function (on) { try { if (on) a.play(); else a.pause(); } catch (e) {} };
+      }).catch(function () {});
+    }
+    var o = visObserver(); if (o) o.observe(box); else if (box.__anim) box.__anim(true);
+  };
+  /* where the finger last touched: stories open "from" there, like Instagram */
+  NG.lastTap = null;
+  document.addEventListener("pointerdown", function (e) { NG.lastTap = { x: e.clientX, y: e.clientY, t: Date.now() }; }, true);
+
   NG.netErr = function () { NG.toast("اتصال برقرار نیست."); };
   NG.hideSplash = function () {
     var s = $("splash"); if (!s) return;

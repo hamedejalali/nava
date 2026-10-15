@@ -112,7 +112,7 @@ export async function markStoryViewed(viewer: any, storyId: unknown): Promise<bo
   const stories = await col<StoryDoc>(C.stories);
   const s = await stories.findOne({ _id: storyId } as any);
   if (!s) return false;
-  const hidden = await hiddenOwnerIds(viewer._id);
+  const hidden = await hiddenOwnerIds(viewer._id, { direct: true });
   if (hidden.includes(s.ownerId)) return false;
   if (s.ownerId === viewer._id) return true;
   const views = await col(C.storyViews);
@@ -139,16 +139,16 @@ export async function storyViewers(owner: any, storyId: unknown): Promise<{ coun
   return { count, viewers: rows.map((r: any) => by.get(r.viewerId)).filter(Boolean) as Brief[] };
 }
 
-export async function deleteStory(owner: any, storyId: unknown): Promise<void> {
+export async function deleteStory(owner: any, storyId: unknown, opts: { asStaff?: boolean } = {}): Promise<{ ownerId: number } | void> {
   if (!isId(storyId)) throw new SocialError("not_found");
   const stories = await col<StoryDoc>(C.stories);
-  const s = await stories.findOne({ _id: storyId, ownerId: owner._id } as any);
+  const s = await stories.findOne(opts.asStaff ? ({ _id: storyId } as any) : ({ _id: storyId, ownerId: owner._id } as any));
   if (!s) throw new SocialError("not_found");
   await stories.deleteOne({ _id: s._id } as any);
   await (await col(C.storyViews)).deleteMany({ storyId: s._id });
   // remove it from any highlight; an emptied highlight disappears
   const hl = await col<HighlightDoc>(C.highlights);
-  const holders = await hl.find({ ownerId: owner._id, storyIds: s._id } as any).toArray();
+  const holders = await hl.find({ ownerId: s.ownerId, storyIds: s._id } as any).toArray();
   const mediaToDelete: string[] = [s.mediaId];
   for (const h of holders) {
     const left = h.storyIds.filter((x) => x !== s._id);
@@ -160,6 +160,7 @@ export async function deleteStory(owner: any, storyId: unknown): Promise<void> {
     }
   }
   await deleteMedia(mediaToDelete);
+  return { ownerId: s.ownerId };
 }
 
 /** Owner's archive: every story of the last 30 days (including expired ones). */

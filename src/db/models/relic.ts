@@ -480,3 +480,34 @@ export async function adminAdjustBalance(
     await session.endSession();
   }
 }
+
+/**
+ * Same ledger+balance credit as `creditLedgerOnce`, but INSIDE the caller's transaction (so it commits or
+ * rolls back together with the other writes of that transaction). Idempotent: the deterministic ledger id is
+ * checked first, and a unique-key race on it simply fails the whole caller transaction (nothing partial).
+ * Returns true when this call credited, false when that ledger id already existed.
+ */
+export async function creditLedgerInSession(
+  ledgerId: string,
+  userId: number,
+  amount: number,
+  type: RelicTransactionType,
+  mongoSession: ClientSession,
+  extra: { reference?: string; counterpartyUserId?: number; metadata?: Record<string, unknown> } = {},
+): Promise<boolean> {
+  const ledger = await ledgerCollection();
+  if (await ledger.findOne({ _id: ledgerId }, { session: mongoSession, projection: { _id: 1 } })) return false;
+  const usersCol = (await getDb()).collection<any>("users");
+  const credited = await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: amount } }, { session: mongoSession });
+  if (credited.matchedCount !== 1) throw new Error(`[relic] credit target ${userId} does not exist`);
+  await ledger.insertOne(
+    { _id: ledgerId, userId, amount, type, status: "completed", sourceApp: "nava", createdAt: new Date(), completedAt: new Date(), ...extra },
+    { session: mongoSession },
+  );
+  return true;
+}
+
+/** Chat-cost refund (same deterministic id as `refundChatCostOnce`) inside the caller's transaction. */
+export function refundChatCostInSession(userId: number, sessionId: string, mongoSession: ClientSession): Promise<boolean> {
+  return creditLedgerInSession(`refund:${sessionId}:${userId}`, userId, 1, "REFUND", mongoSession, { reference: `chatcost:${sessionId}:${userId}` });
+}

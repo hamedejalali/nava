@@ -115,8 +115,21 @@
       list.push({ label: "درخواست چت ناشناس", fn: function () { NG.requestChat(it.owner); } });
     }
     list.push({ label: "رفتن به پروفایل", fn: function () { NG.openProfile(it.owner.id); } });
+    if (!it.mine && it.kind === "post") list.push({ label: "گزارش پست", cls: "red", fn: function () { reportPost(it); } });
+    if (NG.staff && !it.mine && it.kind === "post") list.push({ label: "حذف پست (مدیریت)", cls: "red", fn: function () { NG.confirm("حذف پست کاربر؟", "پست برای همیشه پاک می‌شه و به صاحبش اطلاع داده می‌شه.", "حذف", function () { deletePost(it); }); } });
     if (it.mine && it.kind === "post") list.push({ label: "حذف پست", cls: "red", fn: function () { NG.confirm("حذف پست؟", "این پست همراه با لایک‌ها و نظرهاش برای همیشه پاک می‌شه.", "حذف", function () { deletePost(it); }); } });
     NG.actions(list);
+  }
+  var REPORT_REASONS = [{ k: "nudity", l: "محتوای مستهجن" }, { k: "spam", l: "اسپم / تبلیغ" }, { k: "abuse", l: "توهین / آزار" }, { k: "other", l: "سایر" }];
+  function reportPost(it) {
+    NG.actions(REPORT_REASONS.map(function (x) {
+      return { label: x.l, fn: function () {
+        NG.api("post_report", { pid: it.pid, reason: x.k }).then(function (r) {
+          if (!r.ok) return NG.toast(NG.errText(r));
+          NG.haptic("ok"); NG.toast(r.data.status === "duplicate" ? "قبلاً این پست رو گزارش کردی." : "✅ گزارش ثبت شد؛ مدیریت بررسی می‌کنه.");
+        }).catch(NG.netErr);
+      } };
+    }), "دلیل گزارش");
   }
   function setFlag(it, key, val) {
     var b = { pid: it.pid }; b[key] = val;

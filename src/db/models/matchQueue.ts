@@ -1,6 +1,7 @@
 import type { Collection } from "mongodb";
 import { getDb } from "../connect.js";
 import type { Gender } from "./user.js";
+import { voidSearchNotices } from "./searchNotice.js";
 
 export type SearchType = "lucky" | "male" | "female" | "same_age" | "same_province";
 // "nearby" is intentionally excluded: no feature has ever collected GPS
@@ -80,6 +81,11 @@ export async function removeQueueEntry(telegramId: number): Promise<void> {
 export async function setQueueStatusMessageId(telegramId: number, messageId: number): Promise<boolean> {
   const col = await queueCollection();
   const r = await col.updateOne({ _id: telegramId }, { $set: { statusMessageId: messageId } });
+  if (r.matchedCount === 1) {
+    // remember it on the durable timeout notice too, so a recovery pass can still delete the status message
+    const db = await getDb();
+    await db.collection<any>("search_notices").updateMany({ userId: telegramId, state: "armed" }, { $set: { statusMessageId: messageId } }).catch(() => {});
+  }
   return r.matchedCount === 1;
 }
 
@@ -106,7 +112,10 @@ export async function claimQueueEntry(
   if (opts.createdBefore) filter.createdAt = { $lte: opts.createdBefore };
   // …nor one the expiry cron is already delivering the timeout notice for (it owns that outcome).
   const now = new Date();
-  return col.findOneAndDelete(opts.forTimeout ? { ...filter, ...timeoutUnowned(now) } : filter);
+  const claimed = await col.findOneAndDelete(opts.forTimeout ? { ...filter, ...timeoutUnowned(now) } : filter);
+  // A cancel / match-style claim means the search did NOT time out: the durable timeout notice is void.
+  if (claimed && !opts.forTimeout) await voidSearchNotices([telegramId]).catch((e) => console.error("[search] could not void timeout notice:", e instanceof Error ? e.name : "unknown"));
+  return claimed;
 }
 
 /** Cron step 1: take the exclusive right to deliver the timeout notice for EXACTLY this expired entry

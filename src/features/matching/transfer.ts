@@ -1,6 +1,5 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { randomUUID } from "node:crypto";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { getUser } from "../../db/models/user.js";
@@ -10,6 +9,7 @@ import {
   setTransferAmount,
   getTransferSession,
   clearTransferSession,
+  transferOperationId,
 } from "../../db/models/transferSession.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { toAsciiDigits } from "../../utils/digits.js";
@@ -110,7 +110,9 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
       return;
     }
 
-    const transferId = randomUUID();
+    // Derived from the flow, NOT random: two quick taps on "confirm" (two different Telegram updates) must be
+    // ONE transfer. transferRelicOnce answers "already_processed" to the second.
+    const transferId = transferOperationId(ctx.from!.id, session);
     const result = await transferRelicOnce(transferId, ctx.from!.id, session.targetId, session.amount);
     await clearTransferSession(ctx.from!.id);
 
@@ -120,6 +122,11 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     }
     if (result.status === "invalid") {
       await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (result.status === "already_processed") {
+      await ctx.answerCallbackQuery(); // the first tap already moved the Relic and notified the recipient
       return;
     }
 

@@ -6,7 +6,11 @@ import { findExpiredUnnotified, leaseExpiredQueueEntry, finishExpiredQueueEntry 
 import { getUser } from "../../src/db/models/user.js";
 import { dictionary } from "../../src/i18n/index.js";
 import { maybeRunAlertCheck, defaultSend } from "../../src/services/monitor.js";
+import { processSearchNotices } from "../../src/features/matching/searchNotices.js";
+import { noticeExistsFor } from "../../src/db/models/searchNotice.js";
+import { processDueDeliveries } from "../../src/features/matching/matchDelivery.js";
 import { cleanupStories } from "../../src/services/nava/stories.js";
+import { processDueGiftEvents } from "../../src/services/nava/giftEvents.js";
 
 /**
  * MongoDB's TTL index eventually deletes expired match_queue documents on
@@ -32,6 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const api = new Api(env.BOT_TOKEN);
+  // 1) durable notices first (they survive the queue document's TTL deletion), 2) legacy queue-document sweep
+  const notices = await processSearchNotices(api, 50);
   const result = await processExpiredSearches(api);
 
   // Backstop alert evaluation (never throws); covers quiet periods with no webhook traffic.
@@ -45,7 +51,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("[cron] story cleanup failed:", err instanceof Error ? err.name : "unknown");
   }
 
-  res.status(200).json({ ...result, storiesDropped });
+  // Retry match notices that failed transiently (durable records in match_deliveries; never throws).
+  const deliveries = await processDueDeliveries(api, 25);
+
+  // Settle gift auctions / giveaways whose time is up (never throws).
+  const giftEvents = await processDueGiftEvents(api, 25);
+
+  res.status(200).json({ ...result, searchNotices: notices, storiesDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed });
 }
 
 /** A Telegram error that retrying can never fix (user blocked the bot, chat gone, bad request). */
@@ -70,6 +82,11 @@ export async function processExpiredSearches(api: Pick<Api, "deleteMessage" | "s
   let failed = 0;
   for (const entry of expired) {
     try {
+      // A search that has a durable timeout notice is owned by the notice processor (exactly-once delivery).
+      if (await noticeExistsFor(entry._id, entry.createdAt)) {
+        skipped++;
+        continue;
+      }
       const leased = await leaseExpiredQueueEntry(entry);
       if (!leased) {
         skipped++; // someone else owns it, or it changed/was removed meanwhile

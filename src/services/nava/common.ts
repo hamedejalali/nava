@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { getDb } from "../../db/connect.js";
 import { getBlockedCounterparts } from "../../db/models/blocks.js";
 import type { UserDoc } from "../../db/models/user.js";
+import { env } from "../../config/env.js";
 
 /** Shared helpers of the Navagram (نوا گرام) Mini App backend. */
 
@@ -21,6 +22,7 @@ export const C = {
   storyViews: "mini_story_views",
   highlights: "mini_highlights",
   gifts: "mini_gifts",
+  giftDefs: "mini_gift_defs",
   recent: "mini_recent_search",
   settings: "mini_settings",
 } as const;
@@ -74,7 +76,14 @@ export async function col<T extends import("mongodb").Document = any>(name: stri
 }
 
 /** Ids whose content the viewer must not see: blocked either way + banned users. */
-export async function hiddenOwnerIds(viewerId: number): Promise<number[]> {
+export function isStaffId(id: number): boolean {
+  return (env.OWNER_ID !== undefined && id === env.OWNER_ID) || env.ADMIN_IDS.includes(id);
+}
+
+/** `direct`: the viewer opened ONE specific profile / post / story. The owner and the configured admins can open
+ *  anyone's (blocked or banned included) so they can moderate; feeds, explore and search never use this. */
+export async function hiddenOwnerIds(viewerId: number, opts: { direct?: boolean } = {}): Promise<number[]> {
+  if (opts.direct && isStaffId(viewerId)) return [];
   const blocked = await getBlockedCounterparts(viewerId);
   const users = await usersCol();
   const banned = await users.find({ banned: true }, { projection: { _id: 1 } }).toArray();
@@ -128,6 +137,7 @@ export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> 
 
 export async function findVisibleUser(viewerId: number, anonId: unknown, opts: { includeSelf?: boolean } = {}): Promise<any | null> {
   if (!isAnonId(anonId)) return null;
+  if (isStaffId(viewerId)) return (await usersCol()).findOne({ onboardingStep: "COMPLETED", anonId });
   const hidden = await hiddenOwnerIds(viewerId);
   const users = await usersCol();
   return users.findOne({ ...visibleUserFilter(viewerId, hidden, opts), anonId });
