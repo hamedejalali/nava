@@ -56,9 +56,22 @@ import { registerFeedbackFlow } from "./features/menu/feedbackFlow.js";
 import { registerFlowInterrupt, registerFlowCancel } from "./features/common/userFlows.js";
 import { registerAdminVerifiedUsers } from "./features/admin/verifiedUsers.js";
 import { registerChatRequest } from "./features/matching/chatRequest.js";
+<<<<<<< HEAD
+=======
+import { registerGiftReply } from "./features/matching/giftReply.js";
+import { getDb } from "./db/connect.js";
+import { registerGiftEvents } from "./features/gifts/events.js";
+import { ensureGiftEventIndexes } from "./services/nava/giftEvents.js";
+>>>>>>> v1.11.0-wallet
 import { ensureChatRequestIndexes } from "./db/models/chatRequest.js";
 import { registerProfileReveal } from "./features/matching/profileReveal.js";
 import { ensureProfileRevealIndexes } from "./db/models/profileReveal.js";
+import { ensureStarsOrderIndexes } from "./db/models/starsOrder.js";
+import { ensureSearchNoticeIndexes } from "./db/models/searchNotice.js";
+import { ensureRelicLedgerIndexes } from "./db/models/relic.js";
+import { banNoticeMarkup, banNoticeText } from "./features/support/banNotice.js";
+import { ensureUpdateInboxIndexes } from "./db/models/updateInbox.js";
+import { ensureMatchDeliveryIndexes } from "./db/models/matchDelivery.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
@@ -83,6 +96,15 @@ export function createBot(): Bot<NavaContext> {
     ensurePhotoModerationLogIndexes(),
     ensureChatRelayMapIndexes(),
     ensureChatRequestIndexes(),
+<<<<<<< HEAD
+=======
+    ensureStarsOrderIndexes(),
+    ensureMatchDeliveryIndexes(),
+    ensureUpdateInboxIndexes(),
+    ensureRelicLedgerIndexes(),
+    ensureSearchNoticeIndexes(),
+    getDb().then((db) => ensureGiftEventIndexes(db)),
+>>>>>>> v1.11.0-wallet
   ]).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[bot] Index setup failed (will retry on next cold start):", err);
@@ -120,6 +142,9 @@ export function createBot(): Bot<NavaContext> {
               // user's request.
             });
           }
+        }).catch(() => {
+          // getAllAdminIds() failing (DB hiccup) must never become an unhandled rejection: on Node that can
+          // take the whole serverless instance down in the middle of the new user's own request.
         });
       }
     } else {
@@ -134,7 +159,10 @@ export function createBot(): Bot<NavaContext> {
   // scenario, is deliberately not special-cased here for simplicity).
   bot.use(async (ctx, next) => {
     if (ctx.dbUser?.banned) {
-      await ctx.reply(`🚫 دسترسی شما به ربات مسدود شده است.${ctx.dbUser.banReason ? `\n\nدلیل: ${ctx.dbUser.banReason}` : ""}`).catch(() => {});
+      // Shown on the person's first (and every later) tap: notice + a link button that opens a chat with support.
+      if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => {});
+      // to the person's own chat (a button tapped under a CHANNEL post must not make the bot talk in the channel)
+      await ctx.api.sendMessage(ctx.from!.id, banNoticeText(ctx.dbUser.banReason), { parse_mode: "HTML", reply_markup: await banNoticeMarkup() }).catch(() => {});
       return;
     }
     await next();
@@ -191,6 +219,11 @@ export function createBot(): Bot<NavaContext> {
   registerAdminBroadcast(features);
   registerAdminVerifiedUsers(features);
   registerProfileReveal(features);
+<<<<<<< HEAD
+=======
+  registerGiftEvents(features); // auction / giveaway buttons under the channel posts
+  registerGiftReply(features); // "پیام به فرستنده" under gift notifications
+>>>>>>> v1.11.0-wallet
   registerChatRequest(features); // accept/decline buttons of chat requests sent from the Nava Mini App
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatControls(features); // before chat relay: the reply-keyboard control labels must never be relayed as a chat message

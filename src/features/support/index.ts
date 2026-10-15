@@ -5,7 +5,7 @@ import { glassUrlButton, type GlassCallbackButton, type GlassUrlButton } from ".
 import { buttonIcon } from "../../config/emojis.js";
 import { DEFAULT_RULES } from "../admin/guides.js";
 
-function supportUrl(raw: string): string {
+export function supportUrl(raw: string): string {
   if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
   const username = raw.replace(/^@/, "");
   return `https://t.me/${username}`;
@@ -25,4 +25,10 @@ export function registerRulesCommand(composer: Composer<NavaContext>) {
     const text = await getContent("rules", DEFAULT_RULES);
     await ctx.reply(text);
   });
+}
+
+/** The configured support contact as a t.me / https link, or null when none is configured. */
+export async function getSupportLink(): Promise<string | null> {
+  const supportId = await getContent("supportId", "");
+  return supportId ? supportUrl(supportId) : null;
 }

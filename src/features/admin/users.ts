@@ -2,7 +2,7 @@ import { cancelKeyboard } from "../common/userFlows.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { searchUsers, listUsersPage, setBanned, setVerified, getUser, type UserDoc } from "../../db/models/user.js";
+import { searchUsers, listUsersPage, setVerified, getUser, type UserDoc } from "../../db/models/user.js";
 import { getRelicBalance } from "../../db/models/relic.js";
 import { levelDisplay } from "../../config/levels.js";
 import { isAdmin } from "./constants.js";
@@ -10,6 +10,7 @@ import { setAdminFlow, getAdminFlow } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { isFlowCancelSignal } from "./flowState.js";
+import { banUser, unbanUser } from "../../services/banCleanup.js";
 import { notifyVerificationChange } from "./verifyNotify.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
@@ -55,19 +56,17 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
   composer.callbackQuery(/^admin:user:ban:(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx)) return;
     const targetId = Number(ctx.match![1]);
-    await setBanned(targetId, true, "توسط ادمین");
+    await banUser(ctx.api, targetId, "توسط ادمین");
     await logAdminAction(ctx.from!.id, "ban_user", String(targetId));
     await ctx.answerCallbackQuery({ text: "کاربر بن شد." });
-    await ctx.api.sendMessage(targetId, "🚫 دسترسی شما به ربات توسط ادمین مسدود شد.").catch(() => {});
   });
 
   composer.callbackQuery(/^admin:user:unban:(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx)) return;
     const targetId = Number(ctx.match![1]);
-    await setBanned(targetId, false);
+    await unbanUser(ctx.api, targetId);
     await logAdminAction(ctx.from!.id, "unban_user", String(targetId));
     await ctx.answerCallbackQuery({ text: "کاربر آن‌بن شد." });
-    await ctx.api.sendMessage(targetId, "✅ دسترسی شما به ربات دوباره فعال شد.").catch(() => {});
   });
 
   composer.callbackQuery(/^admin:user:toggleverify:(\d+)$/, async (ctx) => {
@@ -141,17 +140,15 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     await setAdminFlow(ctx.from!.id, null);
 
     if (flow.flow === "ban") {
-      await setBanned(target._id, true, "توسط ادمین");
+      await banUser(ctx.api, target._id, "توسط ادمین");
       await logAdminAction(ctx.from!.id, "ban_user", String(target._id));
       await ctx.reply(`✅ ${target.anonId} بن شد.`);
-      await ctx.api.sendMessage(target._id, "🚫 دسترسی شما به ربات توسط ادمین مسدود شد.").catch(() => {});
       return;
     }
     if (flow.flow === "unban") {
-      await setBanned(target._id, false);
+      await unbanUser(ctx.api, target._id);
       await logAdminAction(ctx.from!.id, "unban_user", String(target._id));
       await ctx.reply(`✅ ${target.anonId} آن‌بن شد.`);
-      await ctx.api.sendMessage(target._id, "✅ دسترسی شما به ربات دوباره فعال شد.").catch(() => {});
       return;
     }
     if (flow.flow === "verify") {

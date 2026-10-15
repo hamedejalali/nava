@@ -3,6 +3,14 @@ import type { Update } from "grammy/types";
 import { createBot } from "../src/bot.js";
 import { waitUntil } from "@vercel/functions";
 import { env } from "../src/config/env.js";
+<<<<<<< HEAD
+=======
+import { safeEqual } from "../src/utils/secureCompare.js";
+import { processUpdateOnce } from "../src/webhook/processUpdate.js";
+import { maybeProcessSearchNotices } from "../src/features/matching/searchNotices.js";
+import { maybeProcessDueGiftEvents } from "../src/services/nava/giftEvents.js";
+import { maybeProcessDueDeliveries } from "../src/features/matching/matchDelivery.js";
+>>>>>>> v1.11.0-wallet
 import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
@@ -58,6 +66,13 @@ async function ensureInit(): Promise<void> {
   await botInitPromise;
 }
 
+/** Best-effort notice to the person whose update could not be processed after all attempts. */
+async function notifyDeadUpdate(update: Update): Promise<void> {
+  const chatId = update.message?.chat.id ?? update.callback_query?.from.id;
+  if (!chatId || !bot) return;
+  await bot.api.sendMessage(chatId, "⚠️ مشکلی پیش اومد و درخواستت انجام نشد. لطفاً دوباره امتحان کن.");
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.status(200).send(bot ? "Nava Bot webhook is alive." : "Nava Bot webhook is alive but failed to start — check server logs.");
@@ -66,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let secretOk: boolean;
   try {
-    secretOk = req.headers["x-telegram-bot-api-secret-token"] === env.WEBHOOK_SECRET;
+    secretOk = safeEqual(req.headers["x-telegram-bot-api-secret-token"], env.WEBHOOK_SECRET);
   } catch (err) {
     // env.WEBHOOK_SECRET is a required() getter — this only throws if the
     // env var is genuinely missing in this deployment.
@@ -85,6 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+<<<<<<< HEAD
   // FIXED — HTTP status on a genuine processing failure (v1.4.0). This used
   // to always answer Telegram with 200 even when `ensureInit()` or
   // `handleUpdate()` threw. Telegram treats HTTP 200 as "delivered
@@ -105,6 +121,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // failing forever (a real bug, not a transient blip), Telegram's own
   // backoff/give-up behavior bounds the cost — we deliberately do not add
   // our own retry-counting on top of that.
+=======
+  // Failure strategy (v1.16.3, see src/webhook/processUpdate.ts):
+  //   200 = processed, a harmless duplicate of an already-processed update, or deliberately parked
+  //         (dead-letter) after the bounded number of attempts;
+  //   5xx = NOT done — Telegram redelivers with backoff (init failure 503, handler failure 500,
+  //         concurrent duplicate 500, inbox database unavailable 503).
+  // Money-moving operations are idempotent (deterministic ledger ids), so a redelivery can never double-apply.
+>>>>>>> v1.11.0-wallet
   try {
     await ensureInit();
   } catch (err) {
@@ -114,6 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const startedAt = Date.now();
+<<<<<<< HEAD
   try {
     await bot!.handleUpdate(req.body as Update);
   } catch (err) {
@@ -125,5 +150,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   waitUntil(recordWebhookMetric(true, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
+=======
+  const update = req.body as Update;
+  // Idempotent inbox (see src/webhook/processUpdate.ts): 200 = processed or deliberately parked, 5xx = please redeliver.
+  const result = await processUpdateOnce(update, (u) => bot!.handleUpdate(u), { onDead: notifyDeadUpdate });
+  if (result.http !== 200) {
+    console.error(`[nava:webhook] update not completed (${result.outcome})`);
+    waitUntil(recordWebhookMetric(false, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
+    res.status(result.http).send(result.outcome === "inbox_unavailable" ? "inbox unavailable" : "processing failed");
+    return;
+  }
+
+  waitUntil(recordWebhookMetric(result.outcome !== "dead_letter", Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
+  waitUntil(maybeProcessDueDeliveries(bot!.api).catch(() => {}));
+  waitUntil(maybeProcessSearchNotices(bot!.api).catch(() => {}));
+  waitUntil(maybeProcessDueGiftEvents(bot!.api).catch(() => {}));
+>>>>>>> v1.11.0-wallet
   res.status(200).send("ok");
 }

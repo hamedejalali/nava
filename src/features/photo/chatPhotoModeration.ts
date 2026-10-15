@@ -10,7 +10,7 @@ import {
   getPhotoModerationLog,
   markPhotoModerationDecided,
 } from "../../db/models/photoModerationLog.js";
-import { setBanned } from "../../db/models/user.js";
+import { banUser } from "../../services/banCleanup.js";
 import { checkImage } from "../../services/sightengine.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
 import { getActiveSessionAndPartner } from "../matching/relayShared.js";
@@ -160,8 +160,7 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
 
     const result = await markPhotoModerationDecided(id, "sender_banned", ctx.from!.id);
     if (result.status === "decided") {
-      await setBanned(doc.senderTelegramId, true, "عکس نامناسب در چت ناشناس");
-      await ctx.api.sendMessage(doc.senderTelegramId, "🚫 دسترسی شما به ربات به دلیل ارسال عکس نامناسب مسدود شد.").catch(() => {});
+      await banUser(ctx.api, doc.senderTelegramId, "ارسال عکس نامناسب در چت ناشناس");
     }
 
     await ctx.editMessageCaption({ caption: `${(ctx.callbackQuery.message as any)?.caption ?? ""}\n\n🚫 فرستنده بن شد.` }).catch(() => {});

@@ -27,7 +27,11 @@ export interface ProfileView extends Brief {
   liked: boolean;
   highlights: HighlightBrief[];
   /** none = can request · requested = a request of mine is waiting · busy = in another chat · me */
+<<<<<<< HEAD
   chat: "none" | "requested" | "busy" | "me";
+=======
+  chat: "none" | "requested" | "busy" | "me" | "with_you";
+>>>>>>> v1.11.0-wallet
   // ---- own profile only ----
   relic?: number;
   level?: string;
@@ -78,7 +82,13 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     view.pendingName = pName ? String(pName.newValue) : null;
     view.pendingAge = pAge ? String(pAge.newValue) : null;
   } else {
+<<<<<<< HEAD
     if (owner.activeChatSessionId) view.chat = "busy";
+=======
+    // they are chatting RIGHT NOW with the person who opened the profile: «در حال چت با شما هست»
+    if (owner.activeChatSessionId && owner.activeChatSessionId === viewer.activeChatSessionId) view.chat = "with_you";
+    else if (owner.activeChatSessionId) view.chat = "busy";
+>>>>>>> v1.11.0-wallet
     else {
       const pending = await (await col("chat_requests")).findOne({ fromId: viewer._id, toId: owner._id, status: "pending", expiresAt: { $gt: new Date() } });
       if (pending) view.chat = "requested";

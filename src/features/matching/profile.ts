@@ -4,7 +4,8 @@ import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { getSession, otherParticipant } from "../../db/models/chatSession.js";
-import { getUser, incrementLikes, type UserDoc } from "../../db/models/user.js";
+import { getUser, type UserDoc } from "../../db/models/user.js";
+import { runInTransaction } from "../../db/tx.js";
 import { getDb } from "../../db/connect.js";
 import { CHAT_CALLBACKS, VERIFY_REQUEST_CALLBACK } from "./constants.js";
 import { levelDisplay } from "../../config/levels.js";
@@ -244,8 +245,17 @@ export function registerProfile(composer: Composer<NavaContext>) {
     const db = await getDb();
     const likesCol = db.collection<{ _id: string; createdAt: Date }>("profile_likes");
     try {
-      await likesCol.insertOne({ _id: `${ctx.from!.id}:${targetId}`, createdAt: new Date() });
-      await incrementLikes(targetId);
+      // like document + counter in one transaction (no drift on crash / concurrent taps)
+      const fresh = await runInTransaction(async (session) => {
+        const r = await likesCol.updateOne({ _id: `${ctx.from!.id}:${targetId}` }, { $setOnInsert: { createdAt: new Date() } }, { upsert: true, session });
+        if (r.upsertedCount !== 1) return false;
+        await db.collection("users").updateOne({ _id: targetId } as any, { $inc: { likesCount: 1 } }, { session });
+        return true;
+      });
+      if (!fresh) {
+        await ctx.answerCallbackQuery({ text: "قبلاً لایک کرده بودی 👍" });
+        return;
+      }
       await ctx.answerCallbackQuery({ text: "❤️ لایک شد" });
 
       // Reflect the new count on the button itself, not just the toast —

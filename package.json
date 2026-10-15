@@ -1,6 +1,10 @@
 {
   "name": "nava-bot",
+<<<<<<< HEAD
   "version": "1.16.0",
+=======
+  "version": "1.17.0",
+>>>>>>> v1.11.0-wallet
   "private": true,
   "description": "Nava - Anonymous chat & matchmaking Telegram bot (Vercel Serverless + MongoDB + grammY)",
   "type": "module",

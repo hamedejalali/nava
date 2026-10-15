@@ -221,8 +221,10 @@ export async function getOrCreateUser(input: {
       // second round trip or a fragile timestamp comparison.
       return { ...(result as UserDoc), __isNew: !existedBefore };
     } catch (err: any) {
-      // Duplicate key on anonId's unique index — regenerate and retry.
-      if (err?.code === 11000 && String(err?.message ?? "").includes("anonId")) continue;
+      // Duplicate key on anonId's unique index — regenerate and retry. A duplicate on `_id` means a concurrent
+      // first-time upsert for the same user won the race (MongoDB documents this for upserts): retrying simply
+      // finds the document that now exists, instead of failing the user's very first /start with an error.
+      if (err?.code === 11000 && /anonId|_id/.test(String(err?.message ?? ""))) continue;
       throw err;
     }
   }

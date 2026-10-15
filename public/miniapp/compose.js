@@ -6,7 +6,11 @@
   /* ---------------------------------------------------------------- cropper */
   /**
    * NG.cropFlow(file, opts, cb)
+<<<<<<< HEAD
    *   opts = { ratios:[{k,r}], out:<output width px>, title, cta, round, caption:<max length|0>, captionHint }
+=======
+   *   opts = { ratios:[{k,r}], out:<output width px>, title, cta, round, caption:<max length|0>, captionHint, textOverlay:<true: Instagram-style text on the picture> }
+>>>>>>> v1.11.0-wallet
    *   cb(res, done)  res = { data:"data:image/jpeg;base64,…", caption, ratio:"4:5", close }, done(true) closes the screen, done(false) re-enables the button.
    */
   NG.cropFlow = function (file, opts, cb) {
@@ -32,6 +36,88 @@
     var zoomRow = el('<div class="zoom"><span style="font-size:12px;opacity:.7">−</span><input type="range" min="1" max="4" step="0.01" value="1"><span style="font-size:12px;opacity:.7">+</span></div>');
     var zr = zoomRow.querySelector("input");
     w.appendChild(zoomRow);
+<<<<<<< HEAD
+=======
+
+    /* ---- Instagram-style text on the picture (stories): type, drag, colour, size, background ---- */
+    var texts = [], COLORS = ["#ffffff", "#000000", "#ffd54a", "#ff4d79", "#4dd0e1", "#7cff6b"], ov = null;
+    function lum(c) { var n = parseInt(c.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; }
+    function paintText(t) {
+      var n = t.node; if (!n) return;
+      n.textContent = t.t; n.style.left = (t.x * 100) + "%"; n.style.top = (t.y * 100) + "%";
+      n.style.fontSize = Math.max(10, t.fs * (BW || 300)) + "px";
+      n.classList.toggle("bg", !!t.bg);
+      n.style.background = t.bg ? t.c : "transparent"; n.style.color = t.bg ? (lum(t.c) > 0.6 ? "#000" : "#fff") : t.c;
+      n.dir = /[֐-ࣿ]/.test(t.t) ? "rtl" : "ltr";
+    }
+    function renderTexts() { texts.forEach(paintText); }
+    function removeText(t) { texts = texts.filter(function (x) { return x !== t; }); if (t.node) t.node.remove(); }
+    function editText(t, isNew) {
+      var snap = { t: t.t, c: t.c, bg: t.bg, fs: t.fs }, saved = false;
+      NG.sheet('<div class="shd">متن روی استوری</div><div class="pad"><textarea class="inp" id="tt" rows="3" maxlength="120" placeholder="بنویس…" style="width:100%;resize:none"></textarea></div><div class="sw" id="sw"></div><div class="toolrow"><button id="bg">پس‌زمینه</button><span style="font-size:12px;color:var(--muted)">اندازه</span><input type="range" id="fz" min="0.04" max="0.15" step="0.005"></div><div class="pad" style="display:flex;gap:8px;margin-top:10px"><button class="btn tall" id="rm" style="flex:1">حذف</button><button class="btn blue tall" id="ok" style="flex:2">تأیید</button></div>', function (sh, close) {
+        var ta2 = sh.querySelector("#tt"), sw = sh.querySelector("#sw"), bgb = sh.querySelector("#bg"), fz = sh.querySelector("#fz");
+        ta2.value = t.t; fz.value = t.fs; bgb.classList.toggle("on", t.bg);
+        COLORS.forEach(function (c) {
+          var b = el('<button style="background:' + c + '"></button>'); if (c === t.c) b.classList.add("on");
+          b.onclick = function () { t.c = c; Array.prototype.forEach.call(sw.children, function (x) { x.classList.remove("on"); }); b.classList.add("on"); NG.haptic("sel"); paintText(t); };
+          sw.appendChild(b);
+        });
+        ta2.oninput = function () { t.t = ta2.value; paintText(t); };
+        bgb.onclick = function () { t.bg = !t.bg; bgb.classList.toggle("on", t.bg); NG.haptic("sel"); paintText(t); };
+        fz.oninput = function () { t.fs = parseFloat(fz.value) || t.fs; paintText(t); };
+        sh.querySelector("#ok").onclick = function () { saved = true; if (!t.t.trim()) removeText(t); close(); };
+        sh.querySelector("#rm").onclick = function () { saved = true; removeText(t); close(); };
+        setTimeout(function () { try { ta2.focus(); } catch (e) {} }, 280);
+      }, { onClose: function () { if (!saved) { if (isNew) removeText(t); else { t.t = snap.t; t.c = snap.c; t.bg = snap.bg; t.fs = snap.fs; paintText(t); } } } });
+    }
+    function addText() {
+      if (texts.length >= 5) return NG.toast("حداکثر ۵ متن");
+      var t = { t: "", c: "#ffffff", bg: false, fs: 0.075, x: 0.5, y: 0.5 };
+      t.node = el('<div class="tov"></div>');
+      var sx = 0, sy = 0, moved = false, id = null;
+      t.node.onpointerdown = function (e) { e.stopPropagation(); id = e.pointerId; try { t.node.setPointerCapture(id); } catch (x) {} sx = e.clientX; sy = e.clientY; moved = false; t.node.classList.add("sel"); };
+      t.node.onpointermove = function (e) {
+        if (id !== e.pointerId) return; e.stopPropagation();
+        var dx = e.clientX - sx, dy = e.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+        if (moved) { t.x = Math.min(0.95, Math.max(0.05, t.x + dx / BW)); t.y = Math.min(0.95, Math.max(0.05, t.y + dy / BH)); sx = e.clientX; sy = e.clientY; paintText(t); }
+      };
+      var end = function (e) { if (id !== e.pointerId) return; e.stopPropagation(); id = null; t.node.classList.remove("sel"); if (!moved) editText(t, false); };
+      t.node.onpointerup = end; t.node.onpointercancel = function (e) { id = null; t.node.classList.remove("sel"); };
+      ov.appendChild(t.node); texts.push(t); paintText(t); editText(t, true);
+    }
+    if (opts.textOverlay) {
+      box.style.position = "relative";
+      ov = el('<div style="position:absolute;inset:0;overflow:hidden;pointer-events:none"></div>'); box.appendChild(ov);
+      var tb = el('<div class="tbar"><button id="addt">Aa  متن</button><span style="font-size:12px;color:#9a9a9a">متن رو با انگشت جابه‌جا کن؛ روش بزنی ویرایش می‌شه</span></div>');
+      tb.querySelector("#addt").onclick = addText;
+      w.insertBefore(tb, zoomRow);
+    }
+    function drawTexts(x, W, H) {
+      if (!texts.length) return;
+      var f = W / (BW || W);
+      texts.forEach(function (t) {
+        var txt = t.t.trim(); if (!txt) return;
+        var px = t.fs * W; x.font = "700 " + px + "px Vazirmatn, Tahoma, sans-serif";
+        x.direction = /[֐-ࣿ]/.test(txt) ? "rtl" : "ltr"; x.textAlign = "center"; x.textBaseline = "middle";
+        var maxW = 0.84 * W - 16 * f, lines = [];
+        txt.split("\n").forEach(function (para) {
+          var words = para.split(/\s+/).filter(Boolean), cur = "";
+          words.forEach(function (wd) { var test = cur ? cur + " " + wd : wd; if (x.measureText(test).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = test; });
+          lines.push(cur);
+        });
+        var lh = px * 1.45, th = lines.length * lh, cx2 = t.x * W, cy2 = t.y * H, wmax = 0;
+        lines.forEach(function (l) { wmax = Math.max(wmax, x.measureText(l).width); });
+        if (t.bg) {
+          x.shadowColor = "transparent"; x.fillStyle = t.c;
+          var bw = wmax + 16 * f, bh = th + 4 * f, bx = cx2 - bw / 2, by = cy2 - bh / 2, r = 8 * f;
+          x.beginPath(); x.moveTo(bx + r, by); x.arcTo(bx + bw, by, bx + bw, by + bh, r); x.arcTo(bx + bw, by + bh, bx, by + bh, r); x.arcTo(bx, by + bh, bx, by, r); x.arcTo(bx, by, bx + bw, by, r); x.closePath(); x.fill();
+          x.fillStyle = lum(t.c) > 0.6 ? "#000" : "#fff";
+        } else { x.fillStyle = t.c; x.shadowColor = "rgba(0,0,0,.35)"; x.shadowBlur = 6 * f; x.shadowOffsetY = f; }
+        lines.forEach(function (l, i) { x.fillText(l, cx2, cy2 - th / 2 + lh * (i + 0.5)); });
+        x.shadowColor = "transparent"; x.shadowBlur = 0; x.shadowOffsetY = 0;
+      });
+    }
+>>>>>>> v1.11.0-wallet
     var ta = null, cnt = null;
     if (opts.caption) {
       var cwrap = el('<div style="background:#000;padding:0 16px 14px"><textarea rows="2" maxlength="' + opts.caption + '" placeholder="' + esc(opts.captionHint || "کپشن…") + '" style="width:100%;background:#1a1a1a;border:0;border-radius:10px;color:#fff;padding:10px 12px;font-size:15px;resize:none;outline:0"></textarea></div>');
@@ -64,7 +150,11 @@
       cv.width = BW * dpr; cv.height = BH * dpr;
       base = Math.max(BW / iw, BH / ih);
       if (reset) { z = 1; zr.value = 1; cx = BW / 2; cy = BH / 2; }
+<<<<<<< HEAD
       draw();
+=======
+      draw(); renderTexts();
+>>>>>>> v1.11.0-wallet
     }
     img.onload = function () {
       iw = img.naturalWidth; ih = img.naturalHeight;
@@ -107,6 +197,10 @@
       var sw = iw * s() * f, sh = ih * s() * f;
       x.imageSmoothingQuality = "high";
       x.drawImage(img, cx * f - sw / 2, cy * f - sh / 2, sw, sh);
+<<<<<<< HEAD
+=======
+      drawTexts(x, W, H);
+>>>>>>> v1.11.0-wallet
       var q = 0.88, d = c.toDataURL("image/jpeg", q);
       while (d.length > 2.6 * 1024 * 1024 && q > 0.4) { q -= 0.1; d = c.toDataURL("image/jpeg", q); }
       return d;
@@ -114,9 +208,18 @@
     done.onclick = function () {
       if (!iw) return;
       done.disabled = true;
+<<<<<<< HEAD
       var res = { data: exportJpeg(), caption: ta ? ta.value.trim() : "", ratio: cur.k, close: scr.close };
       var finished = false;
       cb(res, function (ok) { if (finished) return; if (ok) { finished = true; scr.close(); } else done.disabled = false; });
+=======
+      var fontsReady = texts.length && document.fonts && document.fonts.load ? document.fonts.load("700 40px Vazirmatn", "اب").catch(function () {}) : Promise.resolve();
+      fontsReady.then(function () {
+        var res = { data: exportJpeg(), caption: ta ? ta.value.trim() : "", ratio: cur.k, close: scr.close };
+        var finished = false;
+        cb(res, function (ok) { if (finished) return; if (ok) { finished = true; scr.close(); } else done.disabled = false; });
+      });
+>>>>>>> v1.11.0-wallet
     };
     return scr;
   };

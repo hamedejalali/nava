@@ -1,7 +1,7 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import type { Language } from "../../db/models/user.js";
-import { dictionary } from "../../i18n/index.js";
+import { dictionary, isLanguageReady } from "../../i18n/index.js";
 import { fa } from "../../i18n/locales/fa.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
@@ -77,16 +77,42 @@ export function registerLanguageHandlers(composer: Composer<NavaContext>) {
       return;
     }
 
+    // Recovery: a user who earlier picked a language whose wording hasn't
+    // been supplied yet (en/ar) would resume into a screen of placeholders.
+    // Offer the language screen again instead; their onboarding progress is
+    // kept (the language callback resumes at the stored step).
+    if (!isLanguageReady(user.languageCode ?? "fa")) {
+      await sendWelcome(ctx, ctx.from.first_name);
+      return;
+    }
+
     await resumeAt(ctx, user.onboardingStep, user.languageCode ?? "fa", user.province);
   });
 
   composer.callbackQuery(new RegExp(`^${LANGUAGE_CALLBACK_PREFIX}(fa|en|ar)$`), async (ctx) => {
     const lang = ctx.match![1] as Language;
 
-    await setUserLanguage(ctx.from!.id, lang);
+    // This language has no wording yet: tell the user (in Persian, the
+    // language of the welcome screen) and keep them on the language screen
+    // rather than saving a language the rest of onboarding cannot render.
+    if (!isLanguageReady(lang)) {
+      await ctx.answerCallbackQuery({
+        text: "این زبان هنوز فعال نشده است؛ لطفاً فارسی را انتخاب کنید.\nThis language is not available yet.",
+        show_alert: true,
+      });
+      return;
+    }
+
+    const updated = await setUserLanguage(ctx.from!.id, lang);
     await ctx.answerCallbackQuery();
 
     ctx.userLang = lang;
+    // Resume at the stored step (normally GENDER_PENDING right after the
+    // first choice; later steps when recovering from an unsupported language).
+    if (updated && updated.onboardingStep !== "GENDER_PENDING" && updated.onboardingStep !== "LANGUAGE_PENDING") {
+      await resumeAt(ctx, updated.onboardingStep, lang, updated.province);
+      return;
+    }
     await showGenderStep(ctx, lang);
   });
 }

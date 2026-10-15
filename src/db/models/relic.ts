@@ -89,6 +89,7 @@ export class InsufficientBalanceError extends Error {
  *  applied before) — caught outside the transaction and turned into a
  *  plain `false` / no-op return, never a real error to the caller. */
 class AlreadyProcessedError extends Error {}
+class RecipientMissingError extends Error {}
 
 /**
  * Shared building block for every "credit or refund N Relic to this user,
@@ -288,7 +289,7 @@ export async function transferRelicOnce(
   recipientId: number,
   amount: number
 ): Promise<{ status: "completed" } | { status: "insufficient" } | { status: "invalid" } | { status: "already_processed" }> {
-  if (senderId === recipientId || !Number.isInteger(amount) || amount <= 0) return { status: "invalid" };
+  if (senderId === recipientId || !Number.isSafeInteger(amount) || amount <= 0) return { status: "invalid" };
 
   const db = await getDb();
   const client = await getClient();
@@ -314,7 +315,10 @@ export async function transferRelicOnce(
         throw new InsufficientBalanceError(senderId);
       }
 
-      await usersCol.updateOne({ _id: recipientId }, { $inc: { relicBalance: amount } }, { session: mongoSession });
+      const credited = await usersCol.updateOne({ _id: recipientId }, { $inc: { relicBalance: amount } }, { session: mongoSession });
+      // Recipient document missing: abort so the sender's debit is rolled back (no Relic may vanish and the
+      // ledger must never show a credit that no balance received).
+      if (credited.matchedCount !== 1) throw new RecipientMissingError();
 
       try {
         await ledger.insertOne(
@@ -361,6 +365,7 @@ export async function transferRelicOnce(
   } catch (err) {
     if (err instanceof InsufficientBalanceError) return { status: "insufficient" };
     if (err instanceof AlreadyProcessedError) return { status: "already_processed" };
+    if (err instanceof RecipientMissingError) return { status: "invalid" };
     throw err;
   } finally {
     await mongoSession.endSession();
@@ -474,4 +479,35 @@ export async function adminAdjustBalance(
   } finally {
     await session.endSession();
   }
+}
+
+/**
+ * Same ledger+balance credit as `creditLedgerOnce`, but INSIDE the caller's transaction (so it commits or
+ * rolls back together with the other writes of that transaction). Idempotent: the deterministic ledger id is
+ * checked first, and a unique-key race on it simply fails the whole caller transaction (nothing partial).
+ * Returns true when this call credited, false when that ledger id already existed.
+ */
+export async function creditLedgerInSession(
+  ledgerId: string,
+  userId: number,
+  amount: number,
+  type: RelicTransactionType,
+  mongoSession: ClientSession,
+  extra: { reference?: string; counterpartyUserId?: number; metadata?: Record<string, unknown> } = {},
+): Promise<boolean> {
+  const ledger = await ledgerCollection();
+  if (await ledger.findOne({ _id: ledgerId }, { session: mongoSession, projection: { _id: 1 } })) return false;
+  const usersCol = (await getDb()).collection<any>("users");
+  const credited = await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: amount } }, { session: mongoSession });
+  if (credited.matchedCount !== 1) throw new Error(`[relic] credit target ${userId} does not exist`);
+  await ledger.insertOne(
+    { _id: ledgerId, userId, amount, type, status: "completed", sourceApp: "nava", createdAt: new Date(), completedAt: new Date(), ...extra },
+    { session: mongoSession },
+  );
+  return true;
+}
+
+/** Chat-cost refund (same deterministic id as `refundChatCostOnce`) inside the caller's transaction. */
+export function refundChatCostInSession(userId: number, sessionId: string, mongoSession: ClientSession): Promise<boolean> {
+  return creditLedgerInSession(`refund:${sessionId}:${userId}`, userId, 1, "REFUND", mongoSession, { reference: `chatcost:${sessionId}:${userId}` });
 }

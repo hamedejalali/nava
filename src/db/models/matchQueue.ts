@@ -1,6 +1,7 @@
 import type { Collection } from "mongodb";
 import { getDb } from "../connect.js";
 import type { Gender } from "./user.js";
+import { voidSearchNotices } from "./searchNotice.js";
 
 export type SearchType = "lucky" | "male" | "female" | "same_age" | "same_province";
 // "nearby" is intentionally excluded: no feature has ever collected GPS
@@ -23,6 +24,9 @@ export interface MatchQueueDoc {
    *  cron job (api/cron/expire-searches.ts) never sends it twice even if
    *  it runs again before MongoDB's TTL cleanup removes the document. */
   timeoutNotified?: boolean;
+  /** Set by the expiry cron while it is delivering this entry's "search timed out" notice, so a concurrent
+   *  cron run (or the in-process countdown) never delivers a second one. Expires, so a crashed run is retried. */
+  timeoutLeaseUntil?: Date;
   /** TTL field — MongoDB automatically removes the document once this
    *  passes, so an abandoned search is cleaned up even if no further
    *  request ever runs for this user (see ensureMatchQueueIndexes). */
@@ -60,6 +64,14 @@ export async function getQueueEntry(telegramId: number): Promise<MatchQueueDoc |
   return col.findOne({ _id: telegramId, expiresAt: { $gt: new Date() } });
 }
 
+/** Mongo clause: nobody currently holds a live timeout-delivery lease on this entry and it was not notified yet. */
+function timeoutUnowned(now: Date) {
+  return {
+    timeoutNotified: { $ne: true },
+    $or: [{ timeoutLeaseUntil: { $exists: false } }, { timeoutLeaseUntil: { $lte: now } }],
+  };
+}
+
 export async function removeQueueEntry(telegramId: number): Promise<void> {
   const col = await queueCollection();
   await col.deleteOne({ _id: telegramId });
@@ -69,29 +81,85 @@ export async function removeQueueEntry(telegramId: number): Promise<void> {
 export async function setQueueStatusMessageId(telegramId: number, messageId: number): Promise<boolean> {
   const col = await queueCollection();
   const r = await col.updateOne({ _id: telegramId }, { $set: { statusMessageId: messageId } });
+<<<<<<< HEAD
+=======
+  if (r.matchedCount === 1) {
+    // remember it on the durable timeout notice too, so a recovery pass can still delete the status message
+    const db = await getDb();
+    await db.collection<any>("search_notices").updateMany({ userId: telegramId, state: "armed" }, { $set: { statusMessageId: messageId } }).catch(() => {});
+  }
+>>>>>>> v1.11.0-wallet
   return r.matchedCount === 1;
 }
 
 /** Existence check that deliberately IGNORES `expiresAt`: the countdown owns the deadline itself, and an
  *  entry whose TTL moment just passed must still be handled (timeout message), never silently dropped. */
+<<<<<<< HEAD
 export async function queueEntryExists(telegramId: number): Promise<boolean> {
   const col = await queueCollection();
   return (await col.countDocuments({ _id: telegramId })) > 0;
+=======
+export async function queueEntryExists(telegramId: number, opts: { createdBefore?: Date } = {}): Promise<boolean> {
+  const col = await queueCollection();
+  const filter: Record<string, unknown> = { _id: telegramId };
+  // A countdown only owns the entry that existed when IT started; a newer search by the same user is not its business.
+  if (opts.createdBefore) filter.createdAt = { $lte: opts.createdBefore };
+  return (await col.countDocuments(filter)) > 0;
+>>>>>>> v1.11.0-wallet
 }
 
 /** Atomically removes the user's queue entry and tells the caller whether IT removed it. Whoever gets
  *  the document back "owns" the outcome (cancel / timeout), so cancel-vs-match and timeout-vs-match
  *  races can never produce two different answers. */
+<<<<<<< HEAD
 export async function claimQueueEntry(telegramId: number): Promise<MatchQueueDoc | null> {
   const col = await queueCollection();
   return col.findOneAndDelete({ _id: telegramId });
+=======
+export async function claimQueueEntry(
+  telegramId: number,
+  opts: { createdBefore?: Date; forTimeout?: boolean } = {},
+): Promise<MatchQueueDoc | null> {
+  const col = await queueCollection();
+  const filter: Record<string, unknown> = { _id: telegramId };
+  // Timeout claims must never delete a NEWER search the same user started after this countdown began…
+  if (opts.createdBefore) filter.createdAt = { $lte: opts.createdBefore };
+  // …nor one the expiry cron is already delivering the timeout notice for (it owns that outcome).
+  const now = new Date();
+  const claimed = await col.findOneAndDelete(opts.forTimeout ? { ...filter, ...timeoutUnowned(now) } : filter);
+  // A cancel / match-style claim means the search did NOT time out: the durable timeout notice is void.
+  if (claimed && !opts.forTimeout) await voidSearchNotices([telegramId]).catch((e) => console.error("[search] could not void timeout notice:", e instanceof Error ? e.name : "unknown"));
+  return claimed;
+}
+
+/** Cron step 1: take the exclusive right to deliver the timeout notice for EXACTLY this expired entry
+ *  (same createdAt/expiresAt — a user who started a new search in the meantime has a different document
+ *  state and is left alone). Returns null when someone else holds it, it changed, or it is gone. */
+export async function leaseExpiredQueueEntry(entry: MatchQueueDoc, leaseMs = 90_000): Promise<MatchQueueDoc | null> {
+  const col = await queueCollection();
+  const now = new Date();
+  return col.findOneAndUpdate(
+    { _id: entry._id, createdAt: entry.createdAt, expiresAt: { $eq: entry.expiresAt, $lte: now }, ...timeoutUnowned(now) },
+    { $set: { timeoutLeaseUntil: new Date(now.getTime() + leaseMs) } },
+    { returnDocument: "after" },
+  );
+}
+
+/** Cron step 2 (after the notice was delivered, or can never be delivered): remember it was handled and
+ *  remove exactly that entry — never a newer one. */
+export async function finishExpiredQueueEntry(entry: MatchQueueDoc): Promise<void> {
+  const col = await queueCollection();
+  await col.updateOne({ _id: entry._id, createdAt: entry.createdAt }, { $set: { timeoutNotified: true } });
+  await col.deleteOne({ _id: entry._id, createdAt: entry.createdAt });
+>>>>>>> v1.11.0-wallet
 }
 
 /** For the timeout-notification cron job: entries whose deadline already
  *  passed but that haven't been notified/cleaned up yet. */
-export async function findExpiredUnnotified(): Promise<MatchQueueDoc[]> {
+export async function findExpiredUnnotified(limit = 200): Promise<MatchQueueDoc[]> {
   const col = await queueCollection();
-  return col.find({ expiresAt: { $lte: new Date() }, timeoutNotified: { $ne: true } }).toArray();
+  const now = new Date();
+  return col.find({ expiresAt: { $lte: now }, ...timeoutUnowned(now) }).sort({ expiresAt: 1 }).limit(limit).toArray();
 }
 
 /** Builds the reciprocal-compatibility query: candidates that (a) my

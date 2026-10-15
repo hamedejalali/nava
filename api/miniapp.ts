@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   authenticateViewer,
+<<<<<<< HEAD
+=======
+  botApi,
+>>>>>>> v1.11.0-wallet
   downloadTelegramFile,
   ensureMiniappIndexesOnce,
   findEligibleTarget,
@@ -13,6 +17,11 @@ import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setLike, s
 import { createChatRequest } from "../src/db/models/chatRequest.js";
 import { sendChatRequestToTarget } from "../src/features/matching/chatRequest.js";
 import { getDb } from "../src/db/connect.js";
+<<<<<<< HEAD
+=======
+import { getSupportLink } from "../src/features/support/index.js";
+import { checkRateLimit } from "../src/utils/rateLimit.js";
+>>>>>>> v1.11.0-wallet
 import { env } from "../src/config/env.js";
 import { parsePid } from "../src/services/nava/common.js";
 import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
@@ -20,7 +29,14 @@ import { present } from "../src/services/nava/present.js";
 import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setPostLike } from "../src/services/nava/posts.js";
 import { activeStoriesOf, createHighlight, createStory, deleteHighlight, deleteStory, editHighlight, getHighlight, markStoryViewed, storiesTray, storyArchive, storyViewers } from "../src/services/nava/stories.js";
 import { listFollows, setFollow } from "../src/services/nava/follow.js";
+<<<<<<< HEAD
 import { giftCatalog, listReceivedGifts, sendGift } from "../src/services/nava/gifts.js";
+=======
+import { giftCatalog, listReceivedGifts, regiftGift, sendGift } from "../src/services/nava/gifts.js";
+import { logAdminAction } from "../src/db/models/adminLog.js";
+import { reportPost } from "../src/services/nava/postReports.js";
+import { giftAnimUrl, loadGiftSticker, verifyGiftAnimSig } from "../src/services/nava/giftSticker.js";
+>>>>>>> v1.11.0-wallet
 import { getProfile, findRequestTarget, requestProfileChange } from "../src/services/nava/profile.js";
 import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople } from "../src/services/nava/search.js";
 import { prepareShare } from "../src/services/nava/share.js";
@@ -58,24 +74,42 @@ const ACTIONS = new Set([
   // feed / explore / search
   "home", "explore", "search", "recent_add", "recent_remove", "recent_clear",
   // posts
+<<<<<<< HEAD
   "posts", "post", "post_create", "post_edit", "post_delete", "like", "comments", "comment_add", "comment_delete",
+=======
+  "posts", "post", "post_create", "post_edit", "post_delete", "post_report", "like", "comments", "comment_add", "comment_delete",
+>>>>>>> v1.11.0-wallet
   // follow
   "follow", "follows",
   // stories + highlights
   "stories", "story_create", "story_view", "story_viewers", "story_delete", "story_archive",
   "highlight", "highlight_create", "highlight_edit", "highlight_delete",
   // gifts / share / chat request
+<<<<<<< HEAD
   "gift_catalog", "gift_send", "gifts", "share", "request",
+=======
+  "gift_catalog", "gift_send", "gift_regift", "gifts", "share", "request",
+>>>>>>> v1.11.0-wallet
   // legacy (v1.14/v1.15 clients)
   "feed", "photo",
 ]);
 
+<<<<<<< HEAD
+=======
+/** Per-person API budget per minute (see the rate-limit block in the handler). */
+export const MINIAPP_CALLS_PER_MINUTE = 300;
+
+>>>>>>> v1.11.0-wallet
 const SOCIAL_ERRORS: Record<string, number> = {
   taken: 409, too_short: 400, too_long: 400, bad_chars: 400, bad_dots: 400, reserved: 400,
   bad_bio: 400, bio_too_long: 400, bad_image: 400, bad_text: 400, text_too_long: 400, bad_input: 400, bad_gift: 400,
   bad_name: 400, bad_age: 400, same_value: 400, pending_request: 409, self: 400,
   too_fast: 429, too_many: 429, insufficient: 402, forbidden: 403, comments_off: 403, not_found: 404,
+<<<<<<< HEAD
   unavailable: 503, share_unavailable: 503,
+=======
+  unavailable: 503, share_unavailable: 503, sold_out: 409,
+>>>>>>> v1.11.0-wallet
 };
 
 function readBody(req: VercelRequest): Record<string, unknown> {
@@ -123,6 +157,20 @@ async function serveImage(req: VercelRequest, res: VercelResponse): Promise<void
     res.setHeader("X-Content-Type-Options", "nosniff");
     return void res.status(200).send(file.buffer);
   }
+<<<<<<< HEAD
+=======
+  const g = q1(req.query?.g);
+  if (g) {
+    const v = q1(req.query?.v);
+    if (g.length > 12 || v.length > 64 || !verifyGiftAnimSig(g, v, s)) return void res.status(403).end();
+    const anim = await loadGiftSticker(g, v);
+    if (!anim) return void res.status(404).end();
+    res.setHeader("Content-Type", anim.contentType);
+    res.setHeader("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return void res.status(200).send(anim.buffer);
+  }
+>>>>>>> v1.11.0-wallet
   res.status(400).end();
 }
 
@@ -147,17 +195,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!ACTIONS.has(action)) return void res.status(400).json({ error: "bad_action" });
 
     // Owner / admins get the monitoring panel instead of the social app (unless they ask for user mode).
+<<<<<<< HEAD
     const staff = action === "whoami" || action === "check_username" || action === "set_username" ? await authenticateStaff(body.initData) : null;
     if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
 
     const viewer = await authenticateViewer(body.initData);
     if (!viewer.ok) return void res.status(viewer.status).json({ error: viewer.error });
     const me = viewer.user;
+=======
+    const staff = action === "whoami" || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" ? await authenticateStaff(body.initData) : null;
+    if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
+
+    const viewer = await authenticateViewer(body.initData);
+    if (!viewer.ok) {
+      // A banned person is told how to reach support (a link, never the support id as text) — same ban as in the bot.
+      if (viewer.error === "banned") return void res.status(viewer.status).json({ error: "banned", support: await getSupportLink().catch(() => null) });
+      return void res.status(viewer.status).json({ error: viewer.error });
+    }
+    const me = viewer.user;
+    // Abuse protection (v1.16.3): per-person budget, counted in MongoDB so it holds across serverless instances.
+    // Generous (a person scrolling the app makes a few calls per second at most); fails OPEN if the limiter
+    // itself is unavailable so a limiter outage never locks everybody out.
+    try {
+      const rl = await checkRateLimit(me._id, "miniapp", MINIAPP_CALLS_PER_MINUTE, 60_000);
+      if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
+    } catch (err) {
+      console.error("[miniapp] rate limiter unavailable:", err instanceof Error ? err.name : "unknown");
+    }
+>>>>>>> v1.11.0-wallet
     const send = (data: unknown) => void res.status(200).json(present(data));
 
     if (action === "whoami") {
       if (!(await joinedOk(me))) return void res.status(403).json({ error: "join_required" });
+<<<<<<< HEAD
       return send({ role: "user", me: await getProfile(me, me.anonId), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null });
+=======
+      return send({ role: "user", me: await getProfile(me, me.anonId), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null, staff: !!staff?.ok });
+>>>>>>> v1.11.0-wallet
     }
 
     if (action === "photo") {
@@ -229,9 +303,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return send({ item: await createPost(me, body.image, body.caption, {}, { ratio: body.ratio, noComments: body.noComments, hideLikes: body.hideLikes }) });
         case "post_edit":
           return void res.status(200).json(await editPost(me, body.pid, { caption: body.caption, noComments: body.noComments, hideLikes: body.hideLikes }));
+<<<<<<< HEAD
         case "post_delete":
           await deletePost(me, body.pid);
           return void res.status(200).json({ ok: true });
+=======
+        case "post_delete": {
+          const gone = await deletePost(me, body.pid, { asStaff: !!staff?.ok });
+          if (gone && gone.ownerId !== me._id) {
+            await logAdminAction(me._id, "miniapp_post_delete", `${body.pid}:${gone.ownerId}`).catch(() => {});
+            await botApi().sendMessage(gone.ownerId, "⚠️ یکی از پست‌هات به‌خاطر نقض قوانین توسط مدیریت حذف شد.").catch(() => {});
+          }
+          return void res.status(200).json({ ok: true });
+        }
+        case "post_report":
+          return send(await reportPost(me, body.pid, body.reason));
+>>>>>>> v1.11.0-wallet
         case "like": {
           const pid = parsePid(body.pid);
           if (!pid) return void res.status(404).json({ error: "not_found" });
@@ -245,7 +332,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "comment_add":
           return send(await addComment(me, body.pid, body.text));
         case "comment_delete":
+<<<<<<< HEAD
           return void res.status(200).json(await deleteComment(me, body.commentId));
+=======
+          return void res.status(200).json(await deleteComment(me, body.commentId, { asStaff: !!staff?.ok }));
+>>>>>>> v1.11.0-wallet
 
         /* --------------------------------------------------------- follow */
         case "follow": {
@@ -269,8 +360,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "story_viewers":
           return send(await storyViewers(me, body.storyId));
         case "story_delete":
+<<<<<<< HEAD
           await deleteStory(me, body.storyId);
           return void res.status(200).json({ ok: true });
+=======
+        {
+          const gone = await deleteStory(me, body.storyId, { asStaff: !!staff?.ok });
+          if (gone && gone.ownerId !== me._id) await logAdminAction(me._id, "miniapp_story_delete", `${body.storyId}:${gone.ownerId}`).catch(() => {});
+          return void res.status(200).json({ ok: true });
+        }
+>>>>>>> v1.11.0-wallet
         case "story_archive":
           return send({ items: await storyArchive(me) });
         case "highlight": {
@@ -289,10 +388,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "gift_catalog": {
           const bal = (await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1 } }))?.relicBalance ?? 0;
           // `items` = what can be sent now; `all` also contains switched-off gifts so old gifts still render
+<<<<<<< HEAD
           return void res.status(200).json({ items: await giftCatalog(), all: await giftCatalog(true), balance: bal as number });
         }
         case "gift_send":
           return send(await sendGift(me, body.id, body.giftId, body.message, body.clientId));
+=======
+          const withAnim = (cards: Awaited<ReturnType<typeof giftCatalog>>) => cards.map((c) => ({ ...c, anim: c.anim ? { format: c.anim.format, url: giftAnimUrl(c.id, c.anim.v) } : null }));
+          return void res.status(200).json({ items: withAnim(await giftCatalog()), all: withAnim(await giftCatalog(true)), balance: bal as number });
+        }
+        case "gift_send":
+          return send(await sendGift(me, body.id, body.giftId, body.message, body.clientId, {}, body.anonymous));
+        case "gift_regift":
+          return send(await regiftGift(me, body.gift, body.id, body.message, body.anonymous));
+>>>>>>> v1.11.0-wallet
         case "gifts": {
           const r = await listReceivedGifts(me._id, body.id, typeof body.before === "number" ? body.before : undefined);
           return r ? send(r) : void res.status(404).json({ error: "not_found" });

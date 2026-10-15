@@ -2,14 +2,22 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
+<<<<<<< HEAD
 import { getUser, type UserDoc } from "../../db/models/user.js";
+=======
+import { type UserDoc } from "../../db/models/user.js";
+>>>>>>> v1.11.0-wallet
 import { declineChatRequestOnce, type ChatRequestDoc } from "../../db/models/chatRequest.js";
 import { acceptChatRequest } from "../../services/chatRequestAccept.js";
 import { botApi } from "../../services/miniapp.js";
 import { escapeHtml } from "../../utils/html.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
+<<<<<<< HEAD
 import { notifyMatch } from "./search.js";
 import type { Language } from "../../i18n/index.js";
+=======
+import { deliverSession } from "./matchDelivery.js";
+>>>>>>> v1.11.0-wallet
 
 const ACCEPT_PREFIX = "crq:a:";
 const DECLINE_PREFIX = "crq:d:";
@@ -94,10 +102,16 @@ export function registerChatRequest(composer: Composer<NavaContext>) {
     await ctx.answerCallbackQuery({ text: "✅ چت شروع شد" });
     await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
 
+<<<<<<< HEAD
     const other = result.fromId === me ? result.toId : result.fromId;
     const otherUser = await getUser(other);
     const otherLang: Language = otherUser?.languageCode ?? "fa";
     await notifyMatch(ctx, me, ctx.userLang, result.sessionId, { requestAccepted: true }).catch((e) => console.error("[chatRequest] notify acceptor failed:", e));
     await notifyMatch(ctx, other, otherLang, result.sessionId, { requestAccepted: true }).catch((e) => console.error("[chatRequest] notify requester failed:", e));
+=======
+    // Durable delivery (never throws): a transient Telegram failure is retried from the stored record, a
+    // person who blocked the bot gets the chat undone and both Relic refunded (see matchDelivery.ts).
+    await deliverSession(ctx.api, result.sessionId, [me, result.fromId === me ? result.toId : result.fromId]);
+>>>>>>> v1.11.0-wallet
   });
 }

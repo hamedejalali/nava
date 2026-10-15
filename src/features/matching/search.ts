@@ -3,12 +3,17 @@ import { GrammyError } from "grammy";
 import { waitUntil } from "@vercel/functions";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
+<<<<<<< HEAD
 import { getUser } from "../../db/models/user.js";
+=======
+>>>>>>> v1.11.0-wallet
 import { claimQueueEntry, queueEntryExists, SEARCH_TIMEOUT_MS, setQueueStatusMessageId, type SearchType } from "../../db/models/matchQueue.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { attemptMatchOrQueue, rescanQueued, type MatchAttemptResult } from "./engine.js";
 import { PARTNER_TYPE_CALLBACKS, SEARCH_CALLBACKS } from "./constants.js";
-import { buildChatControlsKeyboard } from "./chatUi.js";
+import { CHAT_REQUEST_ACCEPTED_TEXT, classifySendError, deliverSession } from "./matchDelivery.js";
+import { claimSearchNotice } from "../../db/models/searchNotice.js";
+import { sendTimeoutNotice, settleNotice } from "./searchNotices.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
@@ -22,6 +27,15 @@ const TYPE_BY_CALLBACK: Record<string, SearchType> = {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The person can not be reached at all (blocked the bot / account gone). */
+function isUnreachableError(err: unknown): boolean {
+  return classifySendError(err) === "unreachable";
+}
+/** A Telegram error that retrying the same request can never fix. */
+function isPermanentSendError(err: unknown): boolean {
+  return classifySendError(err) !== "transient";
+}
 
 function labelFor(lang: Language, searchType: SearchType): string {
   const t = dictionary(lang);
@@ -45,6 +59,7 @@ function countdownKeyboard(lang: Language, elapsedSeconds: number) {
   ]);
 }
 
+<<<<<<< HEAD
 /** Shown to BOTH people when a chat REQUEST (from the Mini App) is accepted — a random-search match
  *  keeps the "found you a partner" text, but here nobody was "found": the request was accepted. */
 export const CHAT_REQUEST_ACCEPTED_TEXT = "✅ درخواست چت قبول شد و الان می‌تونید باهم صحبت کنید.";
@@ -53,16 +68,32 @@ export async function notifyMatch(ctx: NavaContext, telegramId: number, lang: La
   const t = dictionary(lang);
   const found = opts.requestAccepted ? CHAT_REQUEST_ACCEPTED_TEXT : requireLocked(lang, "matching.foundPartner", t.matching.foundPartner);
   const warning = requireLocked(lang, "matching.trustWarning", t.matching.trustWarning);
+=======
+export { CHAT_REQUEST_ACCEPTED_TEXT };
+export { isUnreachableError, isPermanentSendError };
+>>>>>>> v1.11.0-wallet
 
-  await ctx.api.sendMessage(telegramId, found);
-  // The three chat controls are a persistent reply keyboard now (v1.7.0 —
-  // see chatUi.ts), attached to this same message; Telegram keeps it
-  // showing at the bottom of the chat from here on, not just on this one
-  // message.
-  await ctx.api.sendMessage(telegramId, `<blockquote>${warning}</blockquote>`, {
-    parse_mode: "HTML",
-    reply_markup: buildChatControlsKeyboard(lang, false),
-  });
+/** Shared by the search handler and the countdown: cleans the status messages and delivers the "connected"
+ *  notice to both users.
+ *
+ *  The match is ALREADY committed (both charged, session created, and one durable delivery record per
+ *  person written in the same transaction) when this runs, so it must never throw. Each person is handled
+ *  independently and in parallel (see matchDelivery.ts): a transient failure for one is retried later from
+ *  the durable record (webhook traffic / cron) without touching the chat or the money; a person who can never
+ *  be reached (blocked the bot) gets the match undone ATOMICALLY with both Relic refunded. */
+async function announceMatch(api: NavaContext["api"], user: { _id: number }, _lang: Language, result: Extract<MatchAttemptResult, { status: "matched" }>, ownStatus?: { chatId: number; messageId: number }) {
+  try {
+    if (ownStatus) await api.deleteMessage(ownStatus.chatId, ownStatus.messageId).catch(() => {});
+    if (result.partnerStatusMessageId) await api.deleteMessage(result.partnerId, result.partnerStatusMessageId).catch(() => {});
+    await deliverSession(api, result.sessionId, [user._id, result.partnerId]);
+  } catch (err) {
+    console.error("[match] announce failed after commit:", err instanceof Error ? err.name : "unknown");
+  }
+}
+
+export interface CountdownOptions {
+  totalMs?: number; // default SEARCH_TIMEOUT_MS
+  tickMs?: number; // default 2000
 }
 
 /** Shared by the search handler and the countdown: tells both users and cleans their status messages. */
@@ -112,7 +143,11 @@ export async function runCountdown(
     if (Date.now() >= deadline) break;
 
     try {
+<<<<<<< HEAD
       if (!(await queueEntryExists(user._id))) return; // matched or cancelled — whoever removed it already answered
+=======
+      if (!(await queueEntryExists(user._id, { createdBefore: new Date(startedAt) }))) return; // matched or cancelled — whoever removed it already answered
+>>>>>>> v1.11.0-wallet
     } catch (err) {
       console.error("[search] queue check failed mid-countdown (will retry next tick):", err instanceof Error ? err.name : "unknown");
       continue;
@@ -124,7 +159,11 @@ export async function runCountdown(
         await announceMatch(api, user, lang, r, { chatId, messageId: statusMessageId });
         return;
       }
+<<<<<<< HEAD
       if (r.status === "matched_elsewhere") return;
+=======
+      if (r.status === "matched_elsewhere" || r.status === "busy") return;
+>>>>>>> v1.11.0-wallet
     } catch (err) {
       console.error("[search] rescan failed (will retry next tick):", err instanceof Error ? err.name : "unknown");
     }
@@ -144,15 +183,32 @@ export async function runCountdown(
   // Deadline reached: exactly one party gets to remove the entry; only that party declares the timeout.
   let claimed;
   try {
+<<<<<<< HEAD
     claimed = await claimQueueEntry(user._id);
+=======
+    claimed = await claimQueueEntry(user._id, { createdBefore: new Date(startedAt), forTimeout: true });
+>>>>>>> v1.11.0-wallet
   } catch (err) {
     console.error("[search] timeout claim failed (daily cron will clean up):", err instanceof Error ? err.name : "unknown");
     return;
   }
   if (!claimed) return;
   await api.deleteMessage(chatId, statusMessageId).catch(() => {});
+<<<<<<< HEAD
   const t = dictionary(lang);
   await api.sendMessage(user._id, t.errors.searchTimedOut, { reply_markup: buildMainMenuReplyKeyboard(lang) }).catch(() => {});
+=======
+  // The durable notice record decides who delivers: if the recovery pass already took it, we stay silent.
+  let notice: Awaited<ReturnType<typeof claimSearchNotice>> = { status: "none" };
+  try {
+    notice = await claimSearchNotice(user._id, claimed.createdAt);
+  } catch (err) {
+    console.error("[search] could not claim timeout notice (sending without it):", err instanceof Error ? err.name : "unknown");
+  }
+  if (notice.status === "taken") return;
+  const res = await sendTimeoutNotice(api, user._id, lang);
+  if (notice.status === "claimed") await settleNotice(notice.notice, res).catch(() => {});
+>>>>>>> v1.11.0-wallet
 }
 
 export function registerSearch(composer: Composer<NavaContext>) {
@@ -199,6 +255,14 @@ export function registerSearch(composer: Composer<NavaContext>) {
       await announceMatch(ctx.api, user, ctx.userLang, result);
       return;
     }
+<<<<<<< HEAD
+=======
+    if (result.status === "busy") {
+      const t = dictionary(ctx.userLang);
+      await ctx.reply(t.errors.alreadyInChat);
+      return;
+    }
+>>>>>>> v1.11.0-wallet
     if (result.status === "matched_elsewhere") {
       // The other searcher's invocation created the session and notifies both of us.
       await deletePreviousPrompt(ctx);

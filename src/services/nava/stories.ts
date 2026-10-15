@@ -112,7 +112,11 @@ export async function markStoryViewed(viewer: any, storyId: unknown): Promise<bo
   const stories = await col<StoryDoc>(C.stories);
   const s = await stories.findOne({ _id: storyId } as any);
   if (!s) return false;
+<<<<<<< HEAD
   const hidden = await hiddenOwnerIds(viewer._id);
+=======
+  const hidden = await hiddenOwnerIds(viewer._id, { direct: true });
+>>>>>>> v1.11.0-wallet
   if (hidden.includes(s.ownerId)) return false;
   if (s.ownerId === viewer._id) return true;
   const views = await col(C.storyViews);
@@ -139,16 +143,27 @@ export async function storyViewers(owner: any, storyId: unknown): Promise<{ coun
   return { count, viewers: rows.map((r: any) => by.get(r.viewerId)).filter(Boolean) as Brief[] };
 }
 
+<<<<<<< HEAD
 export async function deleteStory(owner: any, storyId: unknown): Promise<void> {
   if (!isId(storyId)) throw new SocialError("not_found");
   const stories = await col<StoryDoc>(C.stories);
   const s = await stories.findOne({ _id: storyId, ownerId: owner._id } as any);
+=======
+export async function deleteStory(owner: any, storyId: unknown, opts: { asStaff?: boolean } = {}): Promise<{ ownerId: number } | void> {
+  if (!isId(storyId)) throw new SocialError("not_found");
+  const stories = await col<StoryDoc>(C.stories);
+  const s = await stories.findOne(opts.asStaff ? ({ _id: storyId } as any) : ({ _id: storyId, ownerId: owner._id } as any));
+>>>>>>> v1.11.0-wallet
   if (!s) throw new SocialError("not_found");
   await stories.deleteOne({ _id: s._id } as any);
   await (await col(C.storyViews)).deleteMany({ storyId: s._id });
   // remove it from any highlight; an emptied highlight disappears
   const hl = await col<HighlightDoc>(C.highlights);
+<<<<<<< HEAD
   const holders = await hl.find({ ownerId: owner._id, storyIds: s._id } as any).toArray();
+=======
+  const holders = await hl.find({ ownerId: s.ownerId, storyIds: s._id } as any).toArray();
+>>>>>>> v1.11.0-wallet
   const mediaToDelete: string[] = [s.mediaId];
   for (const h of holders) {
     const left = h.storyIds.filter((x) => x !== s._id);
@@ -160,6 +175,10 @@ export async function deleteStory(owner: any, storyId: unknown): Promise<void> {
     }
   }
   await deleteMedia(mediaToDelete);
+<<<<<<< HEAD
+=======
+  return { ownerId: s.ownerId };
+>>>>>>> v1.11.0-wallet
 }
 
 /** Owner's archive: every story of the last 30 days (including expired ones). */
@@ -169,6 +188,7 @@ export async function storyArchive(owner: any): Promise<StoryView[]> {
   return docs.map((d) => toView(d, true));
 }
 
+<<<<<<< HEAD
 /** Daily housekeeping (called from the existing daily cron): drops archived stories that are
  *  older than 30 days and are not part of a highlight. Never throws. */
 export async function cleanupStories(now = new Date(), batch = 200): Promise<number> {
@@ -186,6 +206,55 @@ export async function cleanupStories(now = new Date(), batch = 200): Promise<num
     await (await col(C.storyViews)).deleteMany({ storyId: { $in: ids } });
     await deleteMedia(drop.map((s) => s.mediaId));
     return drop.length;
+=======
+/** Which of these story ids are kept by a highlight (one query per page, not one per story). */
+async function heldByHighlights(ids: string[]): Promise<Set<string>> {
+  const held = new Set<string>();
+  if (!ids.length) return held;
+  const hl = await col<HighlightDoc>(C.highlights);
+  const docs = await hl.find({ storyIds: { $in: ids } } as any).project({ storyIds: 1 }).toArray();
+  const wanted = new Set(ids);
+  for (const d of docs as any[]) for (const sid of d.storyIds ?? []) if (wanted.has(sid)) held.add(sid);
+  return held;
+}
+
+/** Daily housekeeping (called from the existing daily cron): drops archived stories that are
+ *  older than 30 days and are not part of a highlight. Never throws.
+ *
+ *  Walks the expired stories oldest-first in pages (keyset on createdAt/_id) and keeps going past pages
+ *  that are entirely highlighted, so a batch of retained stories can never starve the older-than-30-days
+ *  ones behind it; work per run stays bounded (`batch` deletions, at most `maxPages` pages). */
+export async function cleanupStories(now = new Date(), batch = 200, maxPages = 25): Promise<number> {
+  try {
+    const stories = await col<StoryDoc>(C.stories);
+    const cutoff = new Date(now.getTime() - ARCHIVE_MS);
+    const drop: StoryDoc[] = [];
+    let after: { createdAt: Date; _id: string } | null = null;
+
+    for (let page = 0; page < maxPages && drop.length < batch; page++) {
+      const filter: any = after
+        ? { $or: [{ createdAt: { $gt: after.createdAt, $lt: cutoff } }, { createdAt: after.createdAt, _id: { $gt: after._id } }] }
+        : { createdAt: { $lt: cutoff } };
+      const rows = await stories.find(filter).sort({ createdAt: 1, _id: 1 }).limit(batch).toArray();
+      if (!rows.length) break;
+      const held = await heldByHighlights(rows.map((s) => s._id));
+      for (const s of rows) if (!held.has(s._id) && drop.length < batch) drop.push(s);
+      const last = rows[rows.length - 1]!;
+      after = { createdAt: last.createdAt, _id: last._id };
+      if (rows.length < batch) break;
+    }
+    if (!drop.length) return 0;
+
+    // A story may have been added to a highlight while we were paging: re-check just before deleting.
+    const lateHeld = await heldByHighlights(drop.map((s) => s._id));
+    const finalDrop = drop.filter((s) => !lateHeld.has(s._id));
+    if (!finalDrop.length) return 0;
+    const ids = finalDrop.map((s) => s._id);
+    await stories.deleteMany({ _id: { $in: ids } } as any);
+    await (await col(C.storyViews)).deleteMany({ storyId: { $in: ids } });
+    await deleteMedia(finalDrop.map((s) => s.mediaId));
+    return finalDrop.length;
+>>>>>>> v1.11.0-wallet
   } catch (err) {
     console.error("[navagram] story cleanup failed:", err instanceof Error ? err.message : "unknown");
     return 0;

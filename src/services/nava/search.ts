@@ -30,12 +30,25 @@ export async function explore(viewerId: number, offsetRaw?: unknown): Promise<{ 
   const page = docs.slice(0, EXPLORE_PAGE);
   const briefs = await toBriefs(viewerId, page);
 
+<<<<<<< HEAD
   // latest post per user (one query for the whole page)
   const latest = new Map<number, string>();
   if (page.length) {
     const posts = await col<PostDoc>(C.posts);
     const rows = await posts.find({ ownerId: { $in: page.map((p: any) => p._id) } } as any, { projection: { ownerId: 1, mediaId: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(page.length * 6).toArray();
     for (const r of rows) if (!latest.has(r.ownerId)) latest.set(r.ownerId, r.mediaId);
+=======
+  // Latest post of EACH user on the page: one indexed "newest first, limit 1" lookup per user (at most
+  // EXPLORE_PAGE of them). The old single query with a fixed row limit let a very active user's posts fill
+  // the whole limit so other users on the page lost their tile picture.
+  const latest = new Map<number, string>();
+  if (page.length) {
+    const posts = await col<PostDoc>(C.posts);
+    const rows = await Promise.all(
+      page.map((u: any) => posts.find({ ownerId: u._id } as any, { projection: { ownerId: 1, mediaId: 1 } }).sort({ createdAt: -1 }).limit(1).toArray()),
+    );
+    for (const [r] of rows) if (r) latest.set(r.ownerId, r.mediaId);
+>>>>>>> v1.11.0-wallet
   }
   const items = briefs.map((b, i) => ({ ...b, mediaId: latest.get(page[i]._id) ?? null, tilePv: b.pv }));
   return { items, hasMore: docs.length > EXPLORE_PAGE, next: offset + page.length };

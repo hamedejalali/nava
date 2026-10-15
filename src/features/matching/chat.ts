@@ -2,9 +2,9 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { otherParticipant, endSessionOnce, incrementMessageCount, toggleSafeChat } from "../../db/models/chatSession.js";
-import { setActiveChatSession, getUser } from "../../db/models/user.js";
-import { refundChatCostOnce } from "../../db/models/relic.js";
+import { otherParticipant, incrementMessageCount, toggleSafeChat } from "../../db/models/chatSession.js";
+import { getUser } from "../../db/models/user.js";
+import { closeSessionAtomic } from "../../db/models/sessionClose.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { buildMainMenuReplyKeyboard, matchMainMenuAction } from "../menu/mainMenu.js";
 import { textEmoji } from "../../config/emojis.js";
@@ -12,6 +12,7 @@ import { buildChatControlsKeyboard, matchChatControlAction } from "./chatUi.js";
 import { showPartnerProfile } from "./profile.js";
 import { getActiveSessionAndPartner } from "./relayShared.js";
 import { recordRelayedMessage } from "../../db/models/chatRelayMap.js";
+import { containsTelegramContact, CONTACT_FORBIDDEN_TEXT } from "../../utils/contactFilter.js";
 
 /** Every text message from a user with an active chat session is relayed
  *  verbatim to their partner, never touching any onboarding/admin handler.
@@ -28,6 +29,13 @@ export function registerChatRelay(composer: Composer<NavaContext>) {
     const resolved = await getActiveSessionAndPartner(ctx);
     if (!resolved) return next();
     const { session, partnerId } = resolved;
+
+    // Sharing a Telegram @username / t.me link is forbidden in anonymous chats: the message is NOT relayed
+    // (and does not count as a chat message) and the sender gets a warning.
+    if (containsTelegramContact(ctx.message.text)) {
+      await ctx.reply(CONTACT_FORBIDDEN_TEXT).catch(() => {});
+      return;
+    }
 
     await incrementMessageCount(session._id);
 
@@ -82,17 +90,19 @@ async function doEndChat(ctx: NavaContext) {
   const sessionId = ctx.dbUser?.activeChatSessionId;
   if (!sessionId) return;
 
-  const result = await endSessionOnce(sessionId, ctx.from!.id);
+  // ONE transaction: end the session, free both people and (for a chat that never really got going: fewer
+  // than 4 messages in total) refund the OTHER participant. A DB failure rolls everything back instead of
+  // leaving an ended session with a missing refund or a user still "in" a finished chat.
+  const me = ctx.from!.id;
+  const result = await closeSessionAtomic(sessionId, me, (sess) => {
+    const other = otherParticipant(sess, me);
+    return other && (sess.messageCount ?? 0) < 4 ? [other] : [];
+  });
   if (result.status !== "ended") return; // already ended (duplicate tap) — nothing more to do
 
   const { session } = result;
-  const partnerId = otherParticipant(session, ctx.from!.id)!;
+  const partnerId = otherParticipant(session, me)!;
 
-  // Clear both sides' "in an active chat" pointer.
-  await setActiveChatSession(session.userA, undefined);
-  await setActiveChatSession(session.userB, undefined);
-
-  // The user who ended the chat gets no refund; the OTHER user does.
   const ender = ctx.dbUser!;
   const partner = await getUser(partnerId);
   const partnerLang: Language = partner?.languageCode ?? "fa";
@@ -111,19 +121,11 @@ async function doEndChat(ctx: NavaContext) {
     })
     .catch(() => {});
 
-  // Refund only applies to a chat that never really got going: fewer
-  // than 4 messages total between BOTH participants. A chat with real
-  // conversation doesn't get the 1-Relic cashback even though the OTHER
-  // person ended it.
-  const totalMessages = session.messageCount ?? 0;
-  if (totalMessages < 4) {
-    const refunded = await refundChatCostOnce(partnerId, sessionId);
-    if (refunded) {
-      const relicEmoji = textEmoji("RELIC", "💰");
-      const cashbackTemplate = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
-      const cashbackText = cashbackTemplate.split("{{RELIC_EMOJI}}").join(relicEmoji);
-      await ctx.api.sendMessage(partnerId, cashbackText).catch(() => {});
-    }
+  if (result.refunded.includes(partnerId)) {
+    const relicEmoji = textEmoji("RELIC", "💰");
+    const cashbackTemplate = requireLocked(partnerLang, "matching.chatCashback", tPartner.matching.chatCashback);
+    const cashbackText = cashbackTemplate.split("{{RELIC_EMOJI}}").join(relicEmoji);
+    await ctx.api.sendMessage(partnerId, cashbackText).catch(() => {});
   }
 
   // Ending a chat previously left BOTH sides with no keyboard at all
@@ -156,7 +158,9 @@ export function registerChatControls(composer: Composer<NavaContext>) {
     // ended on the OTHER side but this client hasn't refreshed yet).
     if (matchMainMenuAction(ctx.message.text.trim())) return next();
 
-    const action = matchChatControlAction(ctx.message.text.trim(), ctx.userLang);
+    // "/end" is the keyboard-independent way out: if Telegram refused every chat-control keyboard (see
+    // matchDelivery.ts), the person must still be able to leave the chat.
+    const action = /^\/end(@\w+)?$/i.test(ctx.message.text.trim()) ? "endChat" : matchChatControlAction(ctx.message.text.trim(), ctx.userLang);
     if (!action) return next();
 
     if (action === "endChat") {

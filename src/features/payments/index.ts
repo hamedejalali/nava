@@ -6,24 +6,43 @@ import { creditPurchaseOnce } from "../../db/models/relic.js";
 import { getPackages } from "../../db/models/pricing.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
 import { env } from "../../config/env.js";
+import { getOrCreateStarsOrder, getStarsOrder, markStarsOrderFulfilled, recordStarsPaymentException, type StarsOrderDoc } from "../../db/models/starsOrder.js";
 
 const OPEN_CB = { stars: "relic:open:stars", gateway: "relic:open:gateway" };
 const BUY_STARS_PREFIX = "relic:buy:stars:"; // + package index
 const BUY_GATEWAY_PREFIX = "relic:buy:gateway:"; // + package index
 
-/** Payload format: "relic:<packageIndex>". The backend always resolves
- *  packageIndex -> the actual Stars/Relic amounts from the CURRENT
- *  admin-configured pricing (see src/db/models/pricing.ts) at the moment
- *  of purchase — the client-visible payload is only ever an index, never
- *  a trusted price, per "never trust client-provided prices". A pricing
- *  change between "show the button" and "tap the button" is fine: the
- *  price actually charged always matches whatever's live right now. */
-function encodePayload(index: number): string {
-  return `relic:${index}`;
+/** Payload formats:
+ *   "relic:o:<orderId>"  (current) — points at the persisted order (package + price as OFFERED at invoice time);
+ *   "relic:<packageIndex>" (legacy, invoices created by older versions) — resolved from the live package list.
+ *  The payload is never a trusted price: amounts are always checked against the order / package record. */
+function encodePayload(orderId: string): string {
+  return `relic:o:${orderId}`;
+}
+function decodeOrderId(payload: string): string | null {
+  const match = /^relic:o:([A-Za-z0-9_-]{6,40})$/.exec(payload);
+  return match ? match[1]! : null;
 }
 function decodeIndex(payload: string): number | null {
   const match = /^relic:(\d+)$/.exec(payload);
   return match ? Number(match[1]) : null;
+}
+
+type Resolved = { ok: true; relic: number; price: number; orderId?: string } | { ok: false; reason: string; orderId?: string };
+
+/** Resolves what a Stars payload is supposed to be worth: from the original order when there is one. */
+async function resolveStarsPayload(payload: string): Promise<Resolved> {
+  const orderId = decodeOrderId(payload);
+  if (orderId) {
+    const order: StarsOrderDoc | null = await getStarsOrder(orderId);
+    if (!order) return { ok: false, reason: "unknown_order", orderId };
+    return { ok: true, relic: order.relic, price: order.price, orderId };
+  }
+  const index = decodeIndex(payload);
+  if (index === null) return { ok: false, reason: "bad_payload" };
+  const pkg = (await getPackages("stars"))[index];
+  if (!pkg) return { ok: false, reason: "legacy_package_missing" };
+  return { ok: true, relic: pkg.relic, price: pkg.price };
 }
 
 export async function showRelicScreen(ctx: NavaContext): Promise<void> {
@@ -80,13 +99,14 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
     }
 
     await ctx.answerCallbackQuery();
+    const order = await getOrCreateStarsOrder(ctx.from!.id, index, pkg);
     await ctx.api.sendInvoice(
       ctx.chat!.id,
-      `${pkg.relic} رلیک`,
-      `خرید ${pkg.relic} رلیک برای نوا`,
-      encodePayload(index),
+      `${order.relic} رلیک`,
+      `خرید ${order.relic} رلیک برای نوا`,
+      encodePayload(order._id),
       "XTR",
-      [{ label: `${pkg.relic} رلیک`, amount: pkg.price }],
+      [{ label: `${order.relic} رلیک`, amount: order.price }],
       { provider_token: "" }
     );
   });
@@ -99,11 +119,11 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
 
 export function registerStarsCheckout(composer: Composer<NavaContext>) {
   composer.on("pre_checkout_query", async (ctx) => {
-    const index = decodeIndex(ctx.preCheckoutQuery.invoice_payload);
-    const packages = await getPackages("stars");
-    const pkg = index !== null ? packages[index] : undefined;
-
-    if (!pkg || ctx.preCheckoutQuery.total_amount !== pkg.price || ctx.preCheckoutQuery.currency !== "XTR") {
+    const q = ctx.preCheckoutQuery;
+    const r = await resolveStarsPayload(q.invoice_payload);
+    // The invoice must still be a real one we created and the amount/currency must match what was OFFERED
+    // (an order stays payable even if the live price list changed afterwards — the user sees what they pay).
+    if (!r.ok || q.total_amount !== r.price || q.currency !== "XTR") {
       await ctx.answerPreCheckoutQuery(false, "این پکیج دیگه معتبر نیست، لطفاً دوباره تلاش کن.");
       return;
     }
@@ -112,21 +132,49 @@ export function registerStarsCheckout(composer: Composer<NavaContext>) {
 
   composer.on("message:successful_payment", async (ctx) => {
     const payment = ctx.message.successful_payment;
-    const index = decodeIndex(payment.invoice_payload);
-    const packages = await getPackages("stars");
-    const pkg = index !== null ? packages[index] : undefined;
+    const chargeId = typeof payment.telegram_payment_charge_id === "string" ? payment.telegram_payment_charge_id : "";
+    const resolved = chargeId ? await resolveStarsPayload(payment.invoice_payload) : ({ ok: false, reason: "missing_charge_id" } as Resolved);
 
-    if (!pkg || payment.total_amount !== pkg.price) {
-      // Should be unreachable given the pre_checkout_query guard, but
-      // never credit an amount we haven't independently verified.
-      console.error("[payments] successful_payment did not match a known package - not crediting.", payment);
+    const valid =
+      resolved.ok &&
+      payment.currency === "XTR" &&
+      Number.isInteger(payment.total_amount) &&
+      payment.total_amount > 0 &&
+      payment.total_amount === resolved.price &&
+      Number.isInteger(resolved.relic) &&
+      resolved.relic > 0;
+
+    if (!resolved.ok || !valid) {
+      // Never credit an amount we cannot verify — but never lose the payment either: keep a durable record
+      // (idempotent by charge id) for manual reconciliation and tell the owner. No payload/token is logged.
+      const reason = !resolved.ok ? resolved.reason : "amount_or_currency_mismatch";
+      console.error("[payments] successful_payment could not be verified; recorded for review:", reason);
+      if (chargeId) {
+        const firstTime = await recordStarsPaymentException({
+          _id: chargeId,
+          userId: ctx.from!.id,
+          amount: payment.total_amount,
+          currency: String(payment.currency),
+          reason,
+          orderId: "orderId" in resolved ? resolved.orderId : undefined,
+        });
+        if (firstTime && env.OWNER_ID) {
+          await ctx.api
+            .sendMessage(env.OWNER_ID, `⚠️ پرداخت Stars تأییدنشده\nکاربر: ${ctx.from!.id}\nمبلغ: ${payment.total_amount} ${payment.currency}\nدلیل: ${reason}\nکد پرداخت: ${chargeId}`)
+            .catch(() => {});
+        }
+      }
+      await ctx.reply("پرداختت دریافت شد، ولی نیاز به بررسی دستی داره. به‌زودی با پشتیبانی نتیجه رو اطلاع می‌دیم 🙏").catch(() => {});
       return;
     }
 
-    const credited = await creditPurchaseOnce(ctx.from!.id, payment.telegram_payment_charge_id, pkg.relic, pkg.price);
+    // Credit exactly what the ORIGINAL order promised. Idempotent by charge id (Telegram retries are safe);
+    // any DB error propagates -> webhook answers 500 -> Telegram redelivers -> fulfilment resumes.
+    const credited = await creditPurchaseOnce(ctx.from!.id, chargeId, resolved.relic, resolved.price);
+    if (resolved.orderId) await markStarsOrderFulfilled(resolved.orderId, chargeId);
     if (!credited) return; // duplicate delivery, already credited
 
     const relicEmoji = textEmoji("RELIC", "👑");
-    await ctx.reply(`✅ ${pkg.relic} ${relicEmoji} رلیک به حساب شما اضافه شد. ممنون از خریدت 🙏`);
+    await ctx.reply(`✅ ${resolved.relic} ${relicEmoji} رلیک به حساب شما اضافه شد. ممنون از خریدت 🙏`);
   });
 }
