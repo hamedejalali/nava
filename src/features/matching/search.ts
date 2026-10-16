@@ -3,10 +3,6 @@ import { GrammyError } from "grammy";
 import { waitUntil } from "@vercel/functions";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
-<<<<<<< HEAD
-import { getUser } from "../../db/models/user.js";
-=======
->>>>>>> v1.11.0-wallet
 import { claimQueueEntry, queueEntryExists, SEARCH_TIMEOUT_MS, setQueueStatusMessageId, type SearchType } from "../../db/models/matchQueue.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { attemptMatchOrQueue, rescanQueued, type MatchAttemptResult } from "./engine.js";
@@ -59,19 +55,8 @@ function countdownKeyboard(lang: Language, elapsedSeconds: number) {
   ]);
 }
 
-<<<<<<< HEAD
-/** Shown to BOTH people when a chat REQUEST (from the Mini App) is accepted — a random-search match
- *  keeps the "found you a partner" text, but here nobody was "found": the request was accepted. */
-export const CHAT_REQUEST_ACCEPTED_TEXT = "✅ درخواست چت قبول شد و الان می‌تونید باهم صحبت کنید.";
-
-export async function notifyMatch(ctx: NavaContext, telegramId: number, lang: Language, sessionId: string, opts: { requestAccepted?: boolean } = {}) {
-  const t = dictionary(lang);
-  const found = opts.requestAccepted ? CHAT_REQUEST_ACCEPTED_TEXT : requireLocked(lang, "matching.foundPartner", t.matching.foundPartner);
-  const warning = requireLocked(lang, "matching.trustWarning", t.matching.trustWarning);
-=======
 export { CHAT_REQUEST_ACCEPTED_TEXT };
 export { isUnreachableError, isPermanentSendError };
->>>>>>> v1.11.0-wallet
 
 /** Shared by the search handler and the countdown: cleans the status messages and delivers the "connected"
  *  notice to both users.
@@ -89,21 +74,6 @@ async function announceMatch(api: NavaContext["api"], user: { _id: number }, _la
   } catch (err) {
     console.error("[match] announce failed after commit:", err instanceof Error ? err.name : "unknown");
   }
-}
-
-export interface CountdownOptions {
-  totalMs?: number; // default SEARCH_TIMEOUT_MS
-  tickMs?: number; // default 2000
-}
-
-/** Shared by the search handler and the countdown: tells both users and cleans their status messages. */
-async function announceMatch(api: NavaContext["api"], user: { _id: number }, lang: Language, result: Extract<MatchAttemptResult, { status: "matched" }>, ownStatus?: { chatId: number; messageId: number }) {
-  if (ownStatus) await api.deleteMessage(ownStatus.chatId, ownStatus.messageId).catch(() => {});
-  if (result.partnerStatusMessageId) await api.deleteMessage(result.partnerId, result.partnerStatusMessageId).catch(() => {});
-  const partner = await getUser(result.partnerId);
-  const partnerLang: Language = partner?.languageCode ?? "fa";
-  await notifyMatch({ api } as NavaContext, user._id, lang, result.sessionId);
-  await notifyMatch({ api } as NavaContext, result.partnerId, partnerLang, result.sessionId);
 }
 
 export interface CountdownOptions {
@@ -143,11 +113,7 @@ export async function runCountdown(
     if (Date.now() >= deadline) break;
 
     try {
-<<<<<<< HEAD
-      if (!(await queueEntryExists(user._id))) return; // matched or cancelled — whoever removed it already answered
-=======
       if (!(await queueEntryExists(user._id, { createdBefore: new Date(startedAt) }))) return; // matched or cancelled — whoever removed it already answered
->>>>>>> v1.11.0-wallet
     } catch (err) {
       console.error("[search] queue check failed mid-countdown (will retry next tick):", err instanceof Error ? err.name : "unknown");
       continue;
@@ -159,11 +125,7 @@ export async function runCountdown(
         await announceMatch(api, user, lang, r, { chatId, messageId: statusMessageId });
         return;
       }
-<<<<<<< HEAD
-      if (r.status === "matched_elsewhere") return;
-=======
       if (r.status === "matched_elsewhere" || r.status === "busy") return;
->>>>>>> v1.11.0-wallet
     } catch (err) {
       console.error("[search] rescan failed (will retry next tick):", err instanceof Error ? err.name : "unknown");
     }
@@ -183,21 +145,13 @@ export async function runCountdown(
   // Deadline reached: exactly one party gets to remove the entry; only that party declares the timeout.
   let claimed;
   try {
-<<<<<<< HEAD
-    claimed = await claimQueueEntry(user._id);
-=======
     claimed = await claimQueueEntry(user._id, { createdBefore: new Date(startedAt), forTimeout: true });
->>>>>>> v1.11.0-wallet
   } catch (err) {
     console.error("[search] timeout claim failed (daily cron will clean up):", err instanceof Error ? err.name : "unknown");
     return;
   }
   if (!claimed) return;
   await api.deleteMessage(chatId, statusMessageId).catch(() => {});
-<<<<<<< HEAD
-  const t = dictionary(lang);
-  await api.sendMessage(user._id, t.errors.searchTimedOut, { reply_markup: buildMainMenuReplyKeyboard(lang) }).catch(() => {});
-=======
   // The durable notice record decides who delivers: if the recovery pass already took it, we stay silent.
   let notice: Awaited<ReturnType<typeof claimSearchNotice>> = { status: "none" };
   try {
@@ -208,7 +162,6 @@ export async function runCountdown(
   if (notice.status === "taken") return;
   const res = await sendTimeoutNotice(api, user._id, lang);
   if (notice.status === "claimed") await settleNotice(notice.notice, res).catch(() => {});
->>>>>>> v1.11.0-wallet
 }
 
 export function registerSearch(composer: Composer<NavaContext>) {
@@ -255,14 +208,11 @@ export function registerSearch(composer: Composer<NavaContext>) {
       await announceMatch(ctx.api, user, ctx.userLang, result);
       return;
     }
-<<<<<<< HEAD
-=======
     if (result.status === "busy") {
       const t = dictionary(ctx.userLang);
       await ctx.reply(t.errors.alreadyInChat);
       return;
     }
->>>>>>> v1.11.0-wallet
     if (result.status === "matched_elsewhere") {
       // The other searcher's invocation created the session and notifies both of us.
       await deletePreviousPrompt(ctx);

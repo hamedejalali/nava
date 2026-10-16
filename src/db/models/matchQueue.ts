@@ -81,41 +81,27 @@ export async function removeQueueEntry(telegramId: number): Promise<void> {
 export async function setQueueStatusMessageId(telegramId: number, messageId: number): Promise<boolean> {
   const col = await queueCollection();
   const r = await col.updateOne({ _id: telegramId }, { $set: { statusMessageId: messageId } });
-<<<<<<< HEAD
-=======
   if (r.matchedCount === 1) {
     // remember it on the durable timeout notice too, so a recovery pass can still delete the status message
     const db = await getDb();
     await db.collection<any>("search_notices").updateMany({ userId: telegramId, state: "armed" }, { $set: { statusMessageId: messageId } }).catch(() => {});
   }
->>>>>>> v1.11.0-wallet
   return r.matchedCount === 1;
 }
 
 /** Existence check that deliberately IGNORES `expiresAt`: the countdown owns the deadline itself, and an
  *  entry whose TTL moment just passed must still be handled (timeout message), never silently dropped. */
-<<<<<<< HEAD
-export async function queueEntryExists(telegramId: number): Promise<boolean> {
-  const col = await queueCollection();
-  return (await col.countDocuments({ _id: telegramId })) > 0;
-=======
 export async function queueEntryExists(telegramId: number, opts: { createdBefore?: Date } = {}): Promise<boolean> {
   const col = await queueCollection();
   const filter: Record<string, unknown> = { _id: telegramId };
   // A countdown only owns the entry that existed when IT started; a newer search by the same user is not its business.
   if (opts.createdBefore) filter.createdAt = { $lte: opts.createdBefore };
   return (await col.countDocuments(filter)) > 0;
->>>>>>> v1.11.0-wallet
 }
 
 /** Atomically removes the user's queue entry and tells the caller whether IT removed it. Whoever gets
  *  the document back "owns" the outcome (cancel / timeout), so cancel-vs-match and timeout-vs-match
  *  races can never produce two different answers. */
-<<<<<<< HEAD
-export async function claimQueueEntry(telegramId: number): Promise<MatchQueueDoc | null> {
-  const col = await queueCollection();
-  return col.findOneAndDelete({ _id: telegramId });
-=======
 export async function claimQueueEntry(
   telegramId: number,
   opts: { createdBefore?: Date; forTimeout?: boolean } = {},
@@ -151,7 +137,6 @@ export async function finishExpiredQueueEntry(entry: MatchQueueDoc): Promise<voi
   const col = await queueCollection();
   await col.updateOne({ _id: entry._id, createdAt: entry.createdAt }, { $set: { timeoutNotified: true } });
   await col.deleteOne({ _id: entry._id, createdAt: entry.createdAt });
->>>>>>> v1.11.0-wallet
 }
 
 /** For the timeout-notification cron job: entries whose deadline already

@@ -6,15 +6,11 @@ import { findExpiredUnnotified, leaseExpiredQueueEntry, finishExpiredQueueEntry 
 import { getUser } from "../../src/db/models/user.js";
 import { dictionary } from "../../src/i18n/index.js";
 import { maybeRunAlertCheck, defaultSend } from "../../src/services/monitor.js";
-<<<<<<< HEAD
-import { cleanupStories } from "../../src/services/nava/stories.js";
-=======
 import { processSearchNotices } from "../../src/features/matching/searchNotices.js";
 import { noticeExistsFor } from "../../src/db/models/searchNotice.js";
 import { processDueDeliveries } from "../../src/features/matching/matchDelivery.js";
 import { cleanupStories } from "../../src/services/nava/stories.js";
 import { processDueGiftEvents } from "../../src/services/nava/giftEvents.js";
->>>>>>> v1.11.0-wallet
 
 /**
  * MongoDB's TTL index eventually deletes expired match_queue documents on
@@ -55,15 +51,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("[cron] story cleanup failed:", err instanceof Error ? err.name : "unknown");
   }
 
-<<<<<<< HEAD
-  // Backstop alert evaluation (never throws); covers quiet periods with no webhook traffic.
-  await maybeRunAlertCheck({ send: defaultSend });
-
-  // Navagram housekeeping: drops stories older than the 30-day archive (never throws).
-  const storiesDropped = await cleanupStories();
-
-  res.status(200).json({ processed: expired.length, notified, storiesDropped });
-=======
   // Retry match notices that failed transiently (durable records in match_deliveries; never throws).
   const deliveries = await processDueDeliveries(api, 25);
 
@@ -130,5 +117,4 @@ export async function processExpiredSearches(api: Pick<Api, "deleteMessage" | "s
     }
   }
   return { processed: expired.length, notified, skipped, failed };
->>>>>>> v1.11.0-wallet
 }

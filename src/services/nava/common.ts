@@ -2,10 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { getDb } from "../../db/connect.js";
 import { getBlockedCounterparts } from "../../db/models/blocks.js";
 import type { UserDoc } from "../../db/models/user.js";
-<<<<<<< HEAD
-=======
 import { env } from "../../config/env.js";
->>>>>>> v1.11.0-wallet
 
 /** Shared helpers of the Navagram (نوا گرام) Mini App backend. */
 
@@ -25,10 +22,7 @@ export const C = {
   storyViews: "mini_story_views",
   highlights: "mini_highlights",
   gifts: "mini_gifts",
-<<<<<<< HEAD
-=======
   giftDefs: "mini_gift_defs",
->>>>>>> v1.11.0-wallet
   recent: "mini_recent_search",
   settings: "mini_settings",
 } as const;
@@ -82,9 +76,6 @@ export async function col<T extends import("mongodb").Document = any>(name: stri
 }
 
 /** Ids whose content the viewer must not see: blocked either way + banned users. */
-<<<<<<< HEAD
-export async function hiddenOwnerIds(viewerId: number): Promise<number[]> {
-=======
 export function isStaffId(id: number): boolean {
   return (env.OWNER_ID !== undefined && id === env.OWNER_ID) || env.ADMIN_IDS.includes(id);
 }
@@ -93,7 +84,6 @@ export function isStaffId(id: number): boolean {
  *  anyone's (blocked or banned included) so they can moderate; feeds, explore and search never use this. */
 export async function hiddenOwnerIds(viewerId: number, opts: { direct?: boolean } = {}): Promise<number[]> {
   if (opts.direct && isStaffId(viewerId)) return [];
->>>>>>> v1.11.0-wallet
   const blocked = await getBlockedCounterparts(viewerId);
   const users = await usersCol();
   const banned = await users.find({ banned: true }, { projection: { _id: 1 } }).toArray();
@@ -147,10 +137,7 @@ export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> 
 
 export async function findVisibleUser(viewerId: number, anonId: unknown, opts: { includeSelf?: boolean } = {}): Promise<any | null> {
   if (!isAnonId(anonId)) return null;
-<<<<<<< HEAD
-=======
   if (isStaffId(viewerId)) return (await usersCol()).findOne({ onboardingStep: "COMPLETED", anonId });
->>>>>>> v1.11.0-wallet
   const hidden = await hiddenOwnerIds(viewerId);
   const users = await usersCol();
   return users.findOne({ ...visibleUserFilter(viewerId, hidden, opts), anonId });

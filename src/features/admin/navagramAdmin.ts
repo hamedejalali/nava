@@ -6,15 +6,10 @@ import { logAdminAction } from "../../db/models/adminLog.js";
 import { escapeHtml } from "../../utils/html.js";
 import { isAdmin } from "./constants.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
-<<<<<<< HEAD
-import { GIFTS } from "../../services/nava/giftCatalog.js";
-import { getMiniSettings, setGiftEnabled, setGiftPrice, setPostsChannel, setPostsChannelEnabled } from "../../services/nava/settings.js";
-=======
 import { giftCatalog } from "../../services/nava/gifts.js";
 import { removeCustomGift } from "../../services/nava/giftDefs.js";
 import { getMiniSettings, setGiftEnabled, setGiftPrice, setGiftUnique, setPostsChannel, setPostsChannelEnabled } from "../../services/nava/settings.js";
 import { GF } from "./giftsAdmin.js";
->>>>>>> v1.11.0-wallet
 
 /**
  * Owner/admin panel of «نوا گرام» (reached from ⚙️ تنظیمات ربات): the post-copy channel switch,
@@ -30,11 +25,8 @@ export const NG_CB = {
   gift: "admin:ng:g:", // + giftId
   giftToggle: "admin:ng:gt:", // + giftId
   giftPrice: "admin:ng:gp:", // + giftId
-<<<<<<< HEAD
-=======
   giftUnique: "admin:ng:gu:", // + giftId
   giftDelete: "admin:ng:gd:", // + giftId (custom/Telegram gifts only)
->>>>>>> v1.11.0-wallet
 };
 const FLOW = "navagram";
 export const MAX_GIFT_PRICE = 100_000;
@@ -58,26 +50,6 @@ export async function navagramScreen(): Promise<{ text: string; reply_markup: Re
 }
 
 async function giftsScreen() {
-<<<<<<< HEAD
-  const s = await getMiniSettings();
-  const lines = GIFTS.map((g) => `${g.emoji} ${g.name} — ${s.giftPrices[g.id] ?? g.price} رلیک${s.giftsDisabled[g.id] ? " (غیرفعال)" : ""}`);
-  const rows = GIFTS.map((g) => [glassButton(`${g.emoji} ${g.name}`, `${NG_CB.gift}${g.id}`, "primary")]);
-  rows.push([glassButton("↩️ بازگشت", NG_CB.open, "primary")]);
-  return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به رلیک هستن و از حساب فرستنده کم میشن.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
-}
-
-async function giftScreen(giftId: string) {
-  const g = GIFTS.find((x) => x.id === giftId);
-  if (!g) return null;
-  const s = await getMiniSettings();
-  const price = s.giftPrices[g.id] ?? g.price;
-  const off = !!s.giftsDisabled[g.id];
-  return {
-    text: `${g.emoji} <b>${escapeHtml(g.name)}</b>\n\nقیمت: ${price} رلیک\nوضعیت: ${off ? "🔴 غیرفعال" : "🟢 فعال"}`,
-    reply_markup: inlineKeyboard([
-      [glassButton("تغییر قیمت", `${NG_CB.giftPrice}${g.id}`, "primary")],
-      [glassButton(off ? "فعال کردن" : "غیرفعال کردن", `${NG_CB.giftToggle}${g.id}`, off ? "success" : "danger")],
-=======
   const cards = await giftCatalog(true);
   const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} رلیک${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
   const rows = cards.map((g) => [glassButton(`${g.emoji} ${g.name}${g.off ? " (غیرفعال)" : ""}`, `${NG_CB.gift}${g.id}`, "primary")]);
@@ -98,7 +70,6 @@ async function giftScreen(giftId: string) {
       [glassButton(off ? "فعال کردن" : "غیرفعال کردن", `${NG_CB.giftToggle}${g.id}`, off ? "success" : "danger")],
       [glassButton(g.unique ? "برداشتن حالت یکتا" : "✨ یکتا کردن (فقط یک نسخه)", `${NG_CB.giftUnique}${g.id}`, "primary")],
       ...(g.custom ? [[glassButton("🗑 حذف این هدیه", `${NG_CB.giftDelete}${g.id}`, "danger")]] : []),
->>>>>>> v1.11.0-wallet
       [glassButton("↩️ بازگشت", NG_CB.gifts, "primary")],
     ]),
   };
@@ -153,27 +124,13 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     await show(ctx, await giftsScreen());
   });
 
-<<<<<<< HEAD
-  composer.callbackQuery(new RegExp(`^${NG_CB.gift}([a-z]+)$`), async (ctx) => {
-=======
   composer.callbackQuery(new RegExp(`^${NG_CB.gift}([a-z0-9]+)$`), async (ctx) => {
->>>>>>> v1.11.0-wallet
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
     const v = await giftScreen(ctx.match![1]!);
     if (v) await show(ctx, v);
   });
 
-<<<<<<< HEAD
-  composer.callbackQuery(new RegExp(`^${NG_CB.giftToggle}([a-z]+)$`), async (ctx) => {
-    if (!isAdmin(ctx)) return;
-    const id = ctx.match![1]!;
-    const g = GIFTS.find((x) => x.id === id);
-    if (!g) return void (await ctx.answerCallbackQuery());
-    const s = await getMiniSettings();
-    await setGiftEnabled(id, !!s.giftsDisabled[id]);
-    await logAdminAction(ctx.from!.id, "navagram_gift_toggle", `${id}:${!!s.giftsDisabled[id]}`);
-=======
   composer.callbackQuery(new RegExp(`^${NG_CB.giftToggle}([a-z0-9]+)$`), async (ctx) => {
     if (!isAdmin(ctx)) return;
     const id = ctx.match![1]!;
@@ -181,18 +138,11 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     if (!g) return void (await ctx.answerCallbackQuery());
     await setGiftEnabled(id, g.off);
     await logAdminAction(ctx.from!.id, "navagram_gift_toggle", `${id}:${g.off}`);
->>>>>>> v1.11.0-wallet
     await ctx.answerCallbackQuery();
     const v = await giftScreen(id);
     if (v) await show(ctx, v);
   });
 
-<<<<<<< HEAD
-  composer.callbackQuery(new RegExp(`^${NG_CB.giftPrice}([a-z]+)$`), async (ctx) => {
-    if (!isAdmin(ctx)) return;
-    const id = ctx.match![1]!;
-    if (!GIFTS.some((x) => x.id === id)) return void (await ctx.answerCallbackQuery());
-=======
   composer.callbackQuery(new RegExp(`^${NG_CB.giftUnique}([a-z0-9]+)$`), async (ctx) => {
     if (!isAdmin(ctx)) return;
     const id = ctx.match![1]!;
@@ -217,7 +167,6 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     if (!isAdmin(ctx)) return;
     const id = ctx.match![1]!;
     if (!(await giftCatalog(true)).some((x) => x.id === id)) return void (await ctx.answerCallbackQuery());
->>>>>>> v1.11.0-wallet
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "price", data: { giftId: id } });
     await ctx.reply(`قیمت جدید (به رلیک، عدد صحیح بین ۱ تا ${MAX_GIFT_PRICE}) رو بفرست:`, { reply_markup: cancelKeyboard() });
@@ -238,11 +187,7 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     if (flow.stage === "price") {
       const giftId = String(flow.data?.giftId ?? "");
       const n = Number(text.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))));
-<<<<<<< HEAD
-      if (!GIFTS.some((g) => g.id === giftId) || !Number.isInteger(n) || n < 1 || n > MAX_GIFT_PRICE) {
-=======
       if (!(await giftCatalog(true)).some((g) => g.id === giftId) || !Number.isInteger(n) || n < 1 || n > MAX_GIFT_PRICE) {
->>>>>>> v1.11.0-wallet
         await ctx.reply(`قیمت باید یه عدد صحیح بین ۱ تا ${MAX_GIFT_PRICE} باشه.`, { reply_markup: cancelKeyboard() });
         return;
       }

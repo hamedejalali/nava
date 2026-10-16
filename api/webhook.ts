@@ -3,14 +3,11 @@ import type { Update } from "grammy/types";
 import { createBot } from "../src/bot.js";
 import { waitUntil } from "@vercel/functions";
 import { env } from "../src/config/env.js";
-<<<<<<< HEAD
-=======
 import { safeEqual } from "../src/utils/secureCompare.js";
 import { processUpdateOnce } from "../src/webhook/processUpdate.js";
 import { maybeProcessSearchNotices } from "../src/features/matching/searchNotices.js";
 import { maybeProcessDueGiftEvents } from "../src/services/nava/giftEvents.js";
 import { maybeProcessDueDeliveries } from "../src/features/matching/matchDelivery.js";
->>>>>>> v1.11.0-wallet
 import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
@@ -100,35 +97,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-<<<<<<< HEAD
-  // FIXED — HTTP status on a genuine processing failure (v1.4.0). This used
-  // to always answer Telegram with 200 even when `ensureInit()` or
-  // `handleUpdate()` threw. Telegram treats HTTP 200 as "delivered
-  // successfully" and will NOT retry that update — so a transient failure
-  // (a momentary MongoDB hiccup, a brief Telegram API error while
-  // fetching something mid-update, ...) silently dropped that one user
-  // action forever, AND made `getWebhookInfo`'s `pending_update_count` /
-  // `last_error_message` useless as a diagnostic (Telegram genuinely
-  // believed nothing was wrong).
-  //
-  // This is now safe to change because the financial/reward operations
-  // Telegram might retry are all idempotent (deterministic ledger ids,
-  // the mining `batchId`, the transfer `clientRequestId` — see
-  // src/db/models/relic.ts): a genuine
-  // Telegram retry of the same update re-running the same handler again
-  // cannot double-charge or double-credit anyone. A response other than
-  // 200 tells Telegram to retry with backoff; if the same update keeps
-  // failing forever (a real bug, not a transient blip), Telegram's own
-  // backoff/give-up behavior bounds the cost — we deliberately do not add
-  // our own retry-counting on top of that.
-=======
   // Failure strategy (v1.16.3, see src/webhook/processUpdate.ts):
   //   200 = processed, a harmless duplicate of an already-processed update, or deliberately parked
   //         (dead-letter) after the bounded number of attempts;
   //   5xx = NOT done — Telegram redelivers with backoff (init failure 503, handler failure 500,
   //         concurrent duplicate 500, inbox database unavailable 503).
   // Money-moving operations are idempotent (deterministic ledger ids), so a redelivery can never double-apply.
->>>>>>> v1.11.0-wallet
   try {
     await ensureInit();
   } catch (err) {
@@ -138,19 +112,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const startedAt = Date.now();
-<<<<<<< HEAD
-  try {
-    await bot!.handleUpdate(req.body as Update);
-  } catch (err) {
-    console.error("[nava:webhook] handleUpdate failed:", err);
-    // Monitoring only: both helpers swallow their own errors and run after the response.
-    waitUntil(recordWebhookMetric(false, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
-    res.status(500).send("processing failed");
-    return;
-  }
-
-  waitUntil(recordWebhookMetric(true, Date.now() - startedAt).then(() => maybeRunAlertCheck({ send: defaultSend })));
-=======
   const update = req.body as Update;
   // Idempotent inbox (see src/webhook/processUpdate.ts): 200 = processed or deliberately parked, 5xx = please redeliver.
   const result = await processUpdateOnce(update, (u) => bot!.handleUpdate(u), { onDead: notifyDeadUpdate });
@@ -165,6 +126,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   waitUntil(maybeProcessDueDeliveries(bot!.api).catch(() => {}));
   waitUntil(maybeProcessSearchNotices(bot!.api).catch(() => {}));
   waitUntil(maybeProcessDueGiftEvents(bot!.api).catch(() => {}));
->>>>>>> v1.11.0-wallet
   res.status(200).send("ok");
 }

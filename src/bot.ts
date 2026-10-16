@@ -56,13 +56,10 @@ import { registerFeedbackFlow } from "./features/menu/feedbackFlow.js";
 import { registerFlowInterrupt, registerFlowCancel } from "./features/common/userFlows.js";
 import { registerAdminVerifiedUsers } from "./features/admin/verifiedUsers.js";
 import { registerChatRequest } from "./features/matching/chatRequest.js";
-<<<<<<< HEAD
-=======
 import { registerGiftReply } from "./features/matching/giftReply.js";
 import { getDb } from "./db/connect.js";
 import { registerGiftEvents } from "./features/gifts/events.js";
 import { ensureGiftEventIndexes } from "./services/nava/giftEvents.js";
->>>>>>> v1.11.0-wallet
 import { ensureChatRequestIndexes } from "./db/models/chatRequest.js";
 import { registerProfileReveal } from "./features/matching/profileReveal.js";
 import { ensureProfileRevealIndexes } from "./db/models/profileReveal.js";
@@ -96,15 +93,12 @@ export function createBot(): Bot<NavaContext> {
     ensurePhotoModerationLogIndexes(),
     ensureChatRelayMapIndexes(),
     ensureChatRequestIndexes(),
-<<<<<<< HEAD
-=======
     ensureStarsOrderIndexes(),
     ensureMatchDeliveryIndexes(),
     ensureUpdateInboxIndexes(),
     ensureRelicLedgerIndexes(),
     ensureSearchNoticeIndexes(),
     getDb().then((db) => ensureGiftEventIndexes(db)),
->>>>>>> v1.11.0-wallet
   ]).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[bot] Index setup failed (will retry on next cold start):", err);
@@ -219,11 +213,8 @@ export function createBot(): Bot<NavaContext> {
   registerAdminBroadcast(features);
   registerAdminVerifiedUsers(features);
   registerProfileReveal(features);
-<<<<<<< HEAD
-=======
   registerGiftEvents(features); // auction / giveaway buttons under the channel posts
   registerGiftReply(features); // "پیام به فرستنده" under gift notifications
->>>>>>> v1.11.0-wallet
   registerChatRequest(features); // accept/decline buttons of chat requests sent from the Nava Mini App
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatControls(features); // before chat relay: the reply-keyboard control labels must never be relayed as a chat message

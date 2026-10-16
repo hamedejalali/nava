@@ -28,15 +28,10 @@
     o = o || {};
     var pat = ""; for (var i = 0; i < 16; i++) pat += "<span>" + def.pattern + "</span>";
     var c = el('<div class="gc' + (o.cls ? " " + o.cls : "") + '" style="background:linear-gradient(160deg,' + def.c1 + "," + def.c2 + ')"><div class="pat">' + pat + '</div>' +
-<<<<<<< HEAD
-      (o.price != null ? '<div class="pr">' + num(o.price) + " رلیک</div>" : "") + '<div class="em">' + def.emoji + "</div>" +
-      (o.name ? '<div class="nm">' + esc(def.name) + "</div>" : "") + (o.by ? '<div class="by">از ' + esc(o.by) + "</div>" : "") + "</div>");
-=======
       (o.price != null ? '<div class="pr">' + num(o.price) + " رلیک</div>" : "") + '<div class="gem"><div class="em">' + def.emoji + "</div></div>" +
       (o.name ? '<div class="nm">' + esc(def.name) + "</div>" : "") + (o.by ? '<div class="by">از ' + esc(o.by) + "</div>" : "") +
       (def.unique ? '<div class="tagu">✨ یکتا</div>' : "") + (o.sold && def.soldOut ? '<div class="sold">فروخته شد</div>' : "") + "</div>");
     if (def.anim) NG.mountAnim(c.querySelector(".gem"), def.anim); // original Telegram animation (TGS / WebM)
->>>>>>> v1.11.0-wallet
     return c;
   }
 
@@ -48,14 +43,6 @@
   NG.openGiftSheet = function (to) {
     NG.getCatalog(true).then(function (cat) {
       if (!cat.items.length) return NG.toast("فعلاً هدیه‌ای فعال نیست.");
-<<<<<<< HEAD
-      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> رلیک</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
-        var grid = sh.querySelector("#gg"), go = sh.querySelector("#go"), err = sh.querySelector("#ge"), msg = sh.querySelector("#gm");
-        var sel = null, cid = null, busy = false;
-        cat.items.forEach(function (g) {
-          var c = giftCard(g, { price: g.price, name: true });
-          c.onclick = function () {
-=======
       NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> رلیک</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>اگه روشن باشه، فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon" aria-label="anonymous"></button></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
         var grid = sh.querySelector("#gg"), go = sh.querySelector("#go"), err = sh.querySelector("#ge"), msg = sh.querySelector("#gm");
         var sel = null, cid = null, busy = false, anon = false;
@@ -65,7 +52,6 @@
           if (g.soldOut) c.classList.add("dis");
           c.onclick = function () {
             if (g.soldOut) { NG.haptic("err"); return NG.toast("این هدیه‌ی یکتا قبلاً فروخته شده."); }
->>>>>>> v1.11.0-wallet
             Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove("sel"); });
             c.classList.add("sel"); sel = g; cid = clientId(); NG.haptic("sel");
             go.disabled = false; go.textContent = "ارسال " + g.name + " — " + num(g.price) + " رلیک"; err.classList.remove("show");
@@ -74,11 +60,7 @@
         });
         go.onclick = function () {
           if (!sel || busy) return; busy = true; go.disabled = true; var label = go.textContent; go.textContent = "…"; err.classList.remove("show");
-<<<<<<< HEAD
-          NG.api("gift_send", { id: to.id, giftId: sel.id, message: msg.value, clientId: cid }).then(function (r) {
-=======
           NG.api("gift_send", { id: to.id, giftId: sel.id, message: msg.value, clientId: cid, anonymous: anon }).then(function (r) {
->>>>>>> v1.11.0-wallet
             busy = false;
             if (r.ok) {
               NG.me.relic = r.data.balance; NG.emit("me", { old: NG.me, me: NG.me });
@@ -95,11 +77,8 @@
             if (r.data && r.data.error === "insufficient") {
               err.textContent = "رلیک کافی نیست. قیمت این هدیه " + num(sel.price) + " رلیکه و موجودی تو " + num(catalog.balance) + " رلیکه. از داخل ربات می‌تونی رلیک تهیه کنی.";
               NG.getCatalog(true).then(function (c2) { var b = sh.querySelector("#bal"); if (b) b.textContent = num(c2.balance); });
-<<<<<<< HEAD
-=======
             } else if (r.data && r.data.error === "sold_out") {
               err.textContent = NG.errText(r); NG.getCatalog(true);
->>>>>>> v1.11.0-wallet
             } else err.textContent = NG.errText(r);
             err.classList.add("show");
           }).catch(function () { busy = false; go.disabled = false; go.textContent = label; NG.netErr(); });
@@ -110,11 +89,7 @@
 
   function giftDetail(g, ownerBrief, isMe) {
     var def = giftDef(g.giftId); if (!def) return;
-<<<<<<< HEAD
-    NG.sheet('<div class="gdetail" id="gd"></div><div class="pad"><button class="btn tall" id="cl" style="width:100%">بستن</button></div>', function (sh, close) {
-=======
     NG.sheet('<div class="gdetail" id="gd"></div><div class="pad">' + (isMe ? '<button class="btn blue tall" id="rg" style="width:100%;margin-bottom:8px">🎁 ارسال این هدیه به یه نفر دیگه</button>' : "") + '<button class="btn tall" id="cl" style="width:100%">بستن</button></div>', function (sh, close) {
->>>>>>> v1.11.0-wallet
       var box = sh.querySelector("#gd");
       box.appendChild(giftCard(def, { cls: "lg", name: true }));
       if (g.from) {
@@ -122,17 +97,12 @@
         var r = NG.ring(g.from, { noStory: true }); r.setAttribute("data-fixed", "1"); r.className = "ring none"; w.insertBefore(r, w.firstChild);
         w.onclick = function () { close(function () { NG.openProfile(g.from.id); }); };
         box.appendChild(w);
-<<<<<<< HEAD
-=======
       } else {
         box.appendChild(el('<div class="who" style="cursor:default"><span style="color:var(--muted)">از</span><b>ناشناس</b></div>'));
->>>>>>> v1.11.0-wallet
       }
       if (g.message) box.appendChild(el('<div class="msg">«' + esc(g.message) + "»</div>"));
       box.appendChild(el('<div style="color:var(--muted);font-size:12px">' + NG.ago(g.at) + "</div>"));
       sh.querySelector("#cl").onclick = function () { close(); };
-<<<<<<< HEAD
-=======
       var rg = sh.querySelector("#rg");
       if (rg) rg.onclick = function () { close(function () { regiftPick(g, def); }); };
     });
@@ -177,7 +147,6 @@
           close(function () { NG.confetti(); NG.toast("🎁 هدیه برای " + NG.nameOf(to) + " ارسال شد"); NG.emit("gift:regifted", { gift: g.id }); });
         }).catch(function () { go.disabled = false; go.textContent = "ارسال"; NG.netErr(); });
       };
->>>>>>> v1.11.0-wallet
     });
   }
 
@@ -344,15 +313,11 @@
           }).catch(function () { P.iFollow = !want; P.followers += want ? -1 : 1; fl(); NG.netErr(); });
         };
         var c = el('<button class="btn"></button>');
-<<<<<<< HEAD
-        function cs() { c.disabled = P.chat !== "none"; c.innerHTML = svg("chat", "ico") + (P.chat === "requested" ? "درخواست ارسال شد" : P.chat === "busy" ? "در چت دیگری است" : "درخواست چت"); c.querySelector("svg").style.width = "18px"; }
-=======
         function cs() {
           c.disabled = P.chat !== "none"; c.classList.toggle("chatlive", P.chat === "with_you");
           c.innerHTML = P.chat === "with_you" ? '<span class="chatnow"><i></i>در حال چت با شما هست</span>' : svg("chat", "ico") + (P.chat === "requested" ? "درخواست ارسال شد" : P.chat === "busy" ? "در چت دیگری است" : "درخواست چت");
           var sv = c.querySelector("svg"); if (sv) sv.style.width = "18px";
         }
->>>>>>> v1.11.0-wallet
         cs(); c.onclick = function () { NG.requestChat(P); };
         var g = el('<button class="btn sq" aria-label="gift">' + svg("gift") + "</button>"); g.onclick = function () { NG.openGiftSheet(P); };
         btns.appendChild(f); btns.appendChild(c); btns.appendChild(g);
@@ -477,10 +442,7 @@
     NG.on("post:deleted", function () { if (P) { P.posts = Math.max(0, P.posts - 1); } if (document.body.contains(root)) { reloadSoft(); } });
     NG.on("post:created", function () { if (document.body.contains(root) && P && P.isMe) reloadSoft(); });
     NG.on("chat:requested", function (uid) { if (P && P.id === uid) { P.chat = "requested"; if (P._cs) P._cs(); } });
-<<<<<<< HEAD
-=======
     NG.on("gift:regifted", function () { if (P && P.isMe && tab === "gifts" && document.body.contains(root)) { P.gifts = Math.max(0, (P.gifts || 1) - 1); renderBody(true); } });
->>>>>>> v1.11.0-wallet
     NG.on("gift:sent", function (d) { if (P && P.id === d.to && tab === "gifts" && document.body.contains(root)) { P.gifts++; renderBody(true); } });
     function reloadSoft() { if (tab === "posts") { reload(); } else reload(); }
 

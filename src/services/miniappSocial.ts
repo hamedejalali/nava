@@ -11,10 +11,7 @@ import { checkImage, type ModerationCheckResult } from "./sightengine.js";
 import { botApi } from "./miniapp.js";
 import { SocialError, findVisibleUser } from "./nava/common.js";
 import { decodeImage } from "./nava/media.js";
-<<<<<<< HEAD
-=======
 import { runInTransaction, TxAbort } from "../db/tx.js";
->>>>>>> v1.11.0-wallet
 
 /**
  * Navagram (نوا گرام) Mini App — the parts that live on the existing `users` document so the bot's
@@ -62,10 +59,6 @@ export function ensureSocialIndexesOnce(): void {
       { key: { createdAt: 1 }, name: "created" },
     ]);
     await db.collection("mini_story_views").createIndexes([{ key: { storyId: 1 }, name: "story" }]);
-<<<<<<< HEAD
-    await db.collection("mini_gifts").createIndexes([{ key: { receiverId: 1, createdAt: -1 }, name: "receiver_created" }]);
-    await db.collection("mini_highlights").createIndexes([{ key: { ownerId: 1, createdAt: 1 }, name: "owner_created" }]);
-=======
     await db.collection("mini_gifts").createIndexes([
       { key: { receiverId: 1, createdAt: -1 }, name: "receiver_created" },
       { key: { pub: 1 }, name: "pub", partialFilterExpression: { pub: { $type: "string" } } },
@@ -75,7 +68,6 @@ export function ensureSocialIndexesOnce(): void {
     await db.collection("post_reports").createIndexes([{ key: { postId: 1, createdAt: -1 }, name: "post_created" }]);
     await db.collection("mini_gift_defs").createIndexes([{ key: { createdAt: 1 }, name: "created" }]);
     await db.collection("mini_highlights").createIndexes([{ key: { ownerId: 1, createdAt: 1 }, name: "owner_created" }, { key: { storyIds: 1 }, name: "story_ids" }]);
->>>>>>> v1.11.0-wallet
     await db.collection("mini_recent_search").createIndexes([{ key: { userId: 1, at: -1 }, name: "user_at" }]);
 
     // Users who already had a profile photo before v1.16 get a "photo date" (their registration date) so
@@ -154,18 +146,6 @@ export async function setLike(viewer: UserDoc, anonId: unknown, like: boolean): 
   const likes = db.collection<{ _id: string; createdAt: Date }>("profile_likes");
   const users = db.collection<UserDoc>("users");
   const key = `${viewer._id}:${target._id}`;
-<<<<<<< HEAD
-  if (like) {
-    try {
-      await likes.insertOne({ _id: key, createdAt: new Date() });
-      await users.updateOne({ _id: target._id }, { $inc: { likesCount: 1 } });
-    } catch (err: any) {
-      if (err?.code !== 11000) throw err; // already liked -> no double count
-    }
-  } else {
-    const r = await likes.deleteOne({ _id: key });
-    if (r.deletedCount === 1) await users.updateOne({ _id: target._id, likesCount: { $gt: 0 } } as any, { $inc: { likesCount: -1 } });
-=======
   try {
     await runInTransaction(async (session) => {
       if (like) {
@@ -181,7 +161,6 @@ export async function setLike(viewer: UserDoc, anonId: unknown, like: boolean): 
   } catch (err: any) {
     if (err instanceof TxAbort) return null;
     if (err?.code !== 11000) throw err; // a concurrent identical like won the race and was counted once
->>>>>>> v1.11.0-wallet
   }
   const fresh = await users.findOne({ _id: target._id }, { projection: { likesCount: 1 } });
   const nowLiked = !!(await likes.findOne({ _id: key }));

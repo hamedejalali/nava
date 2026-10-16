@@ -6,11 +6,7 @@
   /* ---------------------------------------------------------------- cropper */
   /**
    * NG.cropFlow(file, opts, cb)
-<<<<<<< HEAD
-   *   opts = { ratios:[{k,r}], out:<output width px>, title, cta, round, caption:<max length|0>, captionHint }
-=======
    *   opts = { ratios:[{k,r}], out:<output width px>, title, cta, round, caption:<max length|0>, captionHint, textOverlay:<true: Instagram-style text on the picture> }
->>>>>>> v1.11.0-wallet
    *   cb(res, done)  res = { data:"data:image/jpeg;base64,…", caption, ratio:"4:5", close }, done(true) closes the screen, done(false) re-enables the button.
    */
   NG.cropFlow = function (file, opts, cb) {
@@ -36,8 +32,6 @@
     var zoomRow = el('<div class="zoom"><span style="font-size:12px;opacity:.7">−</span><input type="range" min="1" max="4" step="0.01" value="1"><span style="font-size:12px;opacity:.7">+</span></div>');
     var zr = zoomRow.querySelector("input");
     w.appendChild(zoomRow);
-<<<<<<< HEAD
-=======
 
     /* ---- Instagram-style text on the picture (stories): type, drag, colour, size, background ---- */
     var texts = [], COLORS = ["#ffffff", "#000000", "#ffd54a", "#ff4d79", "#4dd0e1", "#7cff6b"], ov = null;
@@ -117,7 +111,6 @@
         x.shadowColor = "transparent"; x.shadowBlur = 0; x.shadowOffsetY = 0;
       });
     }
->>>>>>> v1.11.0-wallet
     var ta = null, cnt = null;
     if (opts.caption) {
       var cwrap = el('<div style="background:#000;padding:0 16px 14px"><textarea rows="2" maxlength="' + opts.caption + '" placeholder="' + esc(opts.captionHint || "کپشن…") + '" style="width:100%;background:#1a1a1a;border:0;border-radius:10px;color:#fff;padding:10px 12px;font-size:15px;resize:none;outline:0"></textarea></div>');
@@ -150,11 +143,7 @@
       cv.width = BW * dpr; cv.height = BH * dpr;
       base = Math.max(BW / iw, BH / ih);
       if (reset) { z = 1; zr.value = 1; cx = BW / 2; cy = BH / 2; }
-<<<<<<< HEAD
-      draw();
-=======
       draw(); renderTexts();
->>>>>>> v1.11.0-wallet
     }
     img.onload = function () {
       iw = img.naturalWidth; ih = img.naturalHeight;
@@ -197,10 +186,7 @@
       var sw = iw * s() * f, sh = ih * s() * f;
       x.imageSmoothingQuality = "high";
       x.drawImage(img, cx * f - sw / 2, cy * f - sh / 2, sw, sh);
-<<<<<<< HEAD
-=======
       drawTexts(x, W, H);
->>>>>>> v1.11.0-wallet
       var q = 0.88, d = c.toDataURL("image/jpeg", q);
       while (d.length > 2.6 * 1024 * 1024 && q > 0.4) { q -= 0.1; d = c.toDataURL("image/jpeg", q); }
       return d;
@@ -208,18 +194,12 @@
     done.onclick = function () {
       if (!iw) return;
       done.disabled = true;
-<<<<<<< HEAD
-      var res = { data: exportJpeg(), caption: ta ? ta.value.trim() : "", ratio: cur.k, close: scr.close };
-      var finished = false;
-      cb(res, function (ok) { if (finished) return; if (ok) { finished = true; scr.close(); } else done.disabled = false; });
-=======
       var fontsReady = texts.length && document.fonts && document.fonts.load ? document.fonts.load("700 40px Vazirmatn", "اب").catch(function () {}) : Promise.resolve();
       fontsReady.then(function () {
         var res = { data: exportJpeg(), caption: ta ? ta.value.trim() : "", ratio: cur.k, close: scr.close };
         var finished = false;
         cb(res, function (ok) { if (finished) return; if (ok) { finished = true; scr.close(); } else done.disabled = false; });
       });
->>>>>>> v1.11.0-wallet
     };
     return scr;
   };

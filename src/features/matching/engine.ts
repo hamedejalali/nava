@@ -11,11 +11,8 @@ import { insertDeliveries, newDeliveryDocs } from "../../db/models/matchDelivery
 export type MatchAttemptResult =
   | { status: "matched"; sessionId: string; partnerId: number; partnerStatusMessageId?: number }
   | { status: "queued" }
-<<<<<<< HEAD
-=======
   /** The searcher is already in a chat (stale button / duplicate update): nothing was charged or queued. */
   | { status: "busy" }
->>>>>>> v1.11.0-wallet
   /** Someone else's invocation matched THIS user while they were being queued; that invocation notifies both. */
   | { status: "matched_elsewhere" };
 
@@ -23,10 +20,7 @@ export type MatchAttemptResult =
 class NoCandidate extends Error {}
 class OwnEntryGone extends Error {}
 class Contended extends Error {}
-<<<<<<< HEAD
-=======
 class SelfBusy extends Error {}
->>>>>>> v1.11.0-wallet
 class BrokenCandidate extends Error {
   constructor(public candidateId: number) {
     super("broken candidate");
@@ -64,12 +58,9 @@ async function tryMatchOnce(user: UserDoc, searchType: SearchType, excludeIds: n
   const sessionsCol = db.collection<ChatSessionDoc>("chat_sessions");
 
   const query = buildCandidateQuery({ telegramId: user._id, searchType, gender: user.gender!, age: user.age!, province: user.province, excludeIds });
-<<<<<<< HEAD
-=======
   // Cheap read first: the countdown re-scans every 2 s, and almost always nobody is waiting. Opening a
   // transaction for that would waste a server round-trip pair per tick per searcher.
   if (!(await queueCol.findOne(query, { projection: { _id: 1 } }))) return "none";
->>>>>>> v1.11.0-wallet
   const mongoSession: ClientSession = client.startSession();
   try {
     let result: MatchAttemptResult | null = null;
@@ -92,15 +83,12 @@ async function tryMatchOnce(user: UserDoc, searchType: SearchType, excludeIds: n
         }
 
         const sessionId = newSessionId();
-<<<<<<< HEAD
-=======
         // Both people must be free (and not banned) RIGHT NOW. This guard — not the earlier read — is what
         // makes it impossible for two concurrent matches to put one person into two active chats.
         const selfMarked = await usersCol.updateOne({ _id: user._id, banned: { $ne: true }, activeChatSessionId: null as any }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
         if (selfMarked.matchedCount !== 1) throw new SelfBusy();
         const candMarked = await usersCol.updateOne({ _id: candidate._id, banned: { $ne: true }, activeChatSessionId: null as any }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
         if (candMarked.matchedCount !== 1) throw new BrokenCandidate(candidate._id);
->>>>>>> v1.11.0-wallet
         try {
           await chargeChatCost(user._id, sessionId, usersCol, mongoSession);
         } catch (err) {
@@ -116,39 +104,28 @@ async function tryMatchOnce(user: UserDoc, searchType: SearchType, excludeIds: n
 
         const session: ChatSessionDoc = { _id: sessionId, userA: user._id, userB: candidate._id, active: true, createdAt: new Date() };
         await sessionsCol.insertOne(session, { session: mongoSession });
-<<<<<<< HEAD
-        await usersCol.updateOne({ _id: user._id }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
-        await usersCol.updateOne({ _id: candidate._id }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
-=======
         // durable "tell both people" work, committed together with the match (survives a crashed invocation)
         await insertDeliveries(newDeliveryDocs(sessionId, [user._id, candidate._id], "match"), mongoSession);
         // both searches ended by matching: no "timed out" notice may ever be sent for them
         await voidSearchNotices([user._id, candidate._id], mongoSession);
->>>>>>> v1.11.0-wallet
 
         result = { status: "matched", sessionId, partnerId: candidate._id, partnerStatusMessageId: candidate.statusMessageId };
       });
     } catch (err) {
       if (err instanceof NoCandidate) return "none";
       if (err instanceof OwnEntryGone) return "gone";
-<<<<<<< HEAD
-=======
       if (err instanceof SelfBusy) {
         // The searcher is already in a chat: a leftover queue entry of theirs must not be matchable.
         await queueCol.deleteOne({ _id: user._id }).catch(() => {});
         await voidSearchNotices([user._id]).catch(() => {});
         return { status: "busy" };
       }
->>>>>>> v1.11.0-wallet
       if (err instanceof Contended) return "none-retry" as never;
       if (err instanceof BrokenCandidate) {
         // A waiting user who can no longer pay would otherwise be picked first by EVERY newcomer and block
         // all matches. Drop their stale entry (rolled back with the transaction, so delete it now) and retry.
         await queueCol.deleteOne({ _id: err.candidateId });
-<<<<<<< HEAD
-=======
         await voidSearchNotices([err.candidateId]).catch(() => {});
->>>>>>> v1.11.0-wallet
         return "none-retry" as never;
       }
       throw err;
@@ -172,15 +149,11 @@ async function matchLoop(user: UserDoc, searchType: SearchType, requireOwnEntry:
 async function enqueue(user: UserDoc, searchType: SearchType, statusMessageId: number | undefined): Promise<void> {
   const db = await getDb();
   const queueCol = db.collection<MatchQueueDoc>("match_queue");
-<<<<<<< HEAD
-  await queueCol.updateOne({ _id: user._id }, { $set: queueDoc(user, searchType, statusMessageId) }, { upsert: true });
-=======
   const doc = queueDoc(user, searchType, statusMessageId);
   await queueCol.updateOne({ _id: user._id }, { $set: doc }, { upsert: true });
   // Durable promise to tell the person if this search times out (survives the queue document's TTL deletion
   // and the end of this invocation). A failure here must not break the search: the legacy cron path remains.
   await armSearchNotice(user._id, doc.createdAt, doc.expiresAt, statusMessageId).catch((e) => console.error("[search] could not arm timeout notice:", e instanceof Error ? e.name : "unknown"));
->>>>>>> v1.11.0-wallet
 }
 
 /**

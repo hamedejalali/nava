@@ -1,14 +1,9 @@
 import { InputFile, type Api } from "grammy";
 import { escapeHtml } from "../../utils/html.js";
 import { botApi } from "../miniapp.js";
-<<<<<<< HEAD
-import { C, DAY_MS, SocialError, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, newId, parsePid, photoVer, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
-import { decodeImage, deleteMedia, storeMedia } from "./media.js";
-=======
 import { C, DAY_MS, SocialError, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, isStaffId, newId, parsePid, photoVer, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
 import { decodeImage, deleteMedia, storeMedia } from "./media.js";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
->>>>>>> v1.11.0-wallet
 import { getMiniSettings } from "./settings.js";
 
 export const MAX_CAPTION = 1000;
@@ -157,11 +152,7 @@ export async function getPostItem(viewerId: number, pidRaw: unknown): Promise<Fe
     if (!owner || !owner.profilePhotoFileId) return null;
     return (await profilesToItems(viewerId, [owner]))[0] ?? null;
   }
-<<<<<<< HEAD
-  const hidden = await hiddenOwnerIds(viewerId);
-=======
   const hidden = await hiddenOwnerIds(viewerId, { direct: true });
->>>>>>> v1.11.0-wallet
   const posts = await col<PostDoc>(C.posts);
   const post = await posts.findOne({ _id: pid.id, ownerId: { $nin: hidden } } as any);
   return post ? ((await postsToItems(viewerId, [post]))[0] ?? null) : null;
@@ -277,14 +268,6 @@ export async function editPost(owner: any, pidRaw: unknown, input: { caption?: u
   return { caption: post.caption ?? "", noComments: !!post.noComments, hideLikes: !!post.hideLikes };
 }
 
-<<<<<<< HEAD
-export async function deletePost(owner: any, pidRaw: unknown): Promise<void> {
-  const pid = parsePid(pidRaw);
-  if (!pid || pid.kind !== "post") throw new SocialError("not_found");
-  const posts = await col<PostDoc>(C.posts);
-  const post = await posts.findOne({ _id: pid.id, ownerId: owner._id } as any);
-  if (!post) throw new SocialError("not_found");
-=======
 export async function deletePost(owner: any, pidRaw: unknown, opts: { asStaff?: boolean } = {}): Promise<{ ownerId: number } | void> {
   const pid = parsePid(pidRaw);
   if (!pid || pid.kind !== "post") throw new SocialError("not_found");
@@ -298,7 +281,6 @@ export async function deletePost(owner: any, pidRaw: unknown, opts: { asStaff?: 
 /** Removes a post with everything attached to it (likes, comments, picture, its single channel copy). */
 export async function removePost(post: PostDoc): Promise<void> {
   const posts = await col<PostDoc>(C.posts);
->>>>>>> v1.11.0-wallet
   await posts.deleteOne({ _id: post._id } as any);
   await (await col(C.postLikes)).deleteMany({ postId: post._id });
   await (await col(C.comments)).deleteMany({ postId: post._id });
@@ -325,18 +307,6 @@ export async function setPostLike(viewer: any, pidRaw: unknown, like: boolean): 
   if (!post) return null;
   const likes = await col(C.postLikes);
   const key = `${post._id}:${viewer._id}`;
-<<<<<<< HEAD
-  if (like) {
-    try {
-      await likes.insertOne({ _id: key, postId: post._id, userId: viewer._id, createdAt: new Date() });
-      await posts.updateOne({ _id: post._id } as any, { $inc: { likesCount: 1 } });
-    } catch (err: any) {
-      if (err?.code !== 11000) throw err;
-    }
-  } else {
-    const r = await likes.deleteOne({ _id: key });
-    if (r.deletedCount === 1) await posts.updateOne({ _id: post._id, likesCount: { $gt: 0 } } as any, { $inc: { likesCount: -1 } });
-=======
   // The like document and the counter change in ONE transaction: a crash can no longer leave one without
   // the other, and concurrent like/unlike/double-tap serialize on the like document (the loser retries
   // and finds the new state), so the counter always equals the number of like documents.
@@ -355,7 +325,6 @@ export async function setPostLike(viewer: any, pidRaw: unknown, like: boolean): 
   } catch (err: any) {
     if (err instanceof TxAbort) return null;
     if (err?.code !== 11000) throw err; // a concurrent identical like won the race: it was counted exactly once
->>>>>>> v1.11.0-wallet
   }
   const fresh = await posts.findOne({ _id: post._id } as any);
   return { liked: !!(await likes.findOne({ _id: key })), likes: fresh?.hideLikes && post.ownerId !== viewer._id ? 0 : (fresh?.likesCount ?? 0) };
@@ -378,11 +347,7 @@ async function resolvePostTarget(viewerId: number, pidRaw: unknown): Promise<{ p
     const owner = await findVisibleUser(viewerId, pid.anonId, { includeSelf: true });
     return owner && owner.profilePhotoFileId ? { pid: `pp:${owner.anonId}`, ownerId: owner._id, kind: "profile" } : null;
   }
-<<<<<<< HEAD
-  const hidden = await hiddenOwnerIds(viewerId);
-=======
   const hidden = await hiddenOwnerIds(viewerId, { direct: true });
->>>>>>> v1.11.0-wallet
   const posts = await col<PostDoc>(C.posts);
   const post = await posts.findOne({ _id: pid.id, ownerId: { $nin: hidden } } as any);
   return post ? { pid: post._id, ownerId: post.ownerId, kind: "post" } : null;
@@ -391,11 +356,7 @@ async function resolvePostTarget(viewerId: number, pidRaw: unknown): Promise<{ p
 export async function listComments(viewerId: number, pidRaw: unknown, before?: unknown): Promise<{ items: CommentView[]; hasMore: boolean } | null> {
   const target = await resolvePostTarget(viewerId, pidRaw);
   if (!target) return null;
-<<<<<<< HEAD
-  const hidden = await hiddenOwnerIds(viewerId);
-=======
   const hidden = await hiddenOwnerIds(viewerId, { direct: true });
->>>>>>> v1.11.0-wallet
   const beforeDate = typeof before === "number" && Number.isFinite(before) && before > 0 ? new Date(before) : null;
   const comments = await col(C.comments);
   const docs = await comments
@@ -414,19 +375,6 @@ async function commentsToViews(viewerId: number, postOwnerId: number, docs: any[
   const by = new Map(authors.map((a: any, i: number) => [a._id as number, briefs[i]!]));
   return docs
     .filter((d) => by.has(d.ownerId))
-<<<<<<< HEAD
-    .map((d) => ({ id: d._id, text: d.text, at: d.createdAt.getTime(), user: by.get(d.ownerId)!, canDelete: d.ownerId === viewerId || postOwnerId === viewerId }));
-}
-
-async function bumpCommentCount(target: { pid: string; ownerId: number; kind: "post" | "profile" }, delta: 1 | -1): Promise<void> {
-  if (target.kind === "post") {
-    const posts = await col<PostDoc>(C.posts);
-    await posts.updateOne(delta < 0 ? ({ _id: target.pid, commentsCount: { $gt: 0 } } as any) : ({ _id: target.pid } as any), { $inc: { commentsCount: delta } });
-  } else {
-    const users = await usersCol();
-    await users.updateOne(delta < 0 ? { _id: target.ownerId, profileCommentsCount: { $gt: 0 } } : { _id: target.ownerId }, { $inc: { profileCommentsCount: delta } });
-  }
-=======
     .map((d) => ({ id: d._id, text: d.text, at: d.createdAt.getTime(), user: by.get(d.ownerId)!, canDelete: d.ownerId === viewerId || postOwnerId === viewerId || isStaffId(viewerId) }));
 }
 
@@ -441,7 +389,6 @@ async function bumpCommentCount(target: { pid: string; ownerId: number; kind: "p
   const users = await usersCol();
   const r = await users.updateOne(delta < 0 ? { _id: target.ownerId, profileCommentsCount: { $gt: 0 } } : { _id: target.ownerId }, { $inc: { profileCommentsCount: delta } }, { session });
   return delta < 0 || r.matchedCount === 1;
->>>>>>> v1.11.0-wallet
 }
 
 export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown): Promise<{ comment: CommentView; comments: number }> {
@@ -456,10 +403,6 @@ export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown)
   const recent = await comments.countDocuments({ ownerId: viewer._id, createdAt: { $gt: new Date(Date.now() - 60_000) } });
   if (recent >= COMMENTS_PER_MINUTE) throw new SocialError("too_fast");
   const doc = { _id: newId(), postId: target.pid, ownerId: viewer._id, text, createdAt: new Date() };
-<<<<<<< HEAD
-  await comments.insertOne(doc);
-  await bumpCommentCount(target, 1);
-=======
   try {
     await runInTransaction(async (session) => {
       await comments.insertOne(doc, { session });
@@ -469,7 +412,6 @@ export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown)
     if (err instanceof TxAbort) throw new SocialError("not_found");
     throw err;
   }
->>>>>>> v1.11.0-wallet
   const view = (await commentsToViews(viewer._id, target.ownerId, [doc]))[0]!;
   return { comment: view, comments: await commentCount(target) };
 }
@@ -480,27 +422,17 @@ async function commentCount(target: { pid: string; ownerId: number; kind: "post"
 }
 
 /** Allowed for the commenter and for the owner of the page/post. */
-<<<<<<< HEAD
-export async function deleteComment(viewer: any, commentId: unknown): Promise<{ comments: number }> {
-=======
 export async function deleteComment(viewer: any, commentId: unknown, opts: { asStaff?: boolean } = {}): Promise<{ comments: number }> {
->>>>>>> v1.11.0-wallet
   if (!isId(commentId)) throw new SocialError("not_found");
   const comments = await col(C.comments);
   const doc = await comments.findOne({ _id: commentId });
   if (!doc) throw new SocialError("not_found");
   const target = await resolvePostTarget(viewer._id, doc.postId);
   if (!target) throw new SocialError("not_found");
-<<<<<<< HEAD
-  if (doc.ownerId !== viewer._id && target.ownerId !== viewer._id) throw new SocialError("forbidden");
-  const r = await comments.deleteOne({ _id: commentId });
-  if (r.deletedCount === 1) await bumpCommentCount(target, -1);
-=======
   if (!opts.asStaff && doc.ownerId !== viewer._id && target.ownerId !== viewer._id) throw new SocialError("forbidden");
   await runInTransaction(async (session) => {
     const r = await comments.deleteOne({ _id: commentId }, { session });
     if (r.deletedCount === 1) await bumpCommentCount(target, -1, session);
   });
->>>>>>> v1.11.0-wallet
   return { comments: await commentCount(target) };
 }

@@ -115,11 +115,6 @@
       list.push({ label: "درخواست چت ناشناس", fn: function () { NG.requestChat(it.owner); } });
     }
     list.push({ label: "رفتن به پروفایل", fn: function () { NG.openProfile(it.owner.id); } });
-<<<<<<< HEAD
-    if (it.mine && it.kind === "post") list.push({ label: "حذف پست", cls: "red", fn: function () { NG.confirm("حذف پست؟", "این پست همراه با لایک‌ها و نظرهاش برای همیشه پاک می‌شه.", "حذف", function () { deletePost(it); }); } });
-    NG.actions(list);
-  }
-=======
     if (!it.mine && it.kind === "post") list.push({ label: "گزارش پست", cls: "red", fn: function () { reportPost(it); } });
     if (NG.staff && !it.mine && it.kind === "post") list.push({ label: "حذف پست (مدیریت)", cls: "red", fn: function () { NG.confirm("حذف پست کاربر؟", "پست برای همیشه پاک می‌شه و به صاحبش اطلاع داده می‌شه.", "حذف", function () { deletePost(it); }); } });
     if (it.mine && it.kind === "post") list.push({ label: "حذف پست", cls: "red", fn: function () { NG.confirm("حذف پست؟", "این پست همراه با لایک‌ها و نظرهاش برای همیشه پاک می‌شه.", "حذف", function () { deletePost(it); }); } });
@@ -136,7 +131,6 @@
       } };
     }), "دلیل گزارش");
   }
->>>>>>> v1.11.0-wallet
   function setFlag(it, key, val) {
     var b = { pid: it.pid }; b[key] = val;
     NG.api("post_edit", b).then(function (r) {
