@@ -18,6 +18,7 @@ export const C = {
   postLikes: "mini_post_likes",
   comments: "mini_comments",
   follows: "mini_follows",
+  followRequests: "mini_follow_requests",
   stories: "mini_stories",
   storyViews: "mini_story_views",
   highlights: "mini_highlights",
@@ -86,8 +87,39 @@ export async function hiddenOwnerIds(viewerId: number, opts: { direct?: boolean 
   if (opts.direct && isStaffId(viewerId)) return [];
   const blocked = await getBlockedCounterparts(viewerId);
   const users = await usersCol();
-  const banned = await users.find({ banned: true }, { projection: { _id: 1 } }).toArray();
+  // banned people AND default (seed) members that the owner switched to "hidden" — one query, one flag read
+  // from the member document itself, so switching them off/on takes effect on the very next call
+  const banned = await users.find({ $or: [{ banned: true }, { seedHidden: true }] }, { projection: { _id: 1 } }).toArray();
   return [...new Set([...blocked, ...banned.map((b: any) => b._id as number)])];
+}
+
+/**
+ * PRIVATE PAGES. Owners with `isPrivate` show their posts, stories, highlights and follow lists only to people
+ * they approved (an existing follow = approved) and to themselves; the owner/env-admins keep moderation access.
+ * Returns the private owners whose content THIS viewer may not see. Their profile header (name, photo, bio,
+ * counts) stays visible, exactly like Instagram.
+ */
+export async function lockedOwnerIds(viewerId: number): Promise<number[]> {
+  if (isStaffId(viewerId)) return [];
+  const users = await usersCol();
+  const priv = await users.find({ isPrivate: true, _id: { $ne: viewerId } }, { projection: { _id: 1 } }).toArray();
+  if (!priv.length) return [];
+  const ids = priv.map((p: any) => p._id as number);
+  const f = await col(C.follows);
+  const followed = await f.find({ followerId: viewerId, followeeId: { $in: ids } }, { projection: { followeeId: 1 } }).toArray();
+  const ok = new Set(followed.map((x: any) => x.followeeId as number));
+  return ids.filter((i) => !ok.has(i));
+}
+
+/** Same rule for users already loaded (only the few private ones among them cost a lookup). */
+export async function lockedAmong(viewerId: number, docs: Array<{ _id: number; isPrivate?: boolean }>): Promise<Set<number>> {
+  if (isStaffId(viewerId)) return new Set();
+  const priv = docs.filter((d) => d.isPrivate && d._id !== viewerId).map((d) => d._id);
+  if (!priv.length) return new Set();
+  const f = await col(C.follows);
+  const followed = await f.find({ followerId: viewerId, followeeId: { $in: priv } }, { projection: { followeeId: 1 } }).toArray();
+  const ok = new Set(followed.map((x: any) => x.followeeId as number));
+  return new Set(priv.filter((i) => !ok.has(i)));
 }
 
 /** Filter for "a registered user the viewer may see anywhere in the app". */
@@ -125,6 +157,9 @@ export async function activeStoryOwners(viewerId: number, ownerIds: number[], no
 
 export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> {
   const st = await activeStoryOwners(viewerId, docs.map((d) => d._id));
+  // a private page's story ring is not shown to people who may not open it
+  const locked = await lockedAmong(viewerId, docs);
+  for (const id of locked) st.delete(id);
   return docs.map((u) => ({
     id: u.anonId,
     username: u.miniUsername ?? null,

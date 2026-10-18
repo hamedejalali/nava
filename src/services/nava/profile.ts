@@ -4,8 +4,8 @@ import { getRequestRecipientIds } from "../../features/admin/constants.js";
 import { isValidPersianNickname } from "../../features/onboarding/nickname.js";
 import { MAX_AGE, MIN_AGE, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
 import { botApi } from "../miniapp.js";
-import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, toBriefs, usersCol, type Brief } from "./common.js";
-import { followCounts } from "./follow.js";
+import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
+import { countFollowRequests, followCounts } from "./follow.js";
 import { countGifts } from "./gifts.js";
 import { countPosts } from "./posts.js";
 import { highlightBriefs, type HighlightBrief } from "./stories.js";
@@ -21,6 +21,11 @@ export interface ProfileView extends Brief {
   posts: number;
   gifts: number;
   iFollow: boolean;
+  /** a follow request of mine is waiting for this (private) person's approval */
+  requested: boolean;
+  /** private page: posts / stories / follow lists are hidden from me until they approve */
+  isPrivate: boolean;
+  locked: boolean;
   followsMe: boolean;
   isMe: boolean;
   likes: number;
@@ -29,6 +34,8 @@ export interface ProfileView extends Brief {
   /** none = can request · requested = a request of mine is waiting · busy = in another chat · me */
   chat: "none" | "requested" | "busy" | "me" | "with_you";
   // ---- own profile only ----
+  /** follow requests waiting for my approval (private page) */
+  requests?: number;
   relic?: number;
   level?: string;
   hasPhoto?: boolean;
@@ -45,8 +52,12 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
   const counts = await followCounts(owner._id);
   const follows = await col(C.follows);
   const liked = await (await col("profile_likes")).findOne({ _id: `${viewer._id}:${owner._id}` });
+  const locked = !isMe && (await lockedOwnerIds(viewer._id)).includes(owner._id);
   const view: ProfileView = {
     ...brief!,
+    isPrivate: !!owner.isPrivate,
+    locked,
+    requested: isMe ? false : !!(await (await col(C.followRequests)).findOne({ _id: `${viewer._id}:${owner._id}` })),
     bio: owner.bio ?? "",
     age: owner.age ?? null,
     province: owner.province ?? null,
@@ -60,7 +71,7 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     isMe,
     likes: owner.likesCount ?? 0,
     liked: !!liked,
-    highlights: await highlightBriefs(owner._id),
+    highlights: locked ? [] : await highlightBriefs(owner._id),
     chat: "none",
   };
   if (isMe) {
@@ -72,6 +83,7 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     const pName = await reqs.findOne({ telegramId: owner._id, field: "nickname", status: "pending" });
     const pAge = await reqs.findOne({ telegramId: owner._id, field: "age", status: "pending" });
     view.relic = fresh.relicBalance ?? 0;
+    view.requests = fresh.isPrivate ? await countFollowRequests(owner._id) : 0;
     view.level = levelDisplay(fresh.level);
     view.hasPhoto = !!fresh.profilePhotoFileId;
     view.photoPending = !!pendingPhoto;

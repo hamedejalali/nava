@@ -49,6 +49,11 @@ export function ensureSocialIndexesOnce(): void {
       { key: { createdAt: -1 }, name: "created" },
     ]);
     await db.collection("mini_comments").createIndexes([{ key: { postId: 1, createdAt: -1 }, name: "post_created" }, { key: { ownerId: 1, createdAt: -1 }, name: "owner_created" }]);
+    await db.collection("users").createIndexes([{ key: { isPrivate: 1 }, name: "private_pages", partialFilterExpression: { isPrivate: true } }]);
+    await db.collection("mini_follow_requests").createIndexes([
+      { key: { toId: 1, createdAt: -1 }, name: "to_created" },
+      { key: { fromId: 1 }, name: "from" },
+    ]);
     await db.collection("mini_follows").createIndexes([
       { key: { followeeId: 1, createdAt: -1 }, name: "followee_created" },
       { key: { followerId: 1, createdAt: -1 }, name: "follower_created" },

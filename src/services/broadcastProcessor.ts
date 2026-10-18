@@ -13,7 +13,7 @@ export async function processBroadcastBatch(api: Api, job: BroadcastJobDoc): Pro
   const db = await getDb();
   const users = await db
     .collection<any>("users")
-    .find({ _id: { $gt: job.cursorId }, banned: { $ne: true } })
+    .find({ _id: { $gt: job.cursorId }, banned: { $ne: true }, isSeed: { $ne: true } })
     .sort({ _id: 1 })
     .limit(BATCH_SIZE)
     .project({ _id: 1 })

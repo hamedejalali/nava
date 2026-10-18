@@ -10,6 +10,8 @@ import { processSearchNotices } from "../../src/features/matching/searchNotices.
 import { noticeExistsFor } from "../../src/db/models/searchNotice.js";
 import { processDueDeliveries } from "../../src/features/matching/matchDelivery.js";
 import { cleanupStories } from "../../src/services/nava/stories.js";
+import { processDueSeedJobs } from "../../src/features/matching/seedMatch.js";
+import { seedGuardTransformer } from "../../src/services/seeds/guard.js";
 import { processDueGiftEvents } from "../../src/services/nava/giftEvents.js";
 
 /**
@@ -36,6 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const api = new Api(env.BOT_TOKEN);
+  api.config.use(seedGuardTransformer);
   // 1) durable notices first (they survive the queue document's TTL deletion), 2) legacy queue-document sweep
   const notices = await processSearchNotices(api, 50);
   const result = await processExpiredSearches(api);
@@ -57,7 +60,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Settle gift auctions / giveaways whose time is up (never throws).
   const giftEvents = await processDueGiftEvents(api, 25);
 
-  res.status(200).json({ ...result, searchNotices: notices, storiesDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed });
+  // Finish default-member chats whose invocation was cut off (never throws).
+  const seedChats = await processDueSeedJobs(api, 25, 0);
+
+  res.status(200).json({ ...result, seedChatsFinished: seedChats, searchNotices: notices, storiesDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed });
 }
 
 /** A Telegram error that retrying can never fix (user blocked the bot, chat gone, bad request). */

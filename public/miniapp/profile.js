@@ -234,6 +234,69 @@
     sel(start || "followers");
   };
 
+  /* ------------------------------------------------ private page: requests */
+  NG.openFollowRequests = function (onChange) {
+    var w = el('<div style="min-height:100%"></div>');
+    var top = NG.topbar("درخواست‌های دنبال کردن");
+    var body = el("<div></div>");
+    w.appendChild(top); w.appendChild(body);
+    var scr = NG.push(w); top.querySelector(".bk").onclick = scr.close;
+    var cursor = null, loading = false;
+    function row(u) {
+      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + (u.verified ? NG.VERIFIED : "") + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
+      r.insertBefore(NG.ring(u, { noStory: true }), r.firstChild);
+      r.querySelector(".ring").onclick = function (e) { e.stopPropagation(); NG.openProfile(u.id); };
+      var ok = el('<button class="fbtn">تأیید</button>'), no = el('<button class="fbtn gray">حذف</button>');
+      function answer(accept) {
+        ok.disabled = no.disabled = true;
+        NG.api("follow_respond", { id: u.id, accept: accept }).then(function (rr) {
+          if (!rr.ok) { ok.disabled = no.disabled = false; return NG.toast(NG.errText(rr)); }
+          r.remove(); if (onChange) onChange(rr.data);
+          if (!body.children.length) body.innerHTML = NG.emptyHtml("user", "درخواستی نمونده", "");
+        }).catch(function () { ok.disabled = no.disabled = false; NG.netErr(); });
+      }
+      ok.onclick = function (e) { e.stopPropagation(); answer(true); };
+      no.onclick = function (e) { e.stopPropagation(); answer(false); };
+      r.onclick = function () { NG.openProfile(u.id); };
+      r.appendChild(ok); r.appendChild(no);
+      return r;
+    }
+    function load(reset) {
+      if (loading) return; loading = true;
+      if (reset) { body.innerHTML = '<div class="more-spin"><div class="spin"></div></div>'; cursor = null; }
+      NG.api("follow_requests", { before: cursor || undefined }).then(function (r) {
+        loading = false;
+        if (reset) body.innerHTML = "";
+        var mb = body.querySelector(".moreb"); if (mb) mb.remove();
+        if (!r.ok) return NG.toast(NG.errText(r));
+        r.data.items.forEach(function (u) { body.appendChild(row(u)); });
+        cursor = r.data.next;
+        if (!body.children.length) body.innerHTML = NG.emptyHtml("user", "درخواستی نیست", "");
+        if (r.data.hasMore) { var b = el('<button class="moreb" style="width:100%;padding:14px;color:var(--blue);font-weight:600">بیشتر</button>'); b.onclick = function () { load(false); }; body.appendChild(b); }
+      }).catch(function () { loading = false; NG.netErr(); });
+    }
+    load(true);
+  };
+
+  /* ---------------------------------------------- owner: switch account */
+  NG.openAccounts = function () {
+    NG.api("accounts").then(function (r) {
+      if (!r.ok) return NG.toast(NG.errText(r));
+      var d = r.data, list = [{ id: d.main.id, name: d.main.name, av: d.main.av, verified: d.main.verified, main: true }].concat(d.items);
+      NG.sheet('<div class="shd">تعویض اکانت</div><div id="acc" style="max-height:60vh;overflow:auto"></div>', function (sh, close) {
+        var box = sh.querySelector("#acc");
+        list.forEach(function (a) {
+          var cur = a.id === d.current;
+          var row = el('<div class="row"><div class="t"><b>' + esc(a.name) + (a.verified ? NG.VERIFIED : "") + "</b><span>" + (a.main ? "اکانت اصلی تو" : "ممبر پیش‌فرض") + "</span></div>" + (cur ? '<span style="color:var(--blue);font-weight:800">✓</span>' : "") + "</div>");
+          row.insertBefore(NG.ring(a, { noStory: true }), row.firstChild);
+          row.onclick = function () { if (cur) return close(); NG.setActAs(a.main ? null : a.id); close(function () { location.reload(); }); };
+          box.appendChild(row);
+        });
+        if (!d.items.length) box.appendChild(el('<div class="empty" style="padding:20px 24px">هنوز ممبر پیش‌فرضی نساختی. از پنل ادمین → تنظیمات ربات → 🎭 ممبرهای پیش‌فرض بساز.</div>'));
+      });
+    }).catch(NG.netErr);
+  };
+
   /* ---------------------------------------------------------------- profile */
   /** Builds a profile page. o = { tab: true } for the bottom-bar tab, else it is pushed as a screen. */
   function profileView(id, o) {
@@ -243,7 +306,8 @@
     var topEl = el('<div class="ptop"></div>');
     var head = el("<div></div>"), hl = el("<div></div>"), tabsEl = el("<div></div>"), body = el('<div class="pbody"></div>');
     root.appendChild(topEl); root.appendChild(head); root.appendChild(hl); root.appendChild(tabsEl); root.appendChild(body);
-    var P = null, tab = o.tabState || "posts", pids = [], gridCursor = null, gridMore = false, gridLoading = false, closeFn = null;
+    var P = null, tab = o.tabState || "posts", pids = [], gridCursor = null, gridMore = false, gridLoading = false, closeFn = null, coinEl = null;
+    function setRelic(n) { if (P && P.isMe) P.relic = n; if (coinEl) { var b = coinEl.querySelector("b"); if (b) b.textContent = num(n || 0); } }
 
     function renderTop() {
       topEl.innerHTML = "";
@@ -252,8 +316,14 @@
       var nm = P ? NG.nameOf(P) : "…";
       var u = el('<div class="u"><span>' + esc(nm) + "</span>" + (P && P.verified ? NG.VERIFIED : "") + "</div>");
       left.appendChild(u); topEl.appendChild(left);
+      // owner / admins: tap the name to switch account (like Instagram) and work as a default member
+      if (o.tab && P && P.isMe && NG.staff) { u.insertAdjacentHTML("beforeend", NG.svg("chevD", "")); u.style.cursor = "pointer"; u.onclick = function () { NG.openAccounts(); }; }
       var act = el('<div class="act"></div>');
       if (P && P.isMe) {
+        // Relic balance in the corner: always the server's number (refreshed by the live "me" poll)
+        coinEl = el('<button class="coinchip" aria-label="relic"><span class="cn">🪙</span><b>' + num(P.relic || 0) + "</b></button>");
+        coinEl.onclick = function () { NG.toast("موجودی رلیک تو: " + num((NG.me && NG.me.relic != null ? NG.me.relic : P.relic) || 0)); };
+        act.appendChild(coinEl);
         var add = el('<button class="ib" aria-label="new">' + svg("plus") + "</button>"); add.onclick = function () { NG.composeMenu(); };
         var mn = el('<button class="ib" aria-label="menu">' + svg("menu") + "</button>"); mn.onclick = function () { ownMenu(P); };
         act.appendChild(add); act.appendChild(mn);
@@ -277,8 +347,8 @@
       };
       h.appendChild(ring);
       var st = el('<div class="stats"><div class="sp"><b>' + num(P.posts) + "</b><span>پست</span></div><div class=\"sf\"><b>" + num(P.followers) + "</b><span>دنبال‌کننده</span></div><div class=\"sg\"><b>" + num(P.following) + "</b><span>دنبال‌شونده</span></div></div>");
-      st.querySelector(".sf").onclick = function () { NG.openFollows(P, "followers"); };
-      st.querySelector(".sg").onclick = function () { NG.openFollows(P, "following"); };
+      st.querySelector(".sf").onclick = function () { if (P.locked) return NG.toast("این پیج خصوصیه؛ بعد از تأیید صاحبش می‌تونی ببینی."); NG.openFollows(P, "followers"); };
+      st.querySelector(".sg").onclick = function () { if (P.locked) return NG.toast("این پیج خصوصیه؛ بعد از تأیید صاحبش می‌تونی ببینی."); NG.openFollows(P, "following"); };
       h.appendChild(st); head.appendChild(h);
 
       var info = [];
@@ -299,18 +369,33 @@
         var e1 = el('<button class="btn">ویرایش پروفایل</button>'); e1.onclick = function () { NG.openEdit(); };
         var e2 = el('<button class="btn">اشتراک‌گذاری پروفایل</button>'); e2.onclick = function () { NG.share("uid", P.id); };
         btns.appendChild(e1); btns.appendChild(e2);
+        if (P.isPrivate && P.requests > 0) {
+          var rq = el('<button class="btn blue" style="margin-top:8px;width:100%;flex:none">درخواست‌های دنبال کردن (' + num(P.requests) + ")</button>");
+          rq.onclick = function () { NG.openFollowRequests(function (d) { P.requests = d.requests; P.followers = d.followers; NG.me = Object.assign(NG.me || {}, { requests: d.requests, followers: d.followers }); renderHead(); }); };
+          head.appendChild(rq);
+        }
       } else {
         var f = el('<button class="btn"></button>');
-        function fl() { f.className = "btn" + (P.iFollow ? "" : " blue"); f.textContent = P.iFollow ? "دنبال می‌کنی" : (P.followsMe ? "دنبال کردن متقابل" : "دنبال کردن"); }
+        function fl() {
+          var on = P.iFollow || P.requested; f.className = "btn" + (on ? "" : " blue");
+          f.textContent = P.iFollow ? "دنبال می‌کنی" : P.requested ? "درخواست شده" : (P.isPrivate ? "درخواست دنبال کردن" : (P.followsMe ? "دنبال کردن متقابل" : "دنبال کردن"));
+        }
         fl();
         f.onclick = function () {
-          var want = !P.iFollow; P.iFollow = want; P.followers += want ? 1 : -1; fl(); NG.haptic();
+          // private page: the first tap sends a REQUEST (waits for approval); tapping again cancels it
+          var want = !(P.iFollow || P.requested), was = { f: P.iFollow, r: P.requested, n: P.followers, l: P.locked };
+          if (want) { if (P.isPrivate) P.requested = true; else { P.iFollow = true; P.followers += 1; } }
+          else { if (P.iFollow) P.followers -= 1; P.iFollow = false; P.requested = false; if (P.isPrivate) P.locked = true; }
+          fl(); NG.haptic();
           var sf = head.querySelector(".sf b"); if (sf) sf.textContent = num(P.followers);
+          if (!!P.locked !== !!was.l) renderBody(true);
           NG.api("follow", { id: P.id, follow: want }).then(function (r) {
-            if (!r.ok) { P.iFollow = !want; P.followers += want ? -1 : 1; fl(); if (sf) sf.textContent = num(P.followers); return NG.toast(NG.errText(r)); }
-            P.iFollow = r.data.following; P.followers = r.data.followers; fl(); if (sf) sf.textContent = num(P.followers);
+            if (!r.ok) { P.iFollow = was.f; P.requested = was.r; P.followers = was.n; var lc = !!P.locked !== !!was.l; P.locked = was.l; fl(); if (sf) sf.textContent = num(P.followers); if (lc) renderBody(true); return NG.toast(NG.errText(r)); }
+            P.iFollow = r.data.following; P.requested = !!r.data.requested; P.followers = r.data.followers;
+            var lockedNow = !!P.isPrivate && !P.iFollow; var changed = lockedNow !== !!P.locked; P.locked = lockedNow;
+            fl(); if (sf) sf.textContent = num(P.followers); if (changed) renderBody(true);
             NG.emit("follow", { id: P.id, following: P.iFollow, followers: P.followers });
-          }).catch(function () { P.iFollow = !want; P.followers += want ? -1 : 1; fl(); NG.netErr(); });
+          }).catch(function () { P.iFollow = was.f; P.requested = was.r; P.followers = was.n; P.locked = was.l; fl(); renderBody(true); NG.netErr(); });
         };
         var c = el('<button class="btn"></button>');
         function cs() {
@@ -415,6 +500,7 @@
       }).catch(NG.netErr);
     }
     function renderBody(reset) {
+      if (P && P.locked && tab === "posts") { body.innerHTML = '<div class="empty" style="padding:50px 30px"><h3 style="font-size:18px">🔒 این پیج خصوصیه</h3>برای دیدن پست‌ها و استوری‌ها باید درخواست دنبال کردن بدی و صاحب پیج تأیید کنه.</div>'; return; }
       if (!P) { body.innerHTML = '<div class="grid">' + new Array(10).join('<div class="tile sk"></div>') + "</div>"; return; }
       if (tab === "gifts") loadGifts(); else loadGrid(reset !== false);
     }
@@ -452,8 +538,23 @@
         { label: "ساخت پست", fn: function () { NG.composeMenu("post"); } },
         { label: "ساخت استوری", fn: function () { NG.createStory(); } },
         { label: "آرشیو استوری‌ها", fn: function () { NG.openArchive(); } },
+        { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } },
+        ].concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
         { label: "رلیک: " + num(p.relic || 0) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
-      ]);
+      ]));
+    }
+    function togglePrivate(p) {
+      var on = !p.isPrivate;
+      NG.confirm(on ? "خصوصی کردن پیج" : "غیرخصوصی کردن پیج",
+        on ? "از این به بعد فقط کسانی که تأیید کنی پست‌ها، استوری‌ها و لیست دنبال‌کننده‌هات رو می‌بینن. دنبال‌کننده‌های فعلی می‌مونن." : "پیجت دوباره برای همه باز میشه و درخواست‌های منتظر خودکار تأیید می‌شن.",
+        on ? "خصوصی کن" : "غیرخصوصی کن", function () {
+          NG.api("set_private", { on: on }).then(function (r) {
+            if (!r.ok) return NG.toast(NG.errText(r));
+            P.isPrivate = r.data.isPrivate; P.requests = r.data.requests; P.followers = r.data.followers;
+            NG.me = Object.assign(NG.me || {}, { isPrivate: P.isPrivate, requests: P.requests, followers: P.followers });
+            renderHead(); NG.toast(P.isPrivate ? "پیجت خصوصی شد 🔒" : "پیجت عمومی شد");
+          }).catch(NG.netErr);
+        }, false);
     }
     function otherMenu(p) {
       NG.actions([
@@ -463,7 +564,7 @@
       ]);
     }
 
-    return { node: root, reload: reload, setClose: function (f) { closeFn = f; }, get profile() { return P; } };
+    return { node: root, reload: reload, setRelic: setRelic, setClose: function (f) { closeFn = f; }, get profile() { return P; } };
   }
 
   NG.openProfile = function (id) {

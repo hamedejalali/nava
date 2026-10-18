@@ -22,7 +22,10 @@ import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
 import { present } from "../src/services/nava/present.js";
 import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setPostLike } from "../src/services/nava/posts.js";
 import { activeStoriesOf, createHighlight, createStory, deleteHighlight, deleteStory, editHighlight, getHighlight, markStoryViewed, storiesTray, storyArchive, storyViewers } from "../src/services/nava/stories.js";
-import { listFollows, setFollow } from "../src/services/nava/follow.js";
+import { listFollowRequests, listFollows, respondFollowRequest, setFollow, setPrivate } from "../src/services/nava/follow.js";
+import { allSeeds, getSeedByAnonId } from "../src/db/models/seeds.js";
+import { getMaintenanceState, maintenanceAllows, maintenanceText } from "../src/services/maintenance.js";
+import { photoVer } from "../src/services/nava/common.js";
 import { giftCatalog, listReceivedGifts, regiftGift, sendGift } from "../src/services/nava/gifts.js";
 import { logAdminAction } from "../src/db/models/adminLog.js";
 import { reportPost } from "../src/services/nava/postReports.js";
@@ -65,8 +68,10 @@ const ACTIONS = new Set([
   "home", "explore", "search", "recent_add", "recent_remove", "recent_clear",
   // posts
   "posts", "post", "post_create", "post_edit", "post_delete", "post_report", "like", "comments", "comment_add", "comment_delete",
-  // follow
-  "follow", "follows",
+  // follow + private page
+  "follow", "follows", "set_private", "follow_requests", "follow_respond",
+  // owner / admins: work as a default member
+  "accounts",
   // stories + highlights
   "stories", "story_create", "story_view", "story_viewers", "story_delete", "story_archive",
   "highlight", "highlight_create", "highlight_edit", "highlight_delete",
@@ -167,7 +172,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!ACTIONS.has(action)) return void res.status(400).json({ error: "bad_action" });
 
     // Owner / admins get the monitoring panel instead of the social app (unless they ask for user mode).
-    const staff = action === "whoami" || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" ? await authenticateStaff(body.initData) : null;
+    const wantsActAs = typeof body.actAs === "string" && body.actAs.length > 0;
+    const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" ? await authenticateStaff(body.initData) : null;
     if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
 
     const viewer = await authenticateViewer(body.initData);
@@ -176,12 +182,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (viewer.error === "banned") return void res.status(viewer.status).json({ error: "banned", support: await getSupportLink().catch(() => null) });
       return void res.status(viewer.status).json({ error: viewer.error });
     }
-    const me = viewer.user;
+    // Bot switched OFF: only staff and the allow-list get through (same rule as the bot); everybody else sees the text.
+    const maint = await getMaintenanceState();
+    if (maint.on && !maintenanceAllows(maint, viewer.user._id, viewer.user)) {
+      return void res.status(503).json({ error: "maintenance", text: await maintenanceText() });
+    }
+    let me = viewer.user;
+    // "Switch account" (owner/admins only, verified from the signed initData — never trusted from the client):
+    // every action below then runs AS that default member.
+    let acting = false;
+    if (wantsActAs && body.actAs !== me.anonId) {
+      if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
+      const seed = await getSeedByAnonId(String(body.actAs).slice(0, 32));
+      if (!seed) return void res.status(404).json({ error: "not_found" });
+      me = seed;
+      acting = true;
+    }
+    // A default member has no Relic: nothing that spends, earns or goes through moderation / Telegram as a real person.
+    if (acting && ["gift_send", "gift_regift", "request", "upload_photo", "request_change"].includes(action)) return void res.status(403).json({ error: "forbidden" });
     // Abuse protection (v1.16.3): per-person budget, counted in MongoDB so it holds across serverless instances.
     // Generous (a person scrolling the app makes a few calls per second at most); fails OPEN if the limiter
     // itself is unavailable so a limiter outage never locks everybody out.
     try {
-      const rl = await checkRateLimit(me._id, "miniapp", MINIAPP_CALLS_PER_MINUTE, 60_000);
+      const rl = await checkRateLimit(viewer.user._id, "miniapp", MINIAPP_CALLS_PER_MINUTE, 60_000);
       if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
     } catch (err) {
       console.error("[miniapp] rate limiter unavailable:", err instanceof Error ? err.name : "unknown");
@@ -190,7 +213,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === "whoami") {
       if (!(await joinedOk(me))) return void res.status(403).json({ error: "join_required" });
-      return send({ role: "user", me: await getProfile(me, me.anonId), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null, staff: !!staff?.ok });
+      return send({ role: "user", me: await getProfile(me, me.anonId), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null, staff: !!staff?.ok, acting: acting ? me.anonId : null });
     }
 
     if (action === "photo") {
@@ -291,6 +314,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "follow": {
           const r = await setFollow(me, body.id, body.follow !== false);
           return r ? void res.status(200).json(r) : void res.status(404).json({ error: "not_found" });
+        }
+        case "set_private":
+          return void res.status(200).json(await setPrivate(me, body.on === true));
+        case "follow_requests":
+          return send(await listFollowRequests(me, typeof body.before === "number" ? body.before : undefined));
+        case "follow_respond":
+          return void res.status(200).json(await respondFollowRequest(me, body.id, body.accept !== false));
+        case "accounts": {
+          if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
+          const seeds = await allSeeds();
+          const real = viewer.user;
+          const row = (u: any) => ({ id: u.anonId, name: u.nickname ?? "-", verified: !!u.verified, pv: photoVer(u.profilePhotoFileId) });
+          return send({ main: row(real), items: seeds.map(row), current: acting ? me.anonId : real.anonId });
         }
         case "follows": {
           const r = await listFollows(me._id, body.id, body.type, typeof body.before === "number" ? body.before : undefined);

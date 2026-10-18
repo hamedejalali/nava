@@ -9,6 +9,7 @@ export const ADMIN_CALLBACKS = {
   editRules: "admin:guides:rules",
   editSupportId: "admin:support_id",
   editInviteMessage: "admin:guides:invite",
+  editMaintenanceText: "admin:guides:maintenance",
   cancelEdit: "admin:cancel",
 } as const;
 

@@ -40,6 +40,7 @@ function notificationText(cost: number): string {
 /** Sends the anonymous "someone viewed you" notice with the pay button to
  *  `target`. Never throws (the target may have blocked the bot). */
 export async function sendRevealNotification(api: Api, viewerId: number, target: UserDoc): Promise<void> {
+  if (target.isSeed) return; // a default member has nobody to pay: no reveal record, no notice
   try {
     const revealId = await createReveal(viewerId, target._id);
     await api.sendMessage(target._id, notificationText(env.PROFILE_VIEW_REVEAL_COST), {

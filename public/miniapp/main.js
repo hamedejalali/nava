@@ -62,6 +62,7 @@
     if (t === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
     if (t === "search") renderSearch(true);
     if (t === "profile") { renderProfileTab(); }
+    schedulePoll();
   };
 
   /* ------------------------------------------------------------ own profile */
@@ -169,15 +170,19 @@
 
   /* ----------------------------------------------------- me / live updates */
   var pollT = null;
-  function needsPoll() { var m = NG.me; return !!(m && (m.photoPending || m.pendingName || m.pendingAge)); }
+  function needsPoll() { var m = NG.me; return !!(m && (m.photoPending || m.pendingName || m.pendingAge || current === "profile" || m.isPrivate)); }
   function schedulePoll() {
     clearTimeout(pollT);
     if (!needsPoll()) return;
-    pollT = setTimeout(function () { if (document.hidden) return schedulePoll(); NG.refreshMe().then(schedulePoll); }, 9000);
+    pollT = setTimeout(function () { if (document.hidden) return schedulePoll(); NG.refreshMe().then(schedulePoll, schedulePoll); }, 6000);
   }
   NG.on("me", function (d) {
     var o = d.old, m = d.me;
     setTabAvatar();
+    if (o && m && profileV) {
+      if (o.relic !== m.relic) profileV.setRelic(m.relic);
+      if ((o.requests || 0) !== (m.requests || 0) || !!o.isPrivate !== !!m.isPrivate) profileV.reload();
+    }
     if (o && m && (o.av !== m.av || o.name !== m.name || o.age !== m.age || !!o.photoPending !== !!m.photoPending || o.pendingName !== m.pendingName || o.pendingAge !== m.pendingAge)) {
       if (profileV) profileV.reload();
       if (o.av !== m.av) { NG.refresh(); NG.refreshTray(); }
@@ -204,16 +209,28 @@
     }, 350);
   }
 
+  function actBanner() {
+    var b = document.createElement("div"); b.className = "actasbar";
+    b.innerHTML = '<span>🎭 داری به‌جای «' + NG.esc(NG.me.name || NG.me.id) + '» کار می‌کنی</span><button type="button">بازگشت به اکانت خودم</button>';
+    b.querySelector("button").onclick = function () { NG.setActAs(null); location.reload(); };
+    document.body.appendChild(b);
+  }
+
   /* -------------------------------------------------------------------- boot */
   function boot() {
     var t0 = Date.now();
     function reveal() { var wait = Math.max(0, 1500 - (Date.now() - t0)); setTimeout(NG.hideSplash, wait); }
     if (!NG.initData) { NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن."); return; }
     NG.api("whoami").then(function (r) {
-      if (!r.ok) { NG.fail(r); return; }
+      if (!r.ok) {
+        var er = r.data && r.data.error;
+        if (NG.actAs && (er === "not_found" || er === "forbidden" || er === "not_registered")) { NG.setActAs(null); location.reload(); return; }
+        NG.fail(r); return;
+      }
       if (r.data.role === "staff") { location.replace("/monitor/"); return; }
       NG.me = r.data.me; NG.bot = r.data.bot || null; NG.staff = !!r.data.staff; // owner / admins may remove any post, story or comment
       buildShell(); renderExploreShell();
+      if (r.data.acting) actBanner();
       pages.home.classList.add("on"); movePill();
       var done = NG.renderHome(pages.home);
       var fin = function () { reveal(); deepLink(); schedulePoll(); };

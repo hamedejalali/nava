@@ -30,6 +30,11 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
       await ctx.answerCallbackQuery();
       return;
     }
+    if (target.isSeed) {
+      // default (seed) members have no wallet: Relic sent there would simply vanish
+      await ctx.answerCallbackQuery({ text: "انتقال رلیک به این کاربر در حال حاضر ممکن نیست.", show_alert: true });
+      return;
+    }
 
     await ctx.answerCallbackQuery();
     await clearAllUserFlows(ctx.from!.id);
@@ -104,7 +109,7 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
       return;
     }
     const target = await getUser(session.targetId);
-    if (!target) {
+    if (!target || target.isSeed) {
       await ctx.answerCallbackQuery();
       await clearTransferSession(ctx.from!.id);
       return;

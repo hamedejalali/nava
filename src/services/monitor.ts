@@ -148,9 +148,9 @@ export async function collectSnapshot(deps: MonitorDeps = {}) {
   const dayAgo = new Date(now.getTime() - 24 * 3600_000);
 
   const [usersTotal, usersCompleted, usersBanned, activeChats, queueSize, requests24h, ledger1h, buckets] = await Promise.all([
-    safe(() => db.collection("users").countDocuments({}), "query failed"),
-    safe(() => db.collection("users").countDocuments({ onboardingStep: "COMPLETED" }), "query failed"),
-    safe(() => db.collection("users").countDocuments({ banned: true }), "query failed"),
+    safe(() => db.collection("users").countDocuments({ isSeed: { $ne: true } }), "query failed"),
+    safe(() => db.collection("users").countDocuments({ onboardingStep: "COMPLETED", isSeed: { $ne: true } }), "query failed"),
+    safe(() => db.collection("users").countDocuments({ banned: true, isSeed: { $ne: true } }), "query failed"),
     safe(() => db.collection("chat_sessions").countDocuments({ active: true }), "query failed"),
     safe(() => db.collection("match_queue").countDocuments({}), "query failed"),
     safe(() => db.collection("chat_requests").countDocuments({ createdAt: { $gte: dayAgo } }), "query failed"),

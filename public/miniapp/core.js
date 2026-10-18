@@ -99,6 +99,7 @@
   NG.api = function (action, body) {
     body = body || {}; body.action = action; body.initData = NG.initData;
     if (qs.get("as") === "user") body.asUser = true;
+    if (NG.actAs) body.actAs = NG.actAs; // owner / admins working AS a default member (verified on the server)
     return fetch("/api/miniapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
   };
@@ -110,6 +111,13 @@
     bad_gift: "این هدیه در دسترس نیست.", bad_name: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
     same_value: "این مقدار همونیه که الان داری.", pending_request: "یه درخواست در حال بررسی داری.", bio_too_long: "بیوگرافی حداکثر ۳۰۰ کاراکتر.",
     taken: "این یوزرنیم قبلاً انتخاب شده", sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
+  };
+  /** The account the owner is working as (a default member's Nava ID), remembered for this session only. */
+  NG.actAs = null;
+  try { NG.actAs = sessionStorage.getItem("ng_actas") || null; } catch (e) {}
+  NG.setActAs = function (anonId) {
+    NG.actAs = anonId || null;
+    try { if (anonId) sessionStorage.setItem("ng_actas", anonId); else sessionStorage.removeItem("ng_actas"); } catch (e) {}
   };
   NG.errText = function (r, fallback) { var e = r && r.data && r.data.error; return ERR[e] || fallback || "انجام نشد. دوباره امتحان کن."; };
   /** Full-screen message. `action` = { label, url } adds a button that opens a link (e.g. the support chat). */
@@ -127,6 +135,7 @@
     var e = r && r.data && r.data.error;
     if (e === "join_required") return NG.fatal("عضویت در کانال‌ها لازمه", "اول داخل کانال‌های ربات عضو شو، بعد دوباره مینی‌اپ رو باز کن.");
     if (e === "not_registered") return NG.fatal("ثبت‌نام کامل نیست", "اول ثبت‌نام رو داخل ربات کامل کن (/start).");
+    if (e === "maintenance") return NG.fatal("🛠 نوا در حال به‌روزرسانی است", (r.data && r.data.text) || "به‌زودی برمی‌گردیم.");
     if (e === "banned") return NG.fatal("شما مسدود شدید", "برای رفع مسدودیت به پشتیبانی پیام بدین.", r.data.support ? { label: "📩 پیام به پشتیبانی", url: r.data.support } : null);
     if (r && r.status === 401) return NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن.");
     NG.toast(NG.errText(r));
@@ -136,7 +145,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.17.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.18.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

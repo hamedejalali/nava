@@ -8,6 +8,7 @@ import { processUpdateOnce } from "../src/webhook/processUpdate.js";
 import { maybeProcessSearchNotices } from "../src/features/matching/searchNotices.js";
 import { maybeProcessDueGiftEvents } from "../src/services/nava/giftEvents.js";
 import { maybeProcessDueDeliveries } from "../src/features/matching/matchDelivery.js";
+import { processDueSeedJobs } from "../src/features/matching/seedMatch.js";
 import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
@@ -126,5 +127,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   waitUntil(maybeProcessDueDeliveries(bot!.api).catch(() => {}));
   waitUntil(maybeProcessSearchNotices(bot!.api).catch(() => {}));
   waitUntil(maybeProcessDueGiftEvents(bot!.api).catch(() => {}));
+  waitUntil(processDueSeedJobs(bot!.api).catch(() => {}));
   res.status(200).send("ok");
 }

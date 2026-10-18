@@ -6,6 +6,7 @@ import { listActiveChannels } from "../db/models/channel.js";
 import { ensureChatRequestIndexes } from "../db/models/chatRequest.js";
 import type { UserDoc } from "../db/models/user.js";
 import { verifyTelegramWebAppInitData } from "../utils/telegramWebApp.js";
+import { seedGuardTransformer } from "./seeds/guard.js";
 
 /** Mini App sessions are allowed to stay open for a few hours. */
 export const MINIAPP_INITDATA_MAX_AGE_SECONDS = 3 * 3600;
@@ -13,7 +14,11 @@ export const MAX_EXCLUDE = 200;
 
 let api: Api | null = null;
 export function botApi(): Api {
-  if (!api) api = new Api(env.BOT_TOKEN);
+  if (!api) {
+    api = new Api(env.BOT_TOKEN);
+    // nothing addressed to a default (seed) member may reach Telegram (see services/seeds/guard.ts)
+    api.config.use(seedGuardTransformer);
+  }
   return api;
 }
 
@@ -68,6 +73,7 @@ export function eligibleCandidateFilter(viewerId: number, blocked: number[], exc
     onboardingStep: "COMPLETED",
     banned: { $ne: true },
     activeChatSessionId: null,
+    seedHidden: { $ne: true },
     profilePhotoFileId: { $type: "string", $ne: "" },
     anonId: { $nin: excludeAnonIds },
   };

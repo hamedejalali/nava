@@ -40,7 +40,7 @@ const COLUMNS: { header: string; key: string; width?: number }[] = [
  */
 export async function exportUsersToExcel(filePath: string): Promise<number> {
   const db = await getDb();
-  const cursor = db.collection<UserDoc>("users").find({}, { projection: Object.fromEntries(COLUMNS.map((c) => [c.key, 1])) });
+  const cursor = db.collection<UserDoc>("users").find({ isSeed: { $ne: true } }, { projection: Object.fromEntries(COLUMNS.map((c) => [c.key, 1])) });
 
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: filePath, useStyles: false, useSharedStrings: false });
   const sheet = workbook.addWorksheet("users");

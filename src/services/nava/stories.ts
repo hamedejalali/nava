@@ -1,4 +1,4 @@
-import { ARCHIVE_MS, C, SocialError, STORY_TTL_MS, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, newId, toBriefs, usersCol, type Brief } from "./common.js";
+import { ARCHIVE_MS, C, SocialError, STORY_TTL_MS, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, lockedOwnerIds, newId, toBriefs, usersCol, type Brief } from "./common.js";
 import { decodeImage, deleteMedia, storeMedia } from "./media.js";
 
 export const MAX_STORIES_PER_DAY = 40;
@@ -75,6 +75,10 @@ async function viewCounts(ids: string[]): Promise<Map<string, number>> {
 export async function activeStoriesOf(viewerId: number, anonId: unknown): Promise<{ owner: Brief; stories: StoryView[] } | null> {
   const owner = await findVisibleUser(viewerId, anonId, { includeSelf: true });
   if (!owner) return null;
+  if ((await lockedOwnerIds(viewerId)).includes(owner._id)) {
+    const [b] = await toBriefs(viewerId, [owner]);
+    return { owner: b!, stories: [] }; // private page: nothing to show until the owner approves
+  }
   const stories = await col<StoryDoc>(C.stories);
   const docs = await stories.find({ ownerId: owner._id, expiresAt: { $gt: new Date() } } as any).sort({ createdAt: 1 }).limit(100).toArray();
   const views = await col(C.storyViews);
@@ -88,7 +92,7 @@ export async function activeStoriesOf(viewerId: number, anonId: unknown): Promis
 
 /** Home stories tray: the viewer first, then everybody with an active story (unseen first). */
 export async function storiesTray(viewerId: number): Promise<Brief[]> {
-  const hidden = await hiddenOwnerIds(viewerId);
+  const hidden = [...(await hiddenOwnerIds(viewerId)), ...(await lockedOwnerIds(viewerId))];
   const stories = await col<StoryDoc>(C.stories);
   const rows = await stories.find({ ownerId: { $nin: hidden }, expiresAt: { $gt: new Date() } } as any).sort({ createdAt: -1 }).limit(400).toArray();
   const latest = new Map<number, number>();
@@ -112,7 +116,7 @@ export async function markStoryViewed(viewer: any, storyId: unknown): Promise<bo
   const stories = await col<StoryDoc>(C.stories);
   const s = await stories.findOne({ _id: storyId } as any);
   if (!s) return false;
-  const hidden = await hiddenOwnerIds(viewer._id, { direct: true });
+  const hidden = [...(await hiddenOwnerIds(viewer._id, { direct: true })), ...(await lockedOwnerIds(viewer._id))];
   if (hidden.includes(s.ownerId)) return false;
   if (s.ownerId === viewer._id) return true;
   const views = await col(C.storyViews);
@@ -322,7 +326,7 @@ export async function getHighlight(viewerId: number, hid: unknown): Promise<{ id
   if (!h) return null;
   const owner = await usersCol().then((u) => u.findOne({ _id: h.ownerId, onboardingStep: "COMPLETED", banned: { $ne: true } }));
   if (!owner) return null;
-  const hidden = await hiddenOwnerIds(viewerId);
+  const hidden = [...(await hiddenOwnerIds(viewerId)), ...(await lockedOwnerIds(viewerId))];
   if (hidden.includes(owner._id)) return null;
   const docs = await ownStoriesByIds(owner._id, h.storyIds);
   const [brief] = await toBriefs(viewerId, [owner]);

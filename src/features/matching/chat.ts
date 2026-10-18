@@ -12,6 +12,7 @@ import { buildChatControlsKeyboard, matchChatControlAction } from "./chatUi.js";
 import { showPartnerProfile } from "./profile.js";
 import { getActiveSessionAndPartner } from "./relayShared.js";
 import { recordRelayedMessage } from "../../db/models/chatRelayMap.js";
+import { onChatEndedBySomeone } from "./seedMatch.js";
 import { containsTelegramContact, CONTACT_FORBIDDEN_TEXT } from "../../utils/contactFilter.js";
 
 /** Every text message from a user with an active chat session is relayed
@@ -102,6 +103,8 @@ async function doEndChat(ctx: NavaContext) {
 
   const { session } = result;
   const partnerId = otherParticipant(session, me)!;
+  // a chat with a default member: announce it to the management channel right away (nothing is sent to the member)
+  if (session.seedChat) await onChatEndedBySomeone(ctx.api, session).catch(() => {});
 
   const ender = ctx.dbUser!;
   const partner = await getUser(partnerId);

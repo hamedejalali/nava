@@ -1,4 +1,4 @@
-import { C, SocialError, col, escapeRegex, findVisibleUser, hiddenOwnerIds, isAnonId, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
+import { C, SocialError, col, escapeRegex, findVisibleUser, hiddenOwnerIds, isAnonId, lockedAmong, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
 import type { PostDoc } from "./posts.js";
 
 /** Explore (everybody), precise search and "recent searches" of the Navagram Mini App. */
@@ -34,10 +34,12 @@ export async function explore(viewerId: number, offsetRaw?: unknown): Promise<{ 
   // EXPLORE_PAGE of them). The old single query with a fixed row limit let a very active user's posts fill
   // the whole limit so other users on the page lost their tile picture.
   const latest = new Map<number, string>();
+  // a private page's latest post must not leak through the Explore tile
+  const lockedTiles = await lockedAmong(viewerId, page);
   if (page.length) {
     const posts = await col<PostDoc>(C.posts);
     const rows = await Promise.all(
-      page.map((u: any) => posts.find({ ownerId: u._id } as any, { projection: { ownerId: 1, mediaId: 1 } }).sort({ createdAt: -1 }).limit(1).toArray()),
+      page.filter((u: any) => !lockedTiles.has(u._id)).map((u: any) => posts.find({ ownerId: u._id } as any, { projection: { ownerId: 1, mediaId: 1 } }).sort({ createdAt: -1 }).limit(1).toArray()),
     );
     for (const [r] of rows) if (r) latest.set(r.ownerId, r.mediaId);
   }

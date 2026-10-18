@@ -1,7 +1,7 @@
 import { InputFile, type Api } from "grammy";
 import { escapeHtml } from "../../utils/html.js";
 import { botApi } from "../miniapp.js";
-import { C, DAY_MS, SocialError, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, isStaffId, newId, parsePid, photoVer, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
+import { C, DAY_MS, SocialError, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, isStaffId, lockedOwnerIds, newId, parsePid, photoVer, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
 import { decodeImage, deleteMedia, storeMedia } from "./media.js";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
 import { getMiniSettings } from "./settings.js";
@@ -121,7 +121,8 @@ export async function profilesToItems(viewerId: number, owners: any[]): Promise<
 
 export async function listFeed(viewerId: number, before?: unknown, limit = FEED_PAGE): Promise<{ items: FeedItem[]; hasMore: boolean }> {
   const beforeDate = typeof before === "number" && Number.isFinite(before) && before > 0 ? new Date(before) : null;
-  const hidden = await hiddenOwnerIds(viewerId);
+  // private pages the viewer is not approved for are left out of the feed (posts and profile-photo posts)
+  const hidden = [...(await hiddenOwnerIds(viewerId)), ...(await lockedOwnerIds(viewerId))];
   const posts = await col<PostDoc>(C.posts);
   const users = await usersCol();
 
@@ -150,9 +151,10 @@ export async function getPostItem(viewerId: number, pidRaw: unknown): Promise<Fe
   if (pid.kind === "profile") {
     const owner = await findVisibleUser(viewerId, pid.anonId, { includeSelf: true });
     if (!owner || !owner.profilePhotoFileId) return null;
+    if ((await lockedOwnerIds(viewerId)).includes(owner._id)) return null;
     return (await profilesToItems(viewerId, [owner]))[0] ?? null;
   }
-  const hidden = await hiddenOwnerIds(viewerId, { direct: true });
+  const hidden = [...(await hiddenOwnerIds(viewerId, { direct: true })), ...(await lockedOwnerIds(viewerId))];
   const posts = await col<PostDoc>(C.posts);
   const post = await posts.findOne({ _id: pid.id, ownerId: { $nin: hidden } } as any);
   return post ? ((await postsToItems(viewerId, [post]))[0] ?? null) : null;
@@ -168,9 +170,10 @@ export interface GridItem {
 }
 
 /** Newest posts first; the profile-photo post is ALWAYS the last (= first ever) tile. */
-export async function listUserPosts(viewerId: number, anonId: unknown, before?: unknown): Promise<{ items: GridItem[]; hasMore: boolean } | null> {
+export async function listUserPosts(viewerId: number, anonId: unknown, before?: unknown): Promise<{ items: GridItem[]; hasMore: boolean; locked?: boolean } | null> {
   const owner = await findVisibleUser(viewerId, anonId, { includeSelf: true });
   if (!owner) return null;
+  if ((await lockedOwnerIds(viewerId)).includes(owner._id)) return { items: [], hasMore: false, locked: true };
   const beforeDate = typeof before === "number" && Number.isFinite(before) && before > 0 ? new Date(before) : null;
   const posts = await col<PostDoc>(C.posts);
   const docs = await posts
@@ -301,7 +304,7 @@ export async function removePost(post: PostDoc): Promise<void> {
 export async function setPostLike(viewer: any, pidRaw: unknown, like: boolean): Promise<{ liked: boolean; likes: number } | null> {
   const pid = parsePid(pidRaw);
   if (!pid || pid.kind !== "post") return null;
-  const hidden = await hiddenOwnerIds(viewer._id);
+  const hidden = [...(await hiddenOwnerIds(viewer._id)), ...(await lockedOwnerIds(viewer._id))];
   const posts = await col<PostDoc>(C.posts);
   const post = await posts.findOne({ _id: pid.id, ownerId: { $nin: hidden } } as any);
   if (!post) return null;
@@ -345,9 +348,10 @@ async function resolvePostTarget(viewerId: number, pidRaw: unknown): Promise<{ p
   if (!pid) return null;
   if (pid.kind === "profile") {
     const owner = await findVisibleUser(viewerId, pid.anonId, { includeSelf: true });
+    if (owner && (await lockedOwnerIds(viewerId)).includes(owner._id)) return null;
     return owner && owner.profilePhotoFileId ? { pid: `pp:${owner.anonId}`, ownerId: owner._id, kind: "profile" } : null;
   }
-  const hidden = await hiddenOwnerIds(viewerId, { direct: true });
+  const hidden = [...(await hiddenOwnerIds(viewerId, { direct: true })), ...(await lockedOwnerIds(viewerId))];
   const posts = await col<PostDoc>(C.posts);
   const post = await posts.findOne({ _id: pid.id, ownerId: { $nin: hidden } } as any);
   return post ? { pid: post._id, ownerId: post.ownerId, kind: "post" } : null;

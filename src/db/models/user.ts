@@ -70,6 +70,17 @@ export interface UserDoc {
    *  only the ban notice, nothing else. */
   banned?: boolean;
   banReason?: string;
+  /** Default ("seed") member created from the admin panel — see src/db/models/seeds.ts. Looks like a normal
+   *  user everywhere; never a real Telegram account (reserved id range, src/services/seeds/ids.ts). */
+  isSeed?: boolean;
+  /** Soft-deleted seed (kept so its numeric id is never reused). */
+  seedDeleted?: boolean;
+  /** Seed hidden from every real user (Mini App lists, search, profiles) — master switch, mirrored here. */
+  seedHidden?: boolean;
+  /** Seed may be connected to a real user whose random search found nobody — master switch, mirrored here. */
+  seedChatEnabled?: boolean;
+  /** Private page (Mini App): posts/stories/follow lists are visible only to approved followers. */
+  isPrivate?: boolean;
   /** Dynamically granted admin status (in addition to the static
    *  ADMIN_IDS env list and OWNER_ID) — set/unset by the owner via
    *  src/features/admin/moderators.ts. */
@@ -161,7 +172,7 @@ const ANON_ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234
  * the caller's retry loop + unique index, so this is a pure RNG hardening,
  * fully backward-compatible with existing IDs already stored in the DB.
  */
-function generateAnonId(): string {
+export function generateAnonId(): string {
   const bytes = randomBytes(6);
   let suffix = "";
   for (let i = 0; i < 6; i++) suffix += ANON_ID_CHARS[bytes[i]! % ANON_ID_CHARS.length];
@@ -488,8 +499,8 @@ export async function searchUsers(query: string, limit = 10): Promise<UserDoc[]>
 export async function listUsersPage(skip: number, limit: number): Promise<{ users: UserDoc[]; total: number }> {
   const col = await usersCollection();
   const [users, total] = await Promise.all([
-    col.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
-    col.countDocuments({}),
+    col.find({ isSeed: { $ne: true } }).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+    col.countDocuments({ isSeed: { $ne: true } }),
   ]);
   return { users, total };
 }
@@ -512,12 +523,14 @@ export async function getUserStats(): Promise<{
 }> {
   const col = await usersCollection();
   const [totalUsers, completedOnboarding, bannedUsers, activeChatsNow] = await Promise.all([
-    col.countDocuments({}),
-    col.countDocuments({ onboardingStep: "COMPLETED" }),
-    col.countDocuments({ banned: true }),
-    col.countDocuments({ activeChatSessionId: { $exists: true, $ne: undefined } }),
+    col.countDocuments({ isSeed: { $ne: true } }),
+    col.countDocuments({ onboardingStep: "COMPLETED", isSeed: { $ne: true } }),
+    col.countDocuments({ banned: true, isSeed: { $ne: true } }),
+    // a chat with a default member counts as one chat; people in chats / 2 would count it as half a chat
+    getDb().then((db) => db.collection("chat_sessions").countDocuments({ active: true })),
   ]);
-  return { totalUsers, completedOnboarding, bannedUsers, activeChatsNow: Math.floor(activeChatsNow / 2) };
+  // default (seed) members are not users: they are left out of every real-user number
+  return { totalUsers, completedOnboarding, bannedUsers, activeChatsNow };
 }
 
 export async function getUserByAnonId(anonId: string): Promise<UserDoc | null> {

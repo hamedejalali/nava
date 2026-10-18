@@ -8,6 +8,7 @@ import { fa } from "../../i18n/locales/fa.js";
 import { ADMIN_CALLBACKS, isAdmin } from "./constants.js";
 import { isFlowCancelSignal } from "./flowState.js";
 import { defaultInviteMessageTemplate } from "../menu/inviteFriends.js";
+import { DEFAULT_MAINTENANCE_TEXT } from "../../services/maintenance.js";
 
 // Default for the general "Guide" content (shown from the main menu's Guide
 // button in a future prompt). Exact wording was not specified by the
@@ -44,6 +45,7 @@ const LABELS: Record<ContentKey, string> = {
   rules: "قوانین",
   supportId: "آیدی پشتیبانی",
   inviteMessage: "متن دعوت دوستان",
+  maintenanceText: "متن خاموشی ربات",
 };
 
 function defaultFor(key: ContentKey): string {
@@ -52,6 +54,7 @@ function defaultFor(key: ContentKey): string {
   if (key === "rules") return DEFAULT_RULES;
   if (key === "supportId") return "";
   if (key === "inviteMessage") return defaultInviteMessageTemplate();
+  if (key === "maintenanceText") return DEFAULT_MAINTENANCE_TEXT;
   return DEFAULT_GUIDE_TEXT;
 }
 
@@ -67,6 +70,7 @@ export function registerAdminGuides(composer: Composer<NavaContext>) {
         [glassButton(LABELS.rules, ADMIN_CALLBACKS.editRules, "primary")],
         [glassButton(LABELS.supportId, ADMIN_CALLBACKS.editSupportId, "primary")],
         [glassButton(LABELS.inviteMessage, ADMIN_CALLBACKS.editInviteMessage, "primary")],
+        [glassButton(LABELS.maintenanceText, ADMIN_CALLBACKS.editMaintenanceText, "primary")],
       ]),
     });
   });
@@ -90,6 +94,7 @@ export function registerAdminGuides(composer: Composer<NavaContext>) {
   composer.callbackQuery(ADMIN_CALLBACKS.editRules, (ctx) => beginEdit(ctx, "rules"));
   composer.callbackQuery(ADMIN_CALLBACKS.editSupportId, (ctx) => beginEdit(ctx, "supportId"));
   composer.callbackQuery(ADMIN_CALLBACKS.editInviteMessage, (ctx) => beginEdit(ctx, "inviteMessage"));
+  composer.callbackQuery(ADMIN_CALLBACKS.editMaintenanceText, (ctx) => beginEdit(ctx, "maintenanceText"));
 
   composer.callbackQuery(ADMIN_CALLBACKS.cancelEdit, async (ctx) => {
     if (!isAdmin(ctx)) return;

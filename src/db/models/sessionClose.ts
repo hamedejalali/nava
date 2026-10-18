@@ -2,6 +2,7 @@ import { getDb } from "../connect.js";
 import { runInTransaction } from "../tx.js";
 import { refundChatCostInSession } from "./relic.js";
 import type { ChatSessionDoc } from "./chatSession.js";
+import { isSeedId } from "../../services/seeds/ids.js";
 
 export type CloseResult =
   | { status: "ended"; session: ChatSessionDoc; refunded: number[] }
@@ -41,6 +42,8 @@ export async function closeSessionAtomic(
     }
     const refunded: number[] = [];
     for (const id of new Set(refundFor(ended))) {
+      // default (seed) members have no Relic and a chat with one is free: never refund/credit them
+      if (isSeedId(id) || ended.seedChat) continue;
       if (await refundChatCostInSession(id, sessionId, session)) refunded.push(id);
     }
     return { status: "ended", session: ended, refunded };

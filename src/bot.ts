@@ -1,7 +1,7 @@
 import { Bot, Composer, GrammyError, HttpError } from "grammy";
 import type { NavaContext } from "./bot-context.js";
 import { env } from "./config/env.js";
-import { getOrCreateUser } from "./db/models/user.js";
+import { getOrCreateUser, getUser } from "./db/models/user.js";
 import { dictionary, requireLocked } from "./i18n/index.js";
 import { registerOnboarding } from "./features/onboarding/index.js";
 import { registerAdmin } from "./features/admin/index.js";
@@ -69,6 +69,10 @@ import { ensureRelicLedgerIndexes } from "./db/models/relic.js";
 import { banNoticeMarkup, banNoticeText } from "./features/support/banNotice.js";
 import { ensureUpdateInboxIndexes } from "./db/models/updateInbox.js";
 import { ensureMatchDeliveryIndexes } from "./db/models/matchDelivery.js";
+import { settleDueSeedChat } from "./features/matching/seedMatch.js";
+import { ensureSeedIndexes } from "./db/models/seeds.js";
+import { seedGuardTransformer } from "./services/seeds/guard.js";
+import { getMaintenanceState, maintenanceAllows, maintenanceText } from "./services/maintenance.js";
 
 export function createBot(): Bot<NavaContext> {
   const bot = new Bot<NavaContext>(env.BOT_TOKEN);
@@ -76,6 +80,9 @@ export function createBot(): Bot<NavaContext> {
   // Every outgoing request passes through the emoji/HTML safety net — see
   // src/ui/telegramSafety.ts for what it guarantees.
   bot.api.config.use(telegramSafetyTransformer);
+  // Default (seed) members are not Telegram accounts: nothing addressed to them may ever leave the process
+  // (see src/services/seeds/guard.ts).
+  bot.api.config.use(seedGuardTransformer);
   bot.api.config.use(telegramRetryTransformer);
 
   // Fire-and-forget index setup — runs once per cold start (createBot is
@@ -98,6 +105,7 @@ export function createBot(): Bot<NavaContext> {
     ensureUpdateInboxIndexes(),
     ensureRelicLedgerIndexes(),
     ensureSearchNoticeIndexes(),
+    ensureSeedIndexes(),
     getDb().then((db) => ensureGiftEventIndexes(db)),
   ]).catch((err) => {
     // eslint-disable-next-line no-console
@@ -143,6 +151,36 @@ export function createBot(): Bot<NavaContext> {
       }
     } else {
       ctx.userLang = "fa";
+    }
+    await next();
+  });
+
+  // ---- Bot switched OFF (maintenance) ----
+  // While the master switch is off only the owner/admins and the numeric ids on the admin-panel allow-list can
+  // use the bot; everybody else gets the text from "ویرایش متن‌ها" and nothing else happens. A payment that has
+  // ALREADY gone through (successful_payment) and Telegram's pre-checkout query are never blocked.
+  bot.use(async (ctx, next) => {
+    if (!ctx.from || ctx.from.is_bot) return next();
+    if (!ctx.message && !ctx.callbackQuery) return next();
+    if (ctx.message?.successful_payment) return next();
+    const state = await getMaintenanceState();
+    if (!state.on || maintenanceAllows(state, ctx.from.id, ctx.dbUser)) return next();
+    if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.api.sendMessage(ctx.from.id, await maintenanceText()).catch(() => {});
+  });
+
+  // ---- Default-member chat whose time is up ----
+  // The invocation that connected a default member normally ends the chat itself; if it was cut off, the
+  // person's very next update finishes it here (and every webhook request sweeps the rest), so nobody can be
+  // left in a chat with a silent member. See src/features/matching/seedMatch.ts.
+  bot.use(async (ctx, next) => {
+    const sid = ctx.dbUser?.activeChatSessionId;
+    if (sid && ctx.from) {
+      try {
+        if (await settleDueSeedChat(ctx.api, sid)) ctx.dbUser = (await getUser(ctx.from.id)) ?? ctx.dbUser;
+      } catch {
+        /* never block the person's own update */
+      }
     }
     await next();
   });

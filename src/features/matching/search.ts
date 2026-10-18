@@ -13,6 +13,7 @@ import { sendTimeoutNotice, settleNotice } from "./searchNotices.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
+import { runSeedScript, SEED_SEARCH_LEAD_MS, trySeedMatch } from "./seedMatch.js";
 
 const TYPE_BY_CALLBACK: Record<string, SearchType> = {
   [PARTNER_TYPE_CALLBACKS.lucky]: "lucky",
@@ -79,7 +80,13 @@ async function announceMatch(api: NavaContext["api"], user: { _id: number }, _la
 export interface CountdownOptions {
   totalMs?: number; // default SEARCH_TIMEOUT_MS
   tickMs?: number; // default 2000
+  /** never connect a default (seed) member (tests / emergency switch) */
+  noSeed?: boolean;
 }
+
+/** A default-member chat is played out inside this invocation, but Vercel stops a function at ~60 s: after this
+ *  much time from the countdown's start the invocation stops waiting and the sweep ends the chat later. */
+const SEED_SCRIPT_BUDGET_MS = 55_000;
 
 /**
  * Search countdown (rewritten v1.12.0). It is driven by the WALL CLOCK, not by "N sleeps of 1 s":
@@ -107,9 +114,14 @@ export async function runCountdown(
   const startedAt = Date.now();
   const deadline = startedAt + totalMs;
   let lastShown = -1;
+  // v1.18.0: 3 s before the end, if still nobody was found, a default member may be connected (see seedMatch.ts)
+  const seedAt = deadline - SEED_SEARCH_LEAD_MS;
+  let seedTried = !!opts.noSeed;
 
   while (Date.now() < deadline) {
-    await sleep(Math.min(tickMs, Math.max(0, deadline - Date.now())));
+    let wake = Math.min(tickMs, Math.max(0, deadline - Date.now()));
+    if (!seedTried) wake = Math.min(wake, Math.max(0, seedAt - Date.now()));
+    await sleep(wake);
     if (Date.now() >= deadline) break;
 
     try {
@@ -128,6 +140,20 @@ export async function runCountdown(
       if (r.status === "matched_elsewhere" || r.status === "busy") return;
     } catch (err) {
       console.error("[search] rescan failed (will retry next tick):", err instanceof Error ? err.name : "unknown");
+    }
+
+    if (!seedTried && Date.now() >= seedAt) {
+      seedTried = true;
+      try {
+        const sm = await trySeedMatch(api, user as any, searchType, { chatId, messageId: statusMessageId }, { createdBefore: new Date(startedAt) });
+        if (sm.status === "matched") {
+          await runSeedScript(api, sm.sessionId, { hardStopAt: startedAt + SEED_SCRIPT_BUDGET_MS });
+          return;
+        }
+        if (sm.status === "gone") return; // matched with a real person / cancelled meanwhile: whoever did it answered
+      } catch (err) {
+        console.error("[search] default-member match failed (normal timeout follows):", err instanceof Error ? err.name : "unknown");
+      }
     }
 
     const elapsed = Math.min(Math.round((Date.now() - startedAt) / 1000), Math.round(totalMs / 1000));

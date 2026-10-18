@@ -6,11 +6,13 @@ import { registerAdminChannels } from "./channels.js";
 import { registerAdminRelic } from "./relic.js";
 import { registerPostReportsAdmin } from "./postReportsAdmin.js";
 import { registerGiftsAdmin } from "./giftsAdmin.js";
+import { registerSeedsAdmin } from "./seedsAdmin.js";
 import { registerAdminCategories, registerAdminVersionButton } from "./menu.js";
 
 export function registerAdmin(composer: Composer<NavaContext>) {
   registerAdminVersionButton(composer);
   registerAdminCategories(composer);
+  registerSeedsAdmin(composer);
   registerAdminPanel(composer);
   registerGiftsAdmin(composer);
   registerPostReportsAdmin(composer);

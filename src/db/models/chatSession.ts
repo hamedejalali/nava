@@ -8,6 +8,9 @@ export interface ChatSessionDoc {
   userB: number;
   active: boolean;
   createdAt: Date;
+  /** true when the partner (userB) is a default/seed member: nothing is charged, nothing is ever sent to a
+   *  Telegram account for the seed side, and src/features/matching/seedMatch.ts ends it on a timer. */
+  seedChat?: boolean;
   endedAt?: Date;
   endedBy?: number; // telegramId of whoever pressed "پایان چت"
   /** why it ended (absent on sessions closed by older versions) */
