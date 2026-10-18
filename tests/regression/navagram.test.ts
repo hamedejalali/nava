@@ -548,10 +548,14 @@ test("admin panel «نوا گرام»: owner toggles channel copy, sets the chan
   assert.deepEqual([cleared.postsChannelId, cleared.postsChannelEnabled], [null, false]);
 });
 
-test("settings screen of the bot shows the Navagram button", async () => {
-  await h.text(900, "⚙️ تنظیمات ربات");
+test("admin keyboard: «📸 نوا گرام» is ONE direct category; its button opens the Navagram screen (no nested settings)", async () => {
+  await h.text(900, "/start");
+  await h.text(900, "📸 نوا گرام");
   const kb = JSON.stringify(h.last("sendMessage", 900)?.payload.reply_markup);
-  assert.match(kb, /admin:ng:open/);
+  assert.match(kb, /هدیه‌ها و قیمت‌ها/);
+  assert.match(kb, /ساخت|هدیه‌ی جدید/);
+  await h.text(900, "📸 کانال و تنظیمات نوا گرام");
+  assert.match(JSON.stringify(h.last("sendMessage", 900)?.payload.reply_markup), /admin:ng:tch/);
 });
 
 /* ===================================================== post options / catalog / deep links */

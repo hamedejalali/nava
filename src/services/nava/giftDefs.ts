@@ -6,7 +6,9 @@ import { C, col } from "./common.js";
  * the owner sends to the bot). They are stored in MongoDB — nothing in the code or env — and appear next to the
  * built-in gifts with their ORIGINAL Telegram animation (TGS/Lottie or WebM video sticker).
  */
-export type StickerFormat = "tgs" | "webm" | "webp";
+export type StickerFormat = "tgs" | "webm" | "webp" | "png" | "jpg";
+/** still pictures (a cut-out PNG / static sticker / photo): the Mini App gives them a slow floating motion */
+export const STILL_FORMATS: StickerFormat[] = ["webp", "png", "jpg"];
 
 export interface CustomGiftDoc {
   _id: string; // "tg" + 6 lowercase base36 chars

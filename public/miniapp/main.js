@@ -62,7 +62,6 @@
     if (t === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
     if (t === "search") renderSearch(true);
     if (t === "profile") { renderProfileTab(); }
-    schedulePoll();
   };
 
   /* ------------------------------------------------------------ own profile */
@@ -118,7 +117,7 @@
   var searchSeq = 0, searchT = null, searchBuilt = false;
   function userRow(u, o) {
     o = o || {};
-    var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + (u.verified ? NG.VERIFIED : "") + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
+    var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + NG.vb(u) + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
     r.insertBefore(NG.ring(u), r.firstChild);
     r.querySelector(".ring").onclick = function (e) { if (u.story) { e.stopPropagation(); NG.openStories([u.id], 0); } };
     r.onclick = function () { NG.api("recent_add", { id: u.id }); NG.openProfile(u.id); };
@@ -170,19 +169,16 @@
 
   /* ----------------------------------------------------- me / live updates */
   var pollT = null;
-  function needsPoll() { var m = NG.me; return !!(m && (m.photoPending || m.pendingName || m.pendingAge || current === "profile" || m.isPrivate)); }
+  function needsPoll() { var m = NG.me; return !!(m && (m.photoPending || m.pendingName || m.pendingAge)); }
   function schedulePoll() {
     clearTimeout(pollT);
     if (!needsPoll()) return;
-    pollT = setTimeout(function () { if (document.hidden) return schedulePoll(); NG.refreshMe().then(schedulePoll, schedulePoll); }, 6000);
+    pollT = setTimeout(function () { if (document.hidden) return schedulePoll(); NG.refreshMe().then(schedulePoll, schedulePoll); }, 9000);
   }
   NG.on("me", function (d) {
     var o = d.old, m = d.me;
     setTabAvatar();
-    if (o && m && profileV) {
-      if (o.relic !== m.relic) profileV.setRelic(m.relic);
-      if ((o.requests || 0) !== (m.requests || 0) || !!o.isPrivate !== !!m.isPrivate) profileV.reload();
-    }
+    if (o && m && profileV && o.relic !== m.relic) profileV.setRelic(m.relic);
     if (o && m && (o.av !== m.av || o.name !== m.name || o.age !== m.age || !!o.photoPending !== !!m.photoPending || o.pendingName !== m.pendingName || o.pendingAge !== m.pendingAge)) {
       if (profileV) profileV.reload();
       if (o.av !== m.av) { NG.refresh(); NG.refreshTray(); }
@@ -191,8 +187,29 @@
     }
     schedulePoll();
   });
+  /* Live pulse (every few seconds while the app is visible): activity badge, coins, follow requests. One tiny request. */
+  var pulseT = null, pulsing = false;
+  function pulse() {
+    clearTimeout(pulseT);
+    if (document.hidden || !NG.me || pulsing) { pulseT = setTimeout(pulse, 6000); return; }
+    pulsing = true;
+    NG.api("pulse").then(function (r) {
+      pulsing = false;
+      if (r.ok) applyPulse(r.data);
+    }).catch(function () { pulsing = false; }).then(function () { clearTimeout(pulseT); pulseT = setTimeout(pulse, 6000); });
+  }
+  function applyPulse(d) {
+    var m = NG.me; if (!m) return;
+    if (d.relic != null && d.relic !== m.relic) { m.relic = d.relic; if (profileV) profileV.setRelic(d.relic); }
+    if ((d.requests || 0) !== (m.requests || 0) || !!d.isPrivate !== !!m.isPrivate) {
+      m.requests = d.requests || 0; m.isPrivate = !!d.isPrivate;
+      if (profileV) profileV.reload();
+    }
+    NG.setPulse(d.unread);
+  }
+  NG.pulse = pulse;
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && NG.me) { NG.refreshMe(); NG.refreshTray(); }
+    if (!document.hidden && NG.me) { NG.refreshMe(); NG.refreshTray(); pulse(); }
   });
   NG.on("follow", function () { if (profileV && current === "profile") profileV.reload(); });
 
@@ -233,7 +250,7 @@
       if (r.data.acting) actBanner();
       pages.home.classList.add("on"); movePill();
       var done = NG.renderHome(pages.home);
-      var fin = function () { reveal(); deepLink(); schedulePoll(); };
+      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); };
       if (done && done.then) done.then(fin, fin); else fin();
       setTimeout(movePill, 120);
     }).catch(function () { NG.fatal("اتصال برقرار نیست", "اینترنتت رو چک کن و دوباره باز کن."); });

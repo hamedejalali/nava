@@ -31,6 +31,16 @@ export const ADMIN_MENU_LABELS = {
   reactionGate: "🎯 تنظیم گیت ری‌اکشن",
   exportUsers: "📤 خروجی اکسل کاربران",
   importUsers: "📥 ورودی اکسل (بازیابی)",
+  seedPanel: "🎭 نمایش و اتصال ممبرها",
+  seedAdd: "➕ ساخت ممبر جدید",
+  seedList: "📋 لیست ممبرها",
+  ngSettings: "📸 کانال و تنظیمات نوا گرام",
+  ngGifts: "🎁 هدیه‌ها و قیمت‌ها",
+  ngGiftAdd: "➕ هدیه‌ی جدید",
+  ngEvents: "🔨 حراج و قرعه‌کشی",
+  ngUserGifts: "👤 هدیه‌های یک کاربر",
+  ngShortNames: "🔢 یوزرنیم کوتاه",
+  ownerProfile: "👑 اکانت مالک (Nava)",
   close: "❌ بستن پنل",
 } as const;
 
@@ -54,6 +64,10 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.resetUser,
   ADMIN_MENU_LABELS.exportUsers,
   ADMIN_MENU_LABELS.importUsers,
+  ADMIN_MENU_LABELS.ngEvents,
+  ADMIN_MENU_LABELS.ngUserGifts,
+  ADMIN_MENU_LABELS.ngShortNames,
+  ADMIN_MENU_LABELS.ownerProfile,
 ];
 
 /** Admin panel categories (v1.17): the main keyboard shows ONE button per group instead of ~20 loose buttons.
@@ -61,7 +75,9 @@ const OWNER_ONLY: string[] = [
 export const ADMIN_CATEGORY_LABELS = {
   users: "👥 کاربر ها",
   messages: "📢 پیام و گزارش",
-  economy: "🪙 اقتصاد رلیک",
+  economy: "🪙 سکه‌ها",
+  nava: "📸 نوا گرام",
+  seeds: "🎭 ممبرهای پیش‌فرض",
   staff: "🛡️ مدیریت و لاگ",
   settings: "⚙️ تنظیمات و ابزار",
   data: "💾 داده‌ها",
@@ -87,6 +103,16 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.pricing },
     { label: ADMIN_MENU_LABELS.level, icon: () => buttonIcon("LEVEL_LEGEND") },
   ],
+  nava: [
+    { label: ADMIN_MENU_LABELS.ngSettings },
+    { label: ADMIN_MENU_LABELS.ngGifts },
+    { label: ADMIN_MENU_LABELS.ngGiftAdd },
+    { label: ADMIN_MENU_LABELS.ngEvents },
+    { label: ADMIN_MENU_LABELS.ngUserGifts },
+    { label: ADMIN_MENU_LABELS.ngShortNames },
+    { label: ADMIN_MENU_LABELS.ownerProfile },
+  ],
+  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
   staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
   settings: [
     { label: ADMIN_MENU_LABELS.settings, icon: () => buttonIcon("SETTINGS") },

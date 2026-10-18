@@ -5,6 +5,7 @@ import { C, DAY_MS, SocialError, col, cleanText, findVisibleUser, hiddenOwnerIds
 import { decodeImage, deleteMedia, storeMedia } from "./media.js";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
 import { getMiniSettings } from "./settings.js";
+import { dropNotifs, notifKey, pushNotif } from "./notifs.js";
 
 export const MAX_CAPTION = 1000;
 export const MAX_COMMENT = 500;
@@ -287,6 +288,7 @@ export async function removePost(post: PostDoc): Promise<void> {
   await posts.deleteOne({ _id: post._id } as any);
   await (await col(C.postLikes)).deleteMany({ postId: post._id });
   await (await col(C.comments)).deleteMany({ postId: post._id });
+  await dropNotifs({ postId: post._id });
   await deleteMedia([post.mediaId]);
   // The post is gone, so its single copy in the channel goes too (best effort).
   if (post.channelMsgId) {
@@ -313,11 +315,14 @@ export async function setPostLike(viewer: any, pidRaw: unknown, like: boolean): 
   // The like document and the counter change in ONE transaction: a crash can no longer leave one without
   // the other, and concurrent like/unlike/double-tap serialize on the like document (the loser retries
   // and finds the new state), so the counter always equals the number of like documents.
+  let added = false;
   try {
     await runInTransaction(async (session) => {
+      added = false;
       if (like) {
         const r = await likes.updateOne({ _id: key }, { $setOnInsert: { postId: post._id, userId: viewer._id, createdAt: new Date() } }, { upsert: true, session });
         if (r.upsertedCount !== 1) return; // already liked: nothing to count
+        added = true;
         const inc = await posts.updateOne({ _id: post._id } as any, { $inc: { likesCount: 1 } }, { session });
         if (inc.matchedCount !== 1) throw new TxAbort("post_gone"); // deleted meanwhile: no orphan like
       } else {
@@ -329,6 +334,8 @@ export async function setPostLike(viewer: any, pidRaw: unknown, like: boolean): 
     if (err instanceof TxAbort) return null;
     if (err?.code !== 11000) throw err; // a concurrent identical like won the race: it was counted exactly once
   }
+  if (like && added) await pushNotif(notifKey.likePost(post._id, viewer._id), { userId: post.ownerId, actorId: viewer._id, type: "like_post", postId: post._id });
+  if (!like) await dropNotifs({ _id: notifKey.likePost(post._id, viewer._id) });
   const fresh = await posts.findOne({ _id: post._id } as any);
   return { liked: !!(await likes.findOne({ _id: key })), likes: fresh?.hideLikes && post.ownerId !== viewer._id ? 0 : (fresh?.likesCount ?? 0) };
 }
@@ -341,6 +348,10 @@ export interface CommentView {
   at: number;
   user: Brief;
   canDelete: boolean;
+  likes: number;
+  liked: boolean;
+  /** this comment answers another one (Instagram-style reply): the parent's id and author name */
+  replyTo?: { id: string; name: string };
 }
 
 async function resolvePostTarget(viewerId: number, pidRaw: unknown): Promise<{ pid: string; ownerId: number; kind: "post" | "profile" } | null> {
@@ -377,9 +388,26 @@ async function commentsToViews(viewerId: number, postOwnerId: number, docs: any[
   const authors = await users.find({ _id: { $in: [...new Set(docs.map((d) => d.ownerId))] } }).toArray();
   const briefs = await toBriefs(viewerId, authors);
   const by = new Map(authors.map((a: any, i: number) => [a._id as number, briefs[i]!]));
+  const likedRows = docs.length ? await (await col(C.commentLikes)).find({ _id: { $in: docs.map((d) => `${d._id}:${viewerId}`) } }, { projection: { commentId: 1 } }).toArray() : [];
+  const liked = new Set(likedRows.map((r: any) => r.commentId as string));
+  const parentIds = [...new Set(docs.map((d) => d.replyTo).filter((x): x is string => typeof x === "string"))];
+  const parents = parentIds.length ? await (await col(C.comments)).find({ _id: { $in: parentIds } }, { projection: { ownerId: 1 } }).toArray() : [];
+  const parentAuthorIds = [...new Set(parents.map((p: any) => p.ownerId as number))];
+  const pAuthors = parentAuthorIds.length ? await users.find({ _id: { $in: parentAuthorIds } }, { projection: { nickname: 1, miniUsername: 1 } }).toArray() : [];
+  const pName = new Map(pAuthors.map((a: any) => [a._id as number, (a.miniUsername || a.nickname || "-") as string]));
+  const parentName = new Map(parents.map((p: any) => [p._id as string, pName.get(p.ownerId) ?? "-"]));
   return docs
     .filter((d) => by.has(d.ownerId))
-    .map((d) => ({ id: d._id, text: d.text, at: d.createdAt.getTime(), user: by.get(d.ownerId)!, canDelete: d.ownerId === viewerId || postOwnerId === viewerId || isStaffId(viewerId) }));
+    .map((d) => ({
+      id: d._id,
+      text: d.text,
+      at: d.createdAt.getTime(),
+      user: by.get(d.ownerId)!,
+      canDelete: d.ownerId === viewerId || postOwnerId === viewerId || isStaffId(viewerId),
+      likes: d.likesCount ?? 0,
+      liked: liked.has(d._id),
+      ...(typeof d.replyTo === "string" && parentName.has(d.replyTo) ? { replyTo: { id: d.replyTo, name: parentName.get(d.replyTo)! } } : {}),
+    }));
 }
 
 /** Must run inside the same transaction as the comment insert/delete it accompanies. Returns false when the
@@ -395,7 +423,7 @@ async function bumpCommentCount(target: { pid: string; ownerId: number; kind: "p
   return delta < 0 || r.matchedCount === 1;
 }
 
-export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown): Promise<{ comment: CommentView; comments: number }> {
+export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown, replyToRaw?: unknown): Promise<{ comment: CommentView; comments: number }> {
   const text = cleanText(textRaw, MAX_COMMENT, { multiline: false, min: 1 });
   const target = await resolvePostTarget(viewer._id, pidRaw);
   if (!target) throw new SocialError("not_found");
@@ -406,7 +434,13 @@ export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown)
   const comments = await col(C.comments);
   const recent = await comments.countDocuments({ ownerId: viewer._id, createdAt: { $gt: new Date(Date.now() - 60_000) } });
   if (recent >= COMMENTS_PER_MINUTE) throw new SocialError("too_fast");
-  const doc = { _id: newId(), postId: target.pid, ownerId: viewer._id, text, createdAt: new Date() };
+  // a reply points at an existing comment of the SAME post; a parent that is gone just makes it a normal comment
+  let parent: any = null;
+  if (isId(replyToRaw)) {
+    const p = await comments.findOne({ _id: replyToRaw });
+    if (p && p.postId === target.pid) parent = p;
+  }
+  const doc: any = { _id: newId(), postId: target.pid, ownerId: viewer._id, text, createdAt: new Date(), ...(parent ? { replyTo: parent._id } : {}) };
   try {
     await runInTransaction(async (session) => {
       await comments.insertOne(doc, { session });
@@ -416,6 +450,10 @@ export async function addComment(viewer: any, pidRaw: unknown, textRaw: unknown)
     if (err instanceof TxAbort) throw new SocialError("not_found");
     throw err;
   }
+  // tell the post's owner, and (for a reply) the author of the comment that was answered — each once
+  const note = text.length > 120 ? text.slice(0, 117) + "…" : text;
+  if (parent && parent.ownerId !== viewer._id) await pushNotif(notifKey.reply(doc._id), { userId: parent.ownerId, actorId: viewer._id, type: "reply", postId: target.pid, commentId: doc._id, text: note });
+  if (!parent || parent.ownerId !== target.ownerId) await pushNotif(notifKey.comment(doc._id), { userId: target.ownerId, actorId: viewer._id, type: "comment", postId: target.pid, commentId: doc._id, text: note });
   const view = (await commentsToViews(viewer._id, target.ownerId, [doc]))[0]!;
   return { comment: view, comments: await commentCount(target) };
 }
@@ -438,5 +476,44 @@ export async function deleteComment(viewer: any, commentId: unknown, opts: { asS
     const r = await comments.deleteOne({ _id: commentId }, { session });
     if (r.deletedCount === 1) await bumpCommentCount(target, -1, session);
   });
+  await (await col(C.commentLikes)).deleteMany({ commentId });
+  await dropNotifs({ commentId });
   return { comments: await commentCount(target) };
+}
+
+/** Like / unlike a comment. Counter and like document change in ONE transaction, like post likes. */
+export async function setCommentLike(viewer: any, commentIdRaw: unknown, like: boolean): Promise<{ liked: boolean; likes: number } | null> {
+  if (!isId(commentIdRaw)) return null;
+  const comments = await col(C.comments);
+  const doc = await comments.findOne({ _id: commentIdRaw });
+  if (!doc) return null;
+  const target = await resolvePostTarget(viewer._id, doc.postId);
+  if (!target) return null;
+  const hidden = await hiddenOwnerIds(viewer._id, { direct: true });
+  if (hidden.includes(doc.ownerId)) return null;
+  const likes = await col(C.commentLikes);
+  const key = `${doc._id}:${viewer._id}`;
+  let added = false;
+  try {
+    await runInTransaction(async (session) => {
+      added = false;
+      if (like) {
+        const r = await likes.updateOne({ _id: key }, { $setOnInsert: { commentId: doc._id, userId: viewer._id, createdAt: new Date() } }, { upsert: true, session });
+        if (r.upsertedCount !== 1) return;
+        added = true;
+        const inc = await comments.updateOne({ _id: doc._id }, { $inc: { likesCount: 1 } }, { session });
+        if (inc.matchedCount !== 1) throw new TxAbort("comment_gone");
+      } else {
+        const r = await likes.deleteOne({ _id: key }, { session });
+        if (r.deletedCount === 1) await comments.updateOne({ _id: doc._id, likesCount: { $gt: 0 } } as any, { $inc: { likesCount: -1 } }, { session });
+      }
+    });
+  } catch (err: any) {
+    if (err instanceof TxAbort) return null;
+    if (err?.code !== 11000) throw err;
+  }
+  if (like && added) await pushNotif(notifKey.likeComment(doc._id, viewer._id), { userId: doc.ownerId, actorId: viewer._id, type: "like_comment", postId: doc.postId, commentId: doc._id, text: String(doc.text).slice(0, 80) });
+  if (!like) await dropNotifs({ _id: notifKey.likeComment(doc._id, viewer._id) });
+  const fresh = await comments.findOne({ _id: doc._id });
+  return { liked: !!(await likes.findOne({ _id: key })), likes: fresh?.likesCount ?? 0 };
 }

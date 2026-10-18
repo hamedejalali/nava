@@ -53,7 +53,7 @@
     var p = el('<article class="post" data-pid="' + esc(it.pid) + '"></article>');
     var head = el('<div class="ph"></div>');
     var ring = NG.ring(it.owner);
-    var who = el('<div class="who"><div class="un">' + esc(NG.nameOf(it.owner)) + (it.owner.verified ? NG.VERIFIED : "") + "</div>" + (it.kind === "profile" ? '<div class="sub">عکس پروفایل</div>' : "") + "</div>");
+    var who = el('<div class="who"><div class="un">' + esc(NG.nameOf(it.owner)) + NG.vb(it.owner) + "</div>" + (it.kind === "profile" ? '<div class="sub">عکس پروفایل</div>' : "") + "</div>");
     var more = el('<button class="more" aria-label="more">' + svg("dots") + "</button>");
     head.appendChild(ring); head.appendChild(who); head.appendChild(more);
     ring.style.cursor = "pointer";
@@ -178,13 +178,26 @@
   }
 
   /* ----------------------------------------------------------- comments */
-  NG.openComments = function (it) {
+  NG.openComments = function (it, opt) {
+    opt = opt || {};
     var draftKey = "draft.c." + it.pid;
     NG.sheet('<div class="shd">نظرات</div><div class="scroll" id="cl"></div><div id="cin"></div>', function (sh, close) {
       var list = sh.querySelector("#cl"), foot = sh.querySelector("#cin");
-      var oldest = null, more = false, loading = false;
+      var oldest = null, more = false, loading = false, replyTo = null, setReply = null;
       function row(c, fresh) {
-        var r = el('<div class="cm' + (fresh ? " new" : "") + '" data-cid="' + esc(c.id) + '"><div class="mini sk"></div><div class="b"><div><b>' + esc(NG.nameOf(c.user)) + (c.user.verified ? NG.VERIFIED : "") + '</b><span class="tx">' + esc(c.text) + '</span></div><div class="tm"><span>' + NG.ago(c.at) + "</span>" + (c.canDelete ? '<button class="del">حذف</button>' : "") + "</div></div></div>");
+        var r = el('<div class="cm' + (fresh ? " new" : "") + '" data-cid="' + esc(c.id) + '"><div class="mini sk"></div><div class="b"><div><b>' + esc(NG.nameOf(c.user)) + NG.vb(c.user) + '</b>' + (c.replyTo ? '<span class="rto">↪ ' + esc(c.replyTo.name) + "</span>" : "") + '<span class="tx">' + esc(c.text) + '</span></div><div class="tm"><span>' + NG.ago(c.at) + "</span>" + (it.noComments ? "" : '<button class="rp">پاسخ</button>') + (c.canDelete ? '<button class="del">حذف</button>' : "") + '</div></div><button class="clk' + (c.liked ? " on" : "") + '" aria-label="like">' + svg(c.liked ? "heartF" : "heartO", "") + '<i>' + (c.likes ? NG.num(c.likes) : "") + "</i></button></div>");
+        var lk = r.querySelector(".clk");
+        lk.onclick = function () {
+          var want = !lk.classList.contains("on");
+          function paint(on, n) { lk.classList.toggle("on", on); lk.innerHTML = svg(on ? "heartF" : "heartO", "") + "<i>" + (n ? NG.num(n) : "") + "</i>"; }
+          paint(want, Math.max(0, (c.likes || 0) + (want ? 1 : -1))); NG.haptic("sel");
+          NG.api("comment_like", { commentId: c.id, like: want }).then(function (rr) {
+            if (!rr.ok) { paint(!want, c.likes || 0); return NG.toast(NG.errText(rr)); }
+            c.liked = rr.data.liked; c.likes = rr.data.likes; paint(c.liked, c.likes);
+          }).catch(function () { paint(!want, c.likes || 0); NG.netErr(); });
+        };
+        var rp = r.querySelector(".rp");
+        if (rp) rp.onclick = function () { if (setReply) setReply({ id: c.id, name: NG.nameOf(c.user) }); };
         if (c.user.av) r.querySelector(".mini").appendChild(NG.img(c.user.av)); else { r.querySelector(".mini").classList.remove("sk"); r.querySelector(".mini").innerHTML = svg("user", "ico"); }
         var go = function () { close(function () { NG.openProfile(c.user.id); }); };
         r.querySelector(".mini").onclick = go; r.querySelector("b").onclick = go;
@@ -221,6 +234,15 @@
       var mi = foot.querySelector(".mini");
       if (NG.me && NG.me.av) mi.appendChild(NG.img(NG.me.av)); else { mi.classList.remove("sk"); }
       var inp = foot.querySelector("input"), send = foot.querySelector(".send"), sending = false;
+      var bar = el('<div class="rpbar" style="display:none"><span></span><button aria-label="cancel">✕</button></div>');
+      foot.insertBefore(bar, foot.firstChild);
+      var basePh = inp.placeholder;
+      setReply = function (rt) {
+        replyTo = rt; bar.style.display = rt ? "flex" : "none";
+        if (rt) { bar.querySelector("span").textContent = "در حال پاسخ به " + rt.name; inp.placeholder = "پاسخ به " + rt.name + "…"; inp.focus(); } else inp.placeholder = basePh;
+      };
+      bar.querySelector("button").onclick = function () { setReply(null); };
+      if (opt.replyTo) setReply(opt.replyTo);
       inp.value = NG.ls.get(draftKey, "") || "";
       function ready() { send.classList.toggle("on", !!inp.value.trim()); }
       ready();
@@ -228,10 +250,10 @@
       function submit() {
         var t = inp.value.trim(); if (!t || sending) return;
         sending = true; send.classList.remove("on");
-        NG.api("comment_add", { pid: it.pid, text: t }).then(function (r) {
+        NG.api("comment_add", { pid: it.pid, text: t, replyTo: replyTo ? replyTo.id : undefined }).then(function (r) {
           sending = false;
           if (!r.ok) { ready(); return NG.toast(NG.errText(r)); }
-          inp.value = ""; NG.ls.del(draftKey); ready(); NG.haptic("ok");
+          inp.value = ""; NG.ls.del(draftKey); ready(); NG.haptic("ok"); setReply(null);
           var emp = list.querySelector(".empty"); if (emp) emp.remove();
           list.insertBefore(row(r.data.comment, true), list.firstChild);
           list.scrollTop = 0;
@@ -358,8 +380,9 @@
 
   NG.renderHome = function (page) {
     pgHome = page; page.innerHTML = "";
-    var top = el('<div class="topbar"><div class="wordmark">نوا گرام</div><div class="icons"><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
+    var top = el('<div class="topbar"><div class="wordmark">نوا گرام</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
     top.querySelector("#addp").onclick = function () { NG.composeMenu(); };
+    if (NG.bindHeart) NG.bindHeart(top);
     page.appendChild(top);
     page.appendChild(el('<div class="stories" id="tray">' + trayHtmlSkeleton() + "</div>"));
     var ptr = el('<div class="more-spin hide" id="ptr" style="padding:10px"><div class="spin"></div></div>');

@@ -48,6 +48,33 @@ interface Pick {
   stars?: number;
 }
 
+/** «➕ هدیه‌ی جدید»: the owner sends a sticker / a cut-out PNG (as a FILE, to keep the transparency) / a photo, or picks an official Telegram gift. */
+export async function openAddGift(ctx: NavaContext) {
+  await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "sticker" });
+  await ctx.reply(
+    "🎁 <b>هدیه‌ی جدید</b>\n\nیکی از اینا رو بفرست:\n" +
+      "• 🖼 <b>عکس بریده‌شده (PNG شفاف)</b> — حتماً به‌صورت <b>فایل (File)</b> بفرست تا پس‌زمینه‌ش شفاف بمونه؛ داخل هدیه آروم تکون می‌خوره و شناور میشه\n" +
+      "• 🎞 استیکر (انیمیشنی، ویدیویی یا ثابت)\n" +
+      "• 📷 عکس معمولی (پس‌زمینه‌ی شفاف نداره)\n" +
+      "یا از لیست هدیه‌های رسمی تلگرام انتخاب کن:",
+    { parse_mode: "HTML", reply_markup: inlineKeyboard([[glassButton("🎁 هدیه‌های رسمی تلگرام", GF.official, "success")], [glassButton("↩️ بازگشت", BACK_GIFTS, "primary")]]) }
+  );
+}
+
+export async function openUserGiftsPrompt(ctx: NavaContext) {
+  await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "userRef" });
+  await ctx.reply("آیدی عددی تلگرام یا آیدی ناشناس (user_…) یا @یوزرنیم کاربر رو بفرست:", { reply_markup: cancelKeyboard() });
+}
+
+export const GIFT_EVENTS_HOME = {
+  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال نوا گرام» (همونی که برای کپی پست‌ها تنظیم کردی) منتشر میشه.\nدر حراج، رلیک پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
+  reply_markup: inlineKeyboard([
+    [glassButton("🔨 حراج جدید", `${GF.evNew}a`, "success"), glassButton("🎉 قرعه‌کشی جدید", `${GF.evNew}g`, "success")],
+    [glassButton("📋 رویدادهای باز", GF.evList, "primary")],
+    [glassButton("↩️ بازگشت", BACK_GIFTS, "primary")],
+  ]),
+};
+
 export function registerGiftsAdmin(composer: Composer<NavaContext>) {
   const show = async (ctx: NavaContext, text: string, reply_markup: any) => {
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(async () => {
@@ -59,11 +86,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
   composer.callbackQuery(GF.add, async (ctx) => {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
-    await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "sticker" });
-    await ctx.reply(
-      "🎞 یه <b>استیکر انیمیشنی یا ویدیویی</b> بفرست تا بشه هدیه (مثل میمون یا هر استیکر تلگرام).\nیا از لیست هدیه‌های رسمی تلگرام انتخاب کن:",
-      { parse_mode: "HTML", reply_markup: inlineKeyboard([[glassButton("🎁 هدیه‌های رسمی تلگرام", GF.official, "success")], [glassButton("↩️ بازگشت", BACK_GIFTS, "primary")]]) }
-    );
+    await openAddGift(ctx);
   });
 
   composer.callbackQuery(GF.official, async (ctx) => {
@@ -108,12 +131,38 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     await ctx.reply(`✅ استیکر دریافت شد (${pick.format === "tgs" ? "انیمیشن" : pick.format === "webm" ? "ویدیو" : "ثابت"}).\nنام فارسی این هدیه رو بفرست (حداکثر ${MAX_GIFT_NAME} حرف):`, { reply_markup: cancelKeyboard() });
   });
 
+  /** a picture as a gift: a cut-out PNG sent as a FILE (transparent), a still sticker handled above, or a normal photo */
+  const takePicture = async (ctx: NavaContext, fileId: string, uniqueId: string, format: StickerFormat, size: number | undefined) => {
+    if (size && size > 2 * 1024 * 1024) return void (await ctx.reply("حجم عکس بیشتر از ۲ مگابایته؛ یه نسخه‌ی کوچیک‌تر بفرست.", { reply_markup: cancelKeyboard() }));
+    const pick: Pick = { fileId, uniqueId, format, emoji: "🎁" };
+    await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "name", data: { pick } });
+    await ctx.reply(`✅ عکس دریافت شد${format === "jpg" ? " (عکس معمولیه؛ برای پس‌زمینه‌ی شفاف، PNG رو به‌صورت فایل بفرست)" : " — داخل هدیه آروم شناور میشه"}.\nنام فارسی این هدیه رو بفرست (حداکثر ${MAX_GIFT_NAME} حرف):`, { reply_markup: cancelKeyboard() });
+  };
+
+  composer.on("message:document", async (ctx, next) => {
+    if (!isAdmin(ctx)) return next();
+    const flow = await getAdminFlow(ctx.from!.id);
+    if (flow?.flow !== FLOW || flow.stage !== "sticker") return next();
+    const d = ctx.message.document;
+    const mime = (d.mime_type ?? "").toLowerCase();
+    const format: StickerFormat | null = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : mime === "image/jpeg" ? "jpg" : null;
+    if (!format) return void (await ctx.reply("فقط فایل PNG / WebP / JPG قبوله.", { reply_markup: cancelKeyboard() }));
+    await takePicture(ctx, d.file_id, d.file_unique_id, format, d.file_size);
+  });
+
+  composer.on("message:photo", async (ctx, next) => {
+    if (!isAdmin(ctx)) return next();
+    const flow = await getAdminFlow(ctx.from!.id);
+    if (flow?.flow !== FLOW || flow.stage !== "sticker") return next();
+    const p = ctx.message.photo[ctx.message.photo.length - 1]!;
+    await takePicture(ctx, p.file_id, p.file_unique_id, "jpg", p.file_size);
+  });
+
   /* ------------------------------------------------------------ gifts of one user */
   composer.callbackQuery(GF.users, async (ctx) => {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));
     await ctx.answerCallbackQuery();
-    await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "userRef" });
-    await ctx.reply("آیدی عددی تلگرام یا آیدی ناشناس (user_…) یا @یوزرنیم کاربر رو بفرست:", { reply_markup: cancelKeyboard() });
+    await openUserGiftsPrompt(ctx);
   });
 
   const userGiftsView = async (userId: number) => {
@@ -145,14 +194,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
   });
 
   /* ------------------------------------------------------------ auctions / giveaways */
-  const eventsHome = () => ({
-    text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال نوا گرام» (همونی که برای کپی پست‌ها تنظیم کردی) منتشر میشه.\nدر حراج، رلیک پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
-    reply_markup: inlineKeyboard([
-      [glassButton("🔨 حراج جدید", `${GF.evNew}a`, "success"), glassButton("🎉 قرعه‌کشی جدید", `${GF.evNew}g`, "success")],
-      [glassButton("📋 رویدادهای باز", GF.evList, "primary")],
-      [glassButton("↩️ بازگشت", BACK_GIFTS, "primary")],
-    ]),
-  });
+  const eventsHome = () => GIFT_EVENTS_HOME;
 
   composer.callbackQuery(GF.ev, async (ctx) => {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));

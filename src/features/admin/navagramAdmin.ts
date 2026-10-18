@@ -49,7 +49,7 @@ export async function navagramScreen(): Promise<{ text: string; reply_markup: Re
   return { text, reply_markup: inlineKeyboard(rows) };
 }
 
-async function giftsScreen() {
+export async function giftsScreen() {
   const cards = await giftCatalog(true);
   const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} رلیک${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
   const rows = cards.map((g) => [glassButton(`${g.emoji} ${g.name}${g.off ? " (غیرفعال)" : ""}`, `${NG_CB.gift}${g.id}`, "primary")]);

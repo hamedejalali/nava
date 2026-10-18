@@ -20,9 +20,10 @@ import { env } from "../src/config/env.js";
 import { parsePid } from "../src/services/nava/common.js";
 import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
 import { present } from "../src/services/nava/present.js";
-import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setPostLike } from "../src/services/nava/posts.js";
+import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setCommentLike, setPostLike } from "../src/services/nava/posts.js";
+import { listNotifs, markNotifsSeen, unreadCounts } from "../src/services/nava/notifs.js";
 import { activeStoriesOf, createHighlight, createStory, deleteHighlight, deleteStory, editHighlight, getHighlight, markStoryViewed, storiesTray, storyArchive, storyViewers } from "../src/services/nava/stories.js";
-import { listFollowRequests, listFollows, respondFollowRequest, setFollow, setPrivate } from "../src/services/nava/follow.js";
+import { ensureOfficialFollow, countFollowRequests, listFollowRequests, listFollows, respondFollowRequest, setFollow, setPrivate } from "../src/services/nava/follow.js";
 import { allSeeds, getSeedByAnonId } from "../src/db/models/seeds.js";
 import { getMaintenanceState, maintenanceAllows, maintenanceText } from "../src/services/maintenance.js";
 import { photoVer } from "../src/services/nava/common.js";
@@ -67,7 +68,9 @@ const ACTIONS = new Set([
   // feed / explore / search
   "home", "explore", "search", "recent_add", "recent_remove", "recent_clear",
   // posts
-  "posts", "post", "post_create", "post_edit", "post_delete", "post_report", "like", "comments", "comment_add", "comment_delete",
+  "posts", "post", "post_create", "post_edit", "post_delete", "post_report", "like", "comments", "comment_add", "comment_delete", "comment_like",
+  // activity (heart) + live pulse
+  "notifs", "notifs_seen", "pulse",
   // follow + private page
   "follow", "follows", "set_private", "follow_requests", "follow_respond",
   // owner / admins: work as a default member
@@ -213,6 +216,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === "whoami") {
       if (!(await joinedOk(me))) return void res.status(403).json({ error: "join_required" });
+      if (!acting) await ensureOfficialFollow(me).catch((err) => console.error("[miniapp] official follow failed:", err instanceof Error ? err.name : "unknown"));
       return send({ role: "user", me: await getProfile(me, me.anonId), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null, staff: !!staff?.ok, acting: acting ? me.anonId : null });
     }
 
@@ -306,7 +310,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return r ? send(r) : void res.status(404).json({ error: "not_found" });
         }
         case "comment_add":
-          return send(await addComment(me, body.pid, body.text));
+          return send(await addComment(me, body.pid, body.text, body.replyTo));
+        case "comment_like": {
+          const r = await setCommentLike(me, body.commentId, body.like !== false);
+          return r ? void res.status(200).json(r) : void res.status(404).json({ error: "not_found" });
+        }
+        case "notifs":
+          return send(await listNotifs(me._id, typeof body.before === "number" ? body.before : undefined));
+        case "notifs_seen":
+          await markNotifsSeen(me._id);
+          return void res.status(200).json({ ok: true });
+        case "pulse": {
+          const u = await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1, isPrivate: 1 } });
+          return void res.status(200).json({
+            relic: u?.relicBalance ?? 0,
+            isPrivate: !!u?.isPrivate,
+            requests: u?.isPrivate ? await countFollowRequests(me._id) : 0,
+            unread: await unreadCounts(me._id),
+          });
+        }
         case "comment_delete":
           return void res.status(200).json(await deleteComment(me, body.commentId, { asStaff: !!staff?.ok }));
 

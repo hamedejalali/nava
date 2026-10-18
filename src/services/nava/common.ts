@@ -17,6 +17,8 @@ export const C = {
   posts: "mini_posts",
   postLikes: "mini_post_likes",
   comments: "mini_comments",
+  commentLikes: "mini_comment_likes",
+  notifs: "mini_notifs",
   follows: "mini_follows",
   followRequests: "mini_follow_requests",
   stories: "mini_stories",
@@ -133,6 +135,8 @@ export interface Brief {
   username: string | null;
   name: string;
   verified: boolean;
+  /** the official account (the owner's «Nava»): a gold coin next to the blue tick */
+  gold?: true;
   pv: string | null; // photo version (null = no photo)
   story: 0 | 1 | 2; // 0 none, 1 all seen, 2 has unseen
 }
@@ -155,6 +159,10 @@ export async function activeStoryOwners(viewerId: number, ownerIds: number[], no
   return out;
 }
 
+export function isOfficial(id: number): boolean {
+  return env.OWNER_ID !== undefined && id === env.OWNER_ID;
+}
+
 export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> {
   const st = await activeStoryOwners(viewerId, docs.map((d) => d._id));
   // a private page's story ring is not shown to people who may not open it
@@ -164,7 +172,8 @@ export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> 
     id: u.anonId,
     username: u.miniUsername ?? null,
     name: u.nickname ?? "-",
-    verified: !!u.verified,
+    verified: !!u.verified || isOfficial(u._id),
+    ...(isOfficial(u._id) ? { gold: true as const } : {}),
     pv: photoVer(u.profilePhotoFileId),
     story: (st.get(u._id) ?? 0) as 0 | 1 | 2,
   }));

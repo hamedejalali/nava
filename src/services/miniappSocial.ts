@@ -3,6 +3,7 @@ import { getDb } from "../db/connect.js";
 import { createModerationRecord } from "../db/models/imageModeration.js";
 import { setProfilePhoto, type UserDoc } from "../db/models/user.js";
 import { env } from "../config/env.js";
+import { getBotSettings } from "../db/models/settings.js";
 import { dictionary } from "../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../ui/keyboard.js";
 import { getRequestRecipientIds } from "../features/admin/constants.js";
@@ -10,6 +11,7 @@ import { adminCaption } from "../features/photo/moderation.js";
 import { checkImage, type ModerationCheckResult } from "./sightengine.js";
 import { botApi } from "./miniapp.js";
 import { SocialError, findVisibleUser } from "./nava/common.js";
+import { dropNotifs, ensureNotifIndexes, notifKey, pushNotif } from "./nava/notifs.js";
 import { decodeImage } from "./nava/media.js";
 import { runInTransaction, TxAbort } from "../db/tx.js";
 
@@ -23,7 +25,8 @@ export { SocialError };
 
 export const MAX_BIO = 300; // same limit as the bot's own bio editor
 export const PHOTO_COOLDOWN_MS = 30_000;
-export const USERNAME_MIN = 3;
+/** Everybody needs 5+ characters; the owner and the numeric ids listed in the admin panel («یوزرنیم کوتاه») may use any length. */
+export const USERNAME_MIN = 5;
 export const USERNAME_MAX = 24;
 const RESERVED = new Set(["admin", "administrator", "nava", "support", "owner", "moderator", "official", "bot", "telegram", "null", "undefined", "root"]);
 
@@ -70,6 +73,7 @@ export function ensureSocialIndexesOnce(): void {
       // a UNIQUE gift can exist only once: the database itself refuses a second copy
       { key: { giftId: 1 }, name: "unique_gift_once", unique: true, partialFilterExpression: { uniqueGift: true } },
     ]);
+    await ensureNotifIndexes(db as any);
     await db.collection("post_reports").createIndexes([{ key: { postId: 1, createdAt: -1 }, name: "post_created" }]);
     await db.collection("mini_gift_defs").createIndexes([{ key: { createdAt: 1 }, name: "created" }]);
     await db.collection("mini_highlights").createIndexes([{ key: { ownerId: 1, createdAt: 1 }, name: "owner_created" }, { key: { storyIds: 1 }, name: "story_ids" }]);
@@ -92,14 +96,14 @@ export function ensureSocialIndexesOnce(): void {
 /* --------------------------------------------------------------- username */
 
 /** Validates the format only (no DB). Returns the error code or null. */
-export function usernameFormatError(raw: unknown, isStaff = false): string | null {
+export function usernameFormatError(raw: unknown, isStaff = false, shortOk = false): string | null {
   if (typeof raw !== "string") return "bad_chars";
   const u = raw.startsWith("@") ? raw.slice(1) : raw;
-  if (u.length < USERNAME_MIN) return "too_short";
+  if (u.length < (shortOk ? 1 : USERNAME_MIN)) return "too_short";
   if (u.length > USERNAME_MAX) return "too_long";
   if (!/^[A-Za-z0-9._]+$/.test(u)) return "bad_chars";
   if (u.startsWith(".") || u.endsWith(".") || u.includes("..")) return "bad_dots";
-  if (/^\d+$/.test(u)) return "bad_chars"; // all digits looks like a Telegram id
+  if (/^\d+$/.test(u) && !(shortOk && u.length <= 4)) return "bad_chars"; // a long all-digit name looks like a Telegram id
   if (!isStaff && RESERVED.has(u.toLowerCase())) return "reserved";
   return null;
 }
@@ -114,8 +118,20 @@ export async function isUsernameTaken(lower: string, exceptUserId?: number): Pro
   return !!hit && hit._id !== exceptUserId;
 }
 
+/** May this person pick a username shorter than 5 characters? (the owner, or an id added in the admin panel) */
+export async function shortUsernameAllowed(user: { _id: number }): Promise<boolean> {
+  if (env.OWNER_ID !== undefined && user._id === env.OWNER_ID) return true;
+  return ((await getBotSettings()).shortUsernameIds ?? []).includes(user._id);
+}
+
+/** the official account's name belongs to the owner only (even admins may not take it) */
+function officialNameBlocked(user: { _id: number }, name: string): boolean {
+  return name.toLowerCase() === "nava" && !(env.OWNER_ID !== undefined && user._id === env.OWNER_ID);
+}
+
 export async function checkUsername(user: UserDoc, raw: unknown, isStaff = false): Promise<{ available: boolean; reason?: string }> {
-  const bad = usernameFormatError(raw, isStaff);
+  if (typeof raw === "string" && officialNameBlocked(user, normalizeUsername(raw))) return { available: false, reason: "reserved" };
+  const bad = usernameFormatError(raw, isStaff, await shortUsernameAllowed(user));
   if (bad) return { available: false, reason: bad };
   const name = normalizeUsername(raw as string);
   if (await isUsernameTaken(name.toLowerCase(), user._id)) return { available: false, reason: "taken" };
@@ -125,7 +141,8 @@ export async function checkUsername(user: UserDoc, raw: unknown, isStaff = false
 /** Claims @username for the user. Uniqueness is enforced by a unique partial
  *  index, so two simultaneous claims can never both win. */
 export async function setMiniUsername(user: UserDoc, raw: unknown, isStaff = false): Promise<string> {
-  const bad = usernameFormatError(raw, isStaff);
+  if (typeof raw === "string" && officialNameBlocked(user, normalizeUsername(raw))) throw new SocialError("reserved");
+  const bad = usernameFormatError(raw, isStaff, await shortUsernameAllowed(user));
   if (bad) throw new SocialError(bad);
   const name = normalizeUsername(raw as string);
   const lower = name.toLowerCase();
@@ -151,11 +168,14 @@ export async function setLike(viewer: UserDoc, anonId: unknown, like: boolean): 
   const likes = db.collection<{ _id: string; createdAt: Date }>("profile_likes");
   const users = db.collection<UserDoc>("users");
   const key = `${viewer._id}:${target._id}`;
+  let added = false;
   try {
     await runInTransaction(async (session) => {
+      added = false;
       if (like) {
         const r = await likes.updateOne({ _id: key }, { $setOnInsert: { createdAt: new Date() } }, { upsert: true, session });
         if (r.upsertedCount !== 1) return; // already liked -> no double count
+        added = true;
         const inc = await users.updateOne({ _id: target._id }, { $inc: { likesCount: 1 } }, { session });
         if (inc.matchedCount !== 1) throw new TxAbort("user_gone");
       } else {
@@ -167,6 +187,8 @@ export async function setLike(viewer: UserDoc, anonId: unknown, like: boolean): 
     if (err instanceof TxAbort) return null;
     if (err?.code !== 11000) throw err; // a concurrent identical like won the race and was counted once
   }
+  if (like && added) await pushNotif(notifKey.likeProfile(target._id, viewer._id), { userId: target._id, actorId: viewer._id, type: "like_profile", postId: `pp:${target.anonId}` });
+  if (!like) await dropNotifs({ _id: notifKey.likeProfile(target._id, viewer._id) });
   const fresh = await users.findOne({ _id: target._id }, { projection: { likesCount: 1 } });
   const nowLiked = !!(await likes.findOne({ _id: key }));
   return { liked: nowLiked, likes: fresh?.likesCount ?? 0 };

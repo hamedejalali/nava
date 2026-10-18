@@ -194,7 +194,7 @@
     var scr = NG.push(w); top.querySelector(".bk").onclick = scr.close;
     var cur = null, cursor = null, more = false, loading = false;
     function row(u) {
-      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + (u.verified ? NG.VERIFIED : "") + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
+      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + NG.vb(u) + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
       r.insertBefore(NG.ring(u), r.firstChild);
       r.querySelector(".ring").onclick = function (e) { if (u.story) { e.stopPropagation(); NG.openStories([u.id], 0); } };
       r.onclick = function () { NG.openProfile(u.id); };
@@ -243,7 +243,7 @@
     var scr = NG.push(w); top.querySelector(".bk").onclick = scr.close;
     var cursor = null, loading = false;
     function row(u) {
-      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + (u.verified ? NG.VERIFIED : "") + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
+      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + NG.vb(u) + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
       r.insertBefore(NG.ring(u, { noStory: true }), r.firstChild);
       r.querySelector(".ring").onclick = function (e) { e.stopPropagation(); NG.openProfile(u.id); };
       var ok = el('<button class="fbtn">تأیید</button>'), no = el('<button class="fbtn gray">حذف</button>');
@@ -287,7 +287,7 @@
         var box = sh.querySelector("#acc");
         list.forEach(function (a) {
           var cur = a.id === d.current;
-          var row = el('<div class="row"><div class="t"><b>' + esc(a.name) + (a.verified ? NG.VERIFIED : "") + "</b><span>" + (a.main ? "اکانت اصلی تو" : "ممبر پیش‌فرض") + "</span></div>" + (cur ? '<span style="color:var(--blue);font-weight:800">✓</span>' : "") + "</div>");
+          var row = el('<div class="row"><div class="t"><b>' + esc(a.name) + NG.vb(a) + "</b><span>" + (a.main ? "اکانت اصلی تو" : "ممبر پیش‌فرض") + "</span></div>" + (cur ? '<span style="color:var(--blue);font-weight:800">✓</span>' : "") + "</div>");
           row.insertBefore(NG.ring(a, { noStory: true }), row.firstChild);
           row.onclick = function () { if (cur) return close(); NG.setActAs(a.main ? null : a.id); close(function () { location.reload(); }); };
           box.appendChild(row);
@@ -314,7 +314,7 @@
       var left = el('<div style="display:flex;align-items:center;gap:10px;min-width:0"></div>');
       if (!o.tab) { var bk = el('<button class="ib" aria-label="back">' + svg("back") + "</button>"); bk.onclick = function () { if (closeFn) closeFn(); }; left.appendChild(bk); }
       var nm = P ? NG.nameOf(P) : "…";
-      var u = el('<div class="u"><span>' + esc(nm) + "</span>" + (P && P.verified ? NG.VERIFIED : "") + "</div>");
+      var u = el('<div class="u"><span>' + esc(nm) + "</span>" + NG.vb(P) + "</div>");
       left.appendChild(u); topEl.appendChild(left);
       // owner / admins: tap the name to switch account (like Instagram) and work as a default member
       if (o.tab && P && P.isMe && NG.staff) { u.insertAdjacentHTML("beforeend", NG.svg("chevD", "")); u.style.cursor = "pointer"; u.onclick = function () { NG.openAccounts(); }; }
@@ -354,7 +354,7 @@
       var info = [];
       if (P.age != null && P.age !== "") info.push(num(P.age) + " ساله");
       if (P.city || P.province) info.push([P.city, P.province].filter(Boolean).filter(function (x, i, a) { return a.indexOf(x) === i; }).join("، "));
-      var bio = el('<div class="pbio"><div class="n">' + esc(P.name) + (P.verified ? NG.VERIFIED : "") + "</div>" + (info.length ? '<div class="s">' + esc(info.join(" • ")) + "</div>" : "") +
+      var bio = el('<div class="pbio"><div class="n">' + esc(P.name) + NG.vb(P) + "</div>" + (info.length ? '<div class="s">' + esc(info.join(" • ")) + "</div>" : "") +
         (P.bio ? '<div class="d">' + esc(P.bio) + "</div>" : (P.isMe ? '<div class="s">بیوگرافی نداری — از «ویرایش پروفایل» اضافه کن.</div>' : "")) + "</div>");
       head.appendChild(bio);
       if (P.isMe) {
@@ -582,7 +582,7 @@
   NG.profileView = profileView;
 
   /* ---------------------------------------------------------- edit profile */
-  var USER_ERR = { taken: "این یوزرنیم قبلاً انتخاب شده", too_short: "حداقل ۳ کاراکتر", too_long: "حداکثر ۲۴ کاراکتر", bad_chars: "فقط حروف انگلیسی، عدد، _ و . مجازه", bad_dots: "نقطه نباید اول/آخر یا پشت‌سرهم باشه", reserved: "این یوزرنیم رزرو شده" };
+  var USER_ERR = { taken: "این یوزرنیم قبلاً انتخاب شده", too_short: "حداقل ۵ کاراکتر", too_long: "حداکثر ۲۴ کاراکتر", bad_chars: "فقط حروف انگلیسی، عدد، _ و . مجازه", bad_dots: "نقطه نباید اول/آخر یا پشت‌سرهم باشه", reserved: "این یوزرنیم رزرو شده" };
 
   function requestSheet(field, current) {
     var isName = field === "nickname";

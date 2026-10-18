@@ -145,7 +145,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.18.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.19.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -166,8 +166,8 @@
       v.oncanplay = function () { box.classList.add("hasanim"); };
       box.appendChild(v);
       box.__anim = function (on) { try { if (on) v.play().catch(function () {}); else v.pause(); } catch (e) {} };
-    } else if (fmt === "webp") {
-      var im = document.createElement("img"); im.className = "ganim"; im.alt = ""; im.onload = function () { box.classList.add("hasanim"); }; im.src = anim.url; box.appendChild(im);
+    } else if (fmt === "webp" || fmt === "png" || fmt === "jpg") {
+      var im = document.createElement("img"); im.className = "ganim gmove"; im.alt = ""; im.onload = function () { box.classList.add("hasanim"); }; im.src = anim.url; box.appendChild(im);
     } else {
       NG.loadLottie().then(function (lt) {
         var holder = document.createElement("div"); holder.className = "ganim"; box.appendChild(holder);
@@ -214,6 +214,8 @@
   NG.setUserStory = function (uid, st) {
     Array.prototype.forEach.call(document.querySelectorAll('.ring[data-uid="' + uid + '"]'), function (r) { if (!r.hasAttribute("data-fixed")) NG.setRing(r, st); });
   };
+  /** blue tick (+ the official account's gold coin) shown after a name */
+  NG.vb = function (u) { return u && u.verified ? NG.VERIFIED + (u.gold ? '<span class="goldc" title="Nava">🪙</span>' : "") : ""; };
   NG.nameOf = function (b) { return b.username || b.name; };
 
   /* ------------------------------------------------- layers / back button */

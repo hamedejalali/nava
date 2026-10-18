@@ -7,6 +7,7 @@ import { countSeeds, createSeed, deleteSeed, getSeed, listSeeds, setSeedChatEnab
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 import { isAdmin } from "./constants.js";
+import { ADMIN_MENU_LABELS } from "./menu.js";
 import { isValidPersianNickname } from "../onboarding/nickname.js";
 import { PROVINCES, isValidProvince } from "../../data/provinces.js";
 import { citiesForProvince } from "../../data/cities.js";
@@ -43,7 +44,42 @@ const FLOW_ADD = "seed_add";
 const FLOW_EDIT = "seed_edit";
 const PAGE = 8;
 
-type AddData = { nickname?: string; gender?: "male" | "female"; age?: number; province?: string; city?: string; bio?: string };
+type AddData = { nickname?: string; gender?: "male" | "female"; age?: number; province?: string; city?: string; bio?: string; photo?: string };
+
+const norm = (t: string) => t.replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/\s+/g, " ").trim();
+
+/**
+ * One-message member: six lines (or separated by "|") — name, gender, age, province, city, bio (optional).
+ * Returns null when the text is not in this shape (the step-by-step flow then continues as before).
+ */
+export function parseQuickSeed(raw: string): { ok: true; data: AddData } | { ok: false; error: string } | null {
+  const lines = raw.split(/\r?\n|\s*\|\s*/).map((x) => x.trim()).filter(Boolean);
+  if (lines.length < 5) return null;
+  const [nick, g, a, prov, cit, ...rest] = lines as [string, string, string, string, string, ...string[]];
+  if (!isValidPersianNickname(nick)) return { ok: false, error: `نام «${nick}» معتبر نیست (باید فارسی باشه). همه رو دوباره بفرست:` };
+  const gender = /زن|دختر|خانم|female/i.test(g) ? "female" : /مرد|پسر|آقا|male/i.test(g) ? "male" : null;
+  if (!gender) return { ok: false, error: "جنسیت (خط دوم) باید «زن» یا «مرد» باشه. همه رو دوباره بفرست:" };
+  const age = Number(toAsciiDigits(a));
+  if (!Number.isInteger(age) || age < MIN_AGE || age > MAX_AGE) return { ok: false, error: `سن (خط سوم) باید عدد بین ${MIN_AGE} تا ${MAX_AGE} باشه. همه رو دوباره بفرست:` };
+  const province = PROVINCES.find((p) => norm(p.nameFa) === norm(prov));
+  if (!province) return { ok: false, error: "استان (خط چهارم) معتبر نیست؛ دقیقاً مثل فهرست بنویس:\n" + PROVINCES.map((p) => p.nameFa).join("، ") };
+  const city = citiesForProvince(province.id).find((c) => norm(c.nameFa) === norm(cit));
+  if (!city) return { ok: false, error: `شهر «${cit}» داخل استان ${province.nameFa} پیدا نشد. همه رو دوباره بفرست:` };
+  const bio = rest.join("\n");
+  const cleanBio = bio === "-" ? "" : bio;
+  if ([...cleanBio].length > MAX_BIO_LENGTH) return { ok: false, error: `بیو حداکثر ${MAX_BIO_LENGTH} کاراکتر باشه. همه رو دوباره بفرست:` };
+  return { ok: true, data: { nickname: nick, gender, age, province: province.id, city: city.id, bio: cleanBio } };
+}
+
+const QUICK_HELP =
+  "➕ <b>ممبر جدید</b>\n\nهمه‌چیز رو <b>تو یک پیام</b> بفرست (اگه عکس داری، عکس رو با همین متن به‌عنوان کپشن بفرست):\n\n" +
+  "<code>مریم\nزن\n24\nتهران\nتهران\nعاشق کوه و کتاب</code>\n\n" +
+  "(نام / جنسیت / سن / استان / شهر / بیو — بیو اختیاریه)\nیا فقط نام رو بفرست تا مرحله‌به‌مرحله بپرسم.";
+
+export async function startSeedAdd(ctx: NavaContext) {
+  await setAdminFlow(ctx.from!.id, { flow: FLOW_ADD, stage: "nickname", data: {} });
+  await ctx.reply(QUICK_HELP, { parse_mode: "HTML", reply_markup: cancelKeyboard() });
+}
 
 export async function seedsScreen(): Promise<{ text: string; reply_markup: ReturnType<typeof inlineKeyboard> }> {
   const s = await getBotSettings();
@@ -183,8 +219,19 @@ export function registerSeedsAdmin(composer: Composer<NavaContext>) {
   composer.callbackQuery(SEED_CB.add, async (ctx) => {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
-    await setAdminFlow(ctx.from!.id, { flow: FLOW_ADD, stage: "nickname", data: {} });
-    await ctx.reply("➕ ممبر جدید\n\nنام مستعار (فارسی) رو بفرست:", { reply_markup: cancelKeyboard() });
+    await startSeedAdd(ctx);
+  });
+
+  // direct buttons of the «🎭 ممبرهای پیش‌فرض» category of the admin keyboard
+  composer.on("message:text", async (ctx, next) => {
+    if (!isAdmin(ctx)) return next();
+    const t = ctx.message.text.trim();
+    if (t !== ADMIN_MENU_LABELS.seedPanel && t !== ADMIN_MENU_LABELS.seedAdd && t !== ADMIN_MENU_LABELS.seedList) return next();
+    await setAdminFlow(ctx.from!.id, null);
+    if (t === ADMIN_MENU_LABELS.seedAdd) return void (await startSeedAdd(ctx));
+    if (t === ADMIN_MENU_LABELS.seedList) return void (await listScreen(ctx, 0));
+    const scr = await seedsScreen();
+    await ctx.reply(scr.text, { parse_mode: "HTML", reply_markup: scr.reply_markup });
   });
 
   composer.callbackQuery(new RegExp(`^${SEED_CB.gender}(male|female)$`), async (ctx) => {
@@ -241,6 +288,20 @@ export function registerSeedsAdmin(composer: Composer<NavaContext>) {
       await finishAdd(ctx, (flow.data ?? {}) as AddData, fileId);
       return;
     }
+    if (flow.flow === FLOW_ADD && flow.stage === "nickname") {
+      const cap = ctx.message.caption?.trim();
+      if (cap) {
+        const q = parseQuickSeed(cap);
+        if (q && !q.ok) return void (await ctx.reply(q.error, { reply_markup: cancelKeyboard() }));
+        if (q && q.ok) return void (await finishAdd(ctx, q.data, fileId));
+        if (isValidPersianNickname(cap)) {
+          await setAdminFlow(ctx.from!.id, { flow: FLOW_ADD, stage: "gender", data: { nickname: cap, photo: fileId } });
+          return void (await ctx.reply("عکس رو گرفتم. جنسیت:", { reply_markup: genderKeyboard() }));
+        }
+      }
+      await setAdminFlow(ctx.from!.id, { flow: FLOW_ADD, stage: "nickname", data: { ...((flow.data ?? {}) as object), photo: fileId } });
+      return void (await ctx.reply("✅ عکس رو گرفتم. حالا نام و بقیه‌ی مشخصات رو بفرست (۶ خط، یا فقط نام).", { reply_markup: cancelKeyboard() }));
+    }
     if (flow.flow === FLOW_EDIT && flow.stage === "photo") {
       const id = Number((flow.data as any)?.id);
       await setAdminFlow(ctx.from!.id, null);
@@ -274,10 +335,14 @@ export function registerSeedsAdmin(composer: Composer<NavaContext>) {
 
     if (flow.flow === FLOW_ADD) {
       switch (flow.stage) {
-        case "nickname":
+        case "nickname": {
+          const q = parseQuickSeed(text);
+          if (q && !q.ok) return void (await retry(q.error));
+          if (q && q.ok) return void (await finishAdd(ctx, q.data, data.photo as string | undefined));
           if (!isValidPersianNickname(text)) return void (await retry("نام باید فارسی و معتبر باشه. دوباره بفرست:"));
           await setAdminFlow(ctx.from!.id, { flow: FLOW_ADD, stage: "gender", data: { ...data, nickname: text } });
           return void (await ctx.reply("جنسیت:", { reply_markup: genderKeyboard() }));
+        }
         case "gender":
           return void (await ctx.reply("جنسیت رو با دکمه‌ها انتخاب کن:", { reply_markup: genderKeyboard() }));
         case "age": {
@@ -303,7 +368,7 @@ export function registerSeedsAdmin(composer: Composer<NavaContext>) {
           return void (await retry("عکس پروفایل رو بفرست (یا «-» برای ساخت بدون عکس):"));
         }
         case "photo":
-          if (text === "-") return void (await finishAdd(ctx, data as AddData, undefined));
+          if (text === "-") return void (await finishAdd(ctx, data as AddData, data.photo as string | undefined));
           return void (await retry("باید عکس بفرستی (یا «-»):"));
       }
       return next();
@@ -354,7 +419,7 @@ async function finishAdd(ctx: NavaContext, d: AddData, photo: string | undefined
     await ctx.reply("اطلاعات ناقص بود؛ از اول شروع کن.");
     return;
   }
-  const u = await createSeed({ nickname: d.nickname, gender: d.gender, age: d.age, province: d.province, city: d.city, bio: d.bio ?? "", profilePhotoFileId: photo });
+  const u = await createSeed({ nickname: d.nickname, gender: d.gender, age: d.age, province: d.province, city: d.city, bio: d.bio ?? "", profilePhotoFileId: photo ?? d.photo });
   await logAdminAction(ctx.from!.id, "seed_create", String(u._id));
   await ctx.reply("✅ ممبر ساخته شد.");
   await showCard(ctx, u);

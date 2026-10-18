@@ -70,7 +70,7 @@
       Array.prototype.slice.call(frame.children).forEach(function (n) { if (n !== oldImg) n.remove(); });
       var bars = el('<div class="bars"></div>');
       list.forEach(function (_, k) { bars.appendChild(el("<i" + (k < si ? ' class="done"' : "") + "><b></b></i>")); });
-      var head = el('<div class="shead"><div class="rr"></div><div class="nm"><span>' + esc(g.data.title || NG.nameOf(owner)) + "</span>" + (g.data.title ? "" : (owner.verified ? NG.VERIFIED : "")) + '<span class="tm">' + (g.data.title ? "" : NG.ago(s.at)) + '</span></div><button class="mo" aria-label="more">' + svg("dots") + '</button><button class="xx" aria-label="close">' + svg("close") + "</button></div>");
+      var head = el('<div class="shead"><div class="rr"></div><div class="nm"><span>' + esc(g.data.title || NG.nameOf(owner)) + "</span>" + (g.data.title ? "" : NG.vb(owner)) + '<span class="tm">' + (g.data.title ? "" : NG.ago(s.at)) + '</span></div><button class="mo" aria-label="more">' + svg("dots") + '</button><button class="xx" aria-label="close">' + svg("close") + "</button></div>");
       var ring = NG.ring(owner, { noStory: true }); ring.className = "ring none"; head.querySelector(".rr").replaceWith(ring);
       ring.style.cursor = "pointer"; ring.onpointerdown = function (e) { e.stopPropagation(); };
       ring.onclick = function () { var id = owner.id; close(); setTimeout(function () { NG.openProfile(id); }, 240); };

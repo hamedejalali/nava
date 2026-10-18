@@ -32,5 +32,6 @@ export async function loadGiftSticker(giftId: string, v: string): Promise<{ buff
     buffer = gunzipSync(buffer);
     return { buffer, contentType: "application/json" };
   }
-  return { buffer, contentType: gift.sticker.format === "webm" ? "video/webm" : "image/webp" };
+  const f = gift.sticker.format;
+  return { buffer, contentType: f === "webm" ? "video/webm" : f === "png" ? "image/png" : f === "jpg" ? "image/jpeg" : "image/webp" };
 }

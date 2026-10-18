@@ -470,3 +470,58 @@ button:active>.ring,.story:active .ring{transform:scale(.93)}
 .coinchip b{font-weight:700}
 .actasbar{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;background:#7c3aed;color:#fff;font-size:12px}
 .actasbar button{border:0;border-radius:999px;padding:4px 10px;background:rgba(255,255,255,.22);color:#fff;font:inherit;cursor:pointer}
+
+/* v1.19: still pictures used as gifts (cut-out PNG / sticker) drift slowly inside the card, like the animated ones */
+.gc .gem .ganim.gmove{animation:ggdrift 9s ease-in-out infinite;transform-origin:50% 60%;will-change:transform}
+@keyframes ggdrift{
+  0%{transform:translate(0,0) rotate(0) scale(1)}
+  22%{transform:translate(7%,-8%) rotate(5deg) scale(1.05)}
+  46%{transform:translate(-6%,-3%) rotate(-4deg) scale(1.08)}
+  72%{transform:translate(-7%,7%) rotate(-5deg) scale(1.03)}
+  100%{transform:translate(0,0) rotate(0) scale(1)}
+}
+@media (prefers-reduced-motion:reduce){.gc .gem .ganim.gmove{animation:none}}
+.goldc{display:inline-block;margin-inline-start:3px;font-size:.92em;line-height:1;filter:drop-shadow(0 0 3px rgba(255,190,0,.6))}
+
+/* v1.19: comment replies + comment likes */
+.cm .rto{color:var(--blue);font-weight:600;margin-inline-end:6px;font-size:13px}
+.cm .clk{flex:none;align-self:flex-start;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 2px;color:var(--muted);min-width:28px}
+.cm .clk svg{width:15px;height:15px}
+.cm .clk i{font-style:normal;font-size:11px;min-height:13px}
+.cm .clk.on{color:#ed4956}
+.cm .clk.on svg{animation:cpop .28s var(--ease)}
+@keyframes cpop{0%{transform:scale(.6)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+.rpbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;background:var(--chip);font-size:13px;color:var(--muted);flex:none}
+.rpbar button{color:var(--muted);font-size:14px;padding:0 4px}
+
+/* v1.19: activity heart, pill and screen */
+.actwrap{position:relative;display:flex;align-items:center}
+.topbar .icons button.heartb,#actb{position:relative}
+#actb .dot{display:none;position:absolute;top:1px;right:0;width:9px;height:9px;border-radius:50%;background:#ff3040;border:2px solid var(--bg)}
+#actb.has .dot{display:block}
+#actb.has{color:#ed4956}
+#actb.beat svg{animation:hbeat .9s var(--ease)}
+@keyframes hbeat{0%{transform:scale(1)}15%{transform:scale(1.4) rotate(-8deg)}30%{transform:scale(.92) rotate(6deg)}45%{transform:scale(1.25)}70%{transform:scale(1)}100%{transform:scale(1)}}
+.actpill{display:none;position:absolute;top:36px;inset-inline-end:-6px;z-index:8;gap:10px;align-items:center;background:#ff3040;color:#fff;border-radius:14px;padding:5px 10px;font-size:13px;font-weight:700;white-space:nowrap;box-shadow:0 4px 14px rgba(255,48,64,.35);cursor:pointer}
+.actpill.on{display:flex}
+.actpill::before{content:"";position:absolute;top:-5px;inset-inline-end:16px;width:10px;height:10px;background:#ff3040;transform:rotate(45deg);border-radius:2px}
+.actpill span{display:flex;align-items:center;gap:4px}
+.actpill svg{width:14px;height:14px}
+.actpill.bump{animation:pillin .55s var(--ease)}
+@keyframes pillin{0%{transform:translateY(-8px) scale(.6);opacity:0}55%{transform:translateY(2px) scale(1.12);opacity:1}100%{transform:none}}
+.acts{padding-bottom:30px}
+.nrow{display:flex;gap:12px;align-items:center;padding:11px 14px;cursor:pointer}
+.nrow.new{background:rgba(0,149,246,.07)}
+.nrow .nl{flex:none}
+.nrow .nt{flex:1;min-width:0;line-height:1.55;font-size:14px}
+.nrow .nt b{font-weight:700}
+.nrow .nt .q{color:var(--text);opacity:.85;word-break:break-word}
+.nrow .nt .ago{color:var(--muted);font-size:12px}
+.nrow .nr{flex:none;display:flex;gap:6px;align-items:center}
+.nrow .thumb{width:44px;height:44px;border-radius:8px;overflow:hidden;background:var(--chip)}
+.nrow .thumb img{width:100%;height:100%;object-fit:cover}
+.nrow .nact{display:flex;gap:14px;margin-top:3px}
+.nrow .nbtn{color:var(--muted);font-size:12.5px;font-weight:700;padding:2px 0}
+.nrow .nbtn.on{color:#ed4956}
+.nrow .fbtn{height:30px;padding:0 14px;border-radius:8px;font-weight:600;font-size:13px;background:var(--blue);color:#fff}
+.nrow .fbtn.gray{background:var(--chip);color:var(--text)}

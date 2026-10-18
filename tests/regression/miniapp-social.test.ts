@@ -31,7 +31,7 @@ beforeEach(async () => {
   await new Promise((r) => setTimeout(r, 20));
   seedUser({ id: 1, profilePhotoFileId: "P1", anonId: "user_AAA1" });
   seedUser({ id: 2, profilePhotoFileId: "P2", anonId: "user_AAA2", miniUsername: "Taken_Name", miniUsernameLower: "taken_name" });
-  seedUser({ id: 3, profilePhotoFileId: "P3", anonId: "user_AAA3", miniUsername: "sara", miniUsernameLower: "sara", likesCount: 4 });
+  seedUser({ id: 3, profilePhotoFileId: "P3", anonId: "user_AAA3", miniUsername: "sarah", miniUsernameLower: "sarah", likesCount: 4 });
   seedUser({ id: 4, anonId: "user_AAA4" }); // no photo -> never listed
   seedUser({ id: 5, profilePhotoFileId: "P5", anonId: "user_AAA5", banned: true });
   seedUser({ id: 900, anonId: "user_OWN0" });
@@ -42,8 +42,8 @@ test("username: format rules + 'already chosen' (case-insensitive) + own name st
   assert.equal(S.usernameFormatError("ab"), "too_short");
   assert.equal(S.usernameFormatError("a".repeat(30)), "too_long");
   assert.equal(S.usernameFormatError("hi there"), "bad_chars");
-  assert.equal(S.usernameFormatError(".abc"), "bad_dots");
-  assert.equal(S.usernameFormatError("a..b"), "bad_dots");
+  assert.equal(S.usernameFormatError(".abcde"), "bad_dots");
+  assert.equal(S.usernameFormatError("a..bcd"), "bad_dots");
   assert.equal(S.usernameFormatError("12345"), "bad_chars");
   assert.equal(S.usernameFormatError("admin"), "reserved");
   assert.equal(S.usernameFormatError("@Hamed"), null);
@@ -67,7 +67,7 @@ test("explore shows EVERY visible user (also without photo), never me / banned; 
   assert.equal(f.payload.hasMore, false);
   assert.equal(JSON.stringify(f.payload).includes("P3"), false); // no telegram file ids leak
   assert.equal(f.payload.items.some((c: any) => "telegramId" in c || "_id" in c), false);
-  assert.deepEqual((await call(1, { action: "search", q: "@SA" })).payload.items.map((c: any) => c.username), ["sara"]);
+  assert.deepEqual((await call(1, { action: "search", q: "@SA" })).payload.items.map((c: any) => c.username), ["sarah"]);
   assert.deepEqual((await call(1, { action: "search", q: "zzz" })).payload.items, []);
 });
 
@@ -96,7 +96,7 @@ test("bio: trimmed, capped, shows in the bot's profile text together with the @u
   const text = buildProfileText("fa", col("users").byId(1) as any);
   assert.match(text, /@Hamed/);
   assert.match(text, /سلام/);
-  const taken = await call(1, { action: "set_username", username: "sara" });
+  const taken = await call(1, { action: "set_username", username: "sarah" });
   assert.equal(taken.status, 409); assert.equal(taken.payload.error, "taken");
 });
 

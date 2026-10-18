@@ -5,8 +5,6 @@ import { getBotSettings, setMaintenanceAllowIds, setMaintenanceMode } from "../.
 import { isAdmin } from "./constants.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
-import { NG_CB } from "./navagramAdmin.js";
-import { SEED_CB } from "./seedsAdmin.js";
 import { cancelKeyboard } from "../common/userFlows.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 
@@ -29,8 +27,6 @@ async function screen(ctx: NavaContext) {
       reply_markup: inlineKeyboard([
         [glassButton(settings.maintenanceMode ? "🟢 روشن کردن ربات" : "🔴 خاموش کردن ربات", CB.toggleMaintenance, "primary")],
         [glassButton(`📋 آیدی‌های مجاز در خاموشی (${allow.length})`, CB.allowList, "primary")],
-        [glassButton("🎭 ممبرهای پیش‌فرض", SEED_CB.open, "primary")],
-        [glassButton("📸 تنظیمات نوا گرام", NG_CB.open, "primary")],
       ]),
     },
   );

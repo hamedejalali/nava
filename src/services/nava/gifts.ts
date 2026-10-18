@@ -133,8 +133,7 @@ export async function sendGift(
   if (receiverAnonId === viewer.anonId) throw new SocialError("self");
   const receiver = await findVisibleUser(viewer._id, receiverAnonId);
   if (!receiver) throw new SocialError("not_found");
-  // a default (seed) member has no wallet: a gift to it would just burn the sender's Relic
-  if (receiver.isSeed) throw new SocialError("unavailable");
+  // a default (seed) member can receive gifts like anybody else (the Telegram notice is swallowed by the seed guard)
 
   const giftId = `${viewer._id}:${clientIdRaw}`;
   const gifts = await col<any>(C.gifts);
@@ -208,8 +207,7 @@ export async function regiftGift(
   if (receiverAnonId === viewer.anonId) throw new SocialError("self");
   const receiver = await findVisibleUser(viewer._id, receiverAnonId);
   if (!receiver) throw new SocialError("not_found");
-  // a default (seed) member has no wallet: a gift to it would just burn the sender's Relic
-  if (receiver.isSeed) throw new SocialError("unavailable");
+  // a default (seed) member can receive gifts like anybody else (the Telegram notice is swallowed by the seed guard)
   const gifts = await col<any>(C.gifts);
   const now = new Date();
   const moved: any = await gifts.findOneAndUpdate(

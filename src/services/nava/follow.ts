@@ -1,3 +1,5 @@
+import { env } from "../../config/env.js";
+import { dropNotifs, notifKey, pushNotif } from "./notifs.js";
 import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
 
 export const FOLLOW_PAGE = 30;
@@ -31,6 +33,7 @@ export async function setFollow(viewer: any, anonId: unknown, follow: boolean): 
     if (!already && target.isPrivate) {
       try {
         await reqs.insertOne({ _id: key, fromId: viewer._id, toId: target._id, createdAt: new Date() });
+        await pushNotif(notifKey.request(viewer._id, target._id), { userId: target._id, actorId: viewer._id, type: "follow_request" });
       } catch (err: any) {
         if (err?.code !== 11000) throw err; // already requested: counted once
       }
@@ -38,12 +41,14 @@ export async function setFollow(viewer: any, anonId: unknown, follow: boolean): 
     }
     try {
       await f.insertOne({ _id: key, followerId: viewer._id, followeeId: target._id, createdAt: new Date() });
+      await pushNotif(notifKey.follow(viewer._id, target._id), { userId: target._id, actorId: viewer._id, type: "follow" });
     } catch (err: any) {
       if (err?.code !== 11000) throw err;
     }
   } else {
     await f.deleteOne({ _id: key });
     await reqs.deleteOne({ _id: key });
+    await dropNotifs({ _id: { $in: [notifKey.follow(viewer._id, target._id), notifKey.request(viewer._id, target._id)] } });
   }
   const pending = !!(await reqs.findOne({ _id: key }));
   return { following: !!(await f.findOne({ _id: key })), followers: await f.countDocuments({ followeeId: target._id }), ...(pending ? { requested: true as const } : {}) };
@@ -119,12 +124,15 @@ export async function respondFollowRequest(me: any, anonId: unknown, accept: boo
     const claimed = await reqs.findOneAndDelete({ _id: `${from._id}:${me._id}`, toId: me._id });
     if (claimed) {
       status = accept ? "accepted" : "declined";
+      await dropNotifs({ _id: notifKey.request(from._id, me._id) });
       if (accept) {
         try {
           await f.insertOne({ _id: `${from._id}:${me._id}`, followerId: from._id, followeeId: me._id, createdAt: new Date() });
+          await pushNotif(notifKey.follow(from._id, me._id), { userId: me._id, actorId: from._id, type: "follow" });
         } catch (err: any) {
           if (err?.code !== 11000) throw err;
         }
+        await pushNotif(notifKey.accepted(me._id, from._id), { userId: from._id, actorId: me._id, type: "accepted" });
       }
     }
   }
@@ -148,8 +156,29 @@ export async function setPrivate(me: any, on: boolean): Promise<{ isPrivate: boo
           if (err?.code !== 11000) throw err;
         }
         await reqs.deleteOne({ _id: r._id });
+        await pushNotif(notifKey.follow(r.fromId, me._id), { userId: me._id, actorId: r.fromId, type: "follow" });
+        await pushNotif(notifKey.accepted(me._id, r.fromId), { userId: r.fromId, actorId: me._id, type: "accepted" });
       }
     }
+    await dropNotifs({ userId: me._id, type: "follow_request" });
   }
   return { isPrivate: on, requests: await reqs.countDocuments({ toId: me._id }), followers: await f.countDocuments({ followeeId: me._id }) };
+}
+
+/**
+ * Everybody follows the official account (the owner's «Nava») from the first time they open the Mini App.
+ * Done ONCE per person (`navaFollowed`), so unfollowing is respected; it creates no "X followed you" notification.
+ */
+export async function ensureOfficialFollow(user: any): Promise<void> {
+  if (!user || user.navaFollowed || user.isSeed || env.OWNER_ID === undefined || user._id === env.OWNER_ID) return;
+  const users = await usersCol();
+  const owner = await users.findOne({ _id: env.OWNER_ID, onboardingStep: "COMPLETED" }, { projection: { _id: 1 } });
+  if (!owner) return;
+  const f = await col(C.follows);
+  try {
+    await f.insertOne({ _id: `${user._id}:${owner._id}`, followerId: user._id, followeeId: owner._id, createdAt: new Date(), auto: true });
+  } catch (err: any) {
+    if (err?.code !== 11000) throw err;
+  }
+  await users.updateOne({ _id: user._id }, { $set: { navaFollowed: true } });
 }

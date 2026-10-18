@@ -156,6 +156,7 @@ export async function deleteSeed(id: number): Promise<boolean> {
   if (!seed) return false;
   await db.collection("mini_follows").deleteMany({ $or: [{ followerId: id }, { followeeId: id }] });
   await db.collection("mini_follow_requests").deleteMany({ $or: [{ fromId: id }, { toId: id }] });
+  await db.collection("mini_notifs").deleteMany({ $or: [{ userId: id }, { actorId: id }] });
   // take back its comments together with their counters
   const comments = db.collection<any>("mini_comments");
   const mine = await comments.find({ ownerId: id }).limit(2000).toArray();
