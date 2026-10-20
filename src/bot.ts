@@ -16,6 +16,7 @@ import { registerContacts } from "./features/matching/contacts.js";
 import { registerProfileLookup } from "./features/matching/profileLookup.js";
 import { registerVerifyFlow } from "./features/matching/verifyFlow.js";
 import { registerRelicTransfer } from "./features/matching/transfer.js";
+import { registerXpTransfer } from "./features/wallet/xpTransfer.js";
 import { registerRelicScreen, registerStarsCheckout } from "./features/payments/index.js";
 import { ensureUserIndexes } from "./db/models/user.js";
 import { ensureMatchQueueIndexes } from "./db/models/matchQueue.js";
@@ -36,6 +37,7 @@ import { registerAdminUsers } from "./features/admin/users.js";
 import { registerAdminLevels } from "./features/admin/levels.js";
 import { registerAdminModerators } from "./features/admin/moderators.js";
 import { registerAdminResetUser } from "./features/admin/resetUser.js";
+import { registerAdminWallet } from "./features/admin/walletAdmin.js";
 import { registerPricingAdmin } from "./features/admin/pricingAdmin.js";
 import { registerAdminStats } from "./features/admin/stats.js";
 import { registerAdminActivityLog } from "./features/admin/activityLog.js";
@@ -242,6 +244,7 @@ export function createBot(): Bot<NavaContext> {
   registerAdminLevels(features);
   registerAdminModerators(features);
   registerAdminResetUser(features);
+  registerAdminWallet(features);
   registerPricingAdmin(features);
   registerAdminStats(features);
   registerAdminActivityLog(features);
@@ -254,6 +257,7 @@ export function createBot(): Bot<NavaContext> {
   registerGiftEvents(features); // auction / giveaway buttons under the channel posts
   registerGiftReply(features); // "پیام به فرستنده" under gift notifications
   registerChatRequest(features); // accept/decline buttons of chat requests sent from the Nava Mini App
+  registerXpTransfer(features); // «دریافت XP از ولت»: personal transfer token (callbacks only)
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatControls(features); // before chat relay: the reply-keyboard control labels must never be relayed as a chat message
   registerChatPhotoModeration(features); // before profile-photo upload: chat photos must never be mistaken for profile uploads; always delivers instantly + logs to moderation channel

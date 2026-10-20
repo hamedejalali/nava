@@ -5,6 +5,7 @@ import { buttonIcon, textEmoji } from "../../config/emojis.js";
 import { creditPurchaseOnce } from "../../db/models/relic.js";
 import { getPackages } from "../../db/models/pricing.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
+import { XP_CB } from "../wallet/xpTransfer.js";
 import { env } from "../../config/env.js";
 import { getOrCreateStarsOrder, getStarsOrder, markStarsOrderFulfilled, recordStarsPaymentException, type StarsOrderDoc } from "../../db/models/starsOrder.js";
 
@@ -49,10 +50,11 @@ export async function showRelicScreen(ctx: NavaContext): Promise<void> {
   const balance = ctx.dbUser?.relicBalance ?? 0;
   const relicEmoji = textEmoji("RELIC", "👑");
 
-  await ctx.reply(`${relicEmoji} موجودی رلیک شما: ${balance}\n\nاز کدوم روش می‌خوای رلیک بخری؟`, {
+  await ctx.reply(`${relicEmoji} موجودی XP شما: ${balance}\n\nاز کدوم روش می‌خوای XP بخری؟`, {
     reply_markup: inlineKeyboard([
-      [glassButton("⭐ خرید رلیک با Telegram Stars", OPEN_CB.stars, "primary", buttonIcon("CROWN"))],
-      [glassButton("💳 خرید رلیک از طریق درگاه", OPEN_CB.gateway, "primary", buttonIcon("CROWN"))],
+      [glassButton("⭐ خرید XP با Telegram Stars", OPEN_CB.stars, "primary", buttonIcon("CROWN"))],
+      [glassButton("💳 خرید XP از طریق درگاه", OPEN_CB.gateway, "primary", buttonIcon("CROWN"))],
+      [glassButton("📥 دریافت XP از ولت", XP_CB.open, "success")],
     ]),
   });
 }
@@ -82,9 +84,9 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
     //  ones are set from the admin panel.)
     const packages = await getPackages("gateway");
     const buttons = packages.map((pkg, index) =>
-      glassButton(`${pkg.price.toLocaleString("fa-IR")} تومان = ${pkg.relic} رلیک`, `${BUY_GATEWAY_PREFIX}${index}`, index % 2 === 0 ? "primary" : "success", buttonIcon("CROWN"))
+      glassButton(`${pkg.price.toLocaleString("fa-IR")} تومان = ${pkg.relic} XP`, `${BUY_GATEWAY_PREFIX}${index}`, index % 2 === 0 ? "primary" : "success", buttonIcon("CROWN"))
     );
-    await ctx.reply("💳 خرید رلیک از طریق درگاه\n\nیکی از پکیج‌های زیر رو انتخاب کن:", {
+    await ctx.reply("💳 خرید XP از طریق درگاه\n\nیکی از پکیج‌های زیر رو انتخاب کن:", {
       reply_markup: inlineKeyboard(buttons.map((b) => [b])),
     });
   });
@@ -102,11 +104,11 @@ export function registerRelicScreen(composer: Composer<NavaContext>) {
     const order = await getOrCreateStarsOrder(ctx.from!.id, index, pkg);
     await ctx.api.sendInvoice(
       ctx.chat!.id,
-      `${order.relic} رلیک`,
-      `خرید ${order.relic} رلیک برای نوا`,
+      `${order.relic} XP`,
+      `خرید ${order.relic} XP برای نوا`,
       encodePayload(order._id),
       "XTR",
-      [{ label: `${order.relic} رلیک`, amount: order.price }],
+      [{ label: `${order.relic} XP`, amount: order.price }],
       { provider_token: "" }
     );
   });
@@ -175,6 +177,6 @@ export function registerStarsCheckout(composer: Composer<NavaContext>) {
     if (!credited) return; // duplicate delivery, already credited
 
     const relicEmoji = textEmoji("RELIC", "👑");
-    await ctx.reply(`✅ ${resolved.relic} ${relicEmoji} رلیک به حساب شما اضافه شد. ممنون از خریدت 🙏`);
+    await ctx.reply(`✅ ${resolved.relic} ${relicEmoji} XP به حساب شما اضافه شد. ممنون از خریدت 🙏`);
   });
 }

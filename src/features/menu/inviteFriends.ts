@@ -34,7 +34,7 @@ export function defaultInviteMessageTemplate(): string {
     `${linkEmoji} {{link}} ${linkEmoji}\n` +
     `${linkEmoji} {{link}} ${linkEmoji}\n\n` +
     `${verifiedEmoji} #رایگان ، تایید شده و کاملا امن 💬\n\n` +
-    `💬 راستی با تکمیل کردن پروفایلت ۵ رلیک ${profileBonusEmoji} با دعوت هر نفر به ربات ۲۰ رلیک رایگان دریافت میکنی! ${referralBonusEmoji}💬`
+    `💬 راستی با تکمیل کردن پروفایلت ۵ XP ${profileBonusEmoji} با دعوت هر نفر به ربات ۲۰ XP رایگان دریافت میکنی! ${referralBonusEmoji}💬`
   );
 }
 
@@ -70,7 +70,7 @@ export async function sendInviteScreen(ctx: NavaContext): Promise<void> {
   const followUpText =
     `بنر حاوی لینک${bannerReadyEmoji} دعوت شما با موفقیت ساخته شد 👆\n\n` +
     `شما میتوانید بنر حاوی لینک${bannerReadyEmoji} خود را به گـــروه ها و دوستان خود ارسال کنید\n\n` +
-    `با معرفی هر نفر ۲۰ رلیک${relicEmoji} رایگــان بگیرید!\n\n` +
+    `با معرفی هر نفر ۲۰ XP${relicEmoji} رایگــان بگیرید!\n\n` +
     `${countEmoji} شما تاکنون ${count} نفر را به این ربات دعوت کرده اید.`;
 
   await ctx.reply(followUpText);

@@ -28,7 +28,7 @@
     o = o || {};
     var pat = ""; for (var i = 0; i < 16; i++) pat += "<span>" + def.pattern + "</span>";
     var c = el('<div class="gc' + (o.cls ? " " + o.cls : "") + '" style="background:linear-gradient(160deg,' + def.c1 + "," + def.c2 + ')"><div class="pat">' + pat + '</div>' +
-      (o.price != null ? '<div class="pr">' + num(o.price) + " رلیک</div>" : "") + '<div class="gem"><div class="em">' + def.emoji + "</div></div>" +
+      (o.price != null ? '<div class="pr">' + num(o.price) + " XP</div>" : "") + '<div class="gem"><div class="em">' + def.emoji + "</div></div>" +
       (o.name ? '<div class="nm">' + esc(def.name) + "</div>" : "") + (o.by ? '<div class="by">از ' + esc(o.by) + "</div>" : "") +
       (def.unique ? '<div class="tagu">✨ یکتا</div>' : "") + (o.sold && def.soldOut ? '<div class="sold">فروخته شد</div>' : "") + "</div>");
     if (def.anim) NG.mountAnim(c.querySelector(".gem"), def.anim); // original Telegram animation (TGS / WebM)
@@ -43,7 +43,7 @@
   NG.openGiftSheet = function (to) {
     NG.getCatalog(true).then(function (cat) {
       if (!cat.items.length) return NG.toast("فعلاً هدیه‌ای فعال نیست.");
-      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> رلیک</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>اگه روشن باشه، فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon" aria-label="anonymous"></button></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
+      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> XP</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>اگه روشن باشه، فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon" aria-label="anonymous"></button></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
         var grid = sh.querySelector("#gg"), go = sh.querySelector("#go"), err = sh.querySelector("#ge"), msg = sh.querySelector("#gm");
         var sel = null, cid = null, busy = false, anon = false;
         var at = sh.querySelector("#anon"); at.onclick = function () { anon = !anon; at.classList.toggle("on", anon); NG.haptic("sel"); };
@@ -54,7 +54,7 @@
             if (g.soldOut) { NG.haptic("err"); return NG.toast("این هدیه‌ی یکتا قبلاً فروخته شده."); }
             Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove("sel"); });
             c.classList.add("sel"); sel = g; cid = clientId(); NG.haptic("sel");
-            go.disabled = false; go.textContent = "ارسال " + g.name + " — " + num(g.price) + " رلیک"; err.classList.remove("show");
+            go.disabled = false; go.textContent = "ارسال " + g.name + " — " + num(g.price) + " XP"; err.classList.remove("show");
           };
           grid.appendChild(c);
         });
@@ -75,7 +75,7 @@
             }
             go.disabled = false; go.textContent = label; NG.haptic("err");
             if (r.data && r.data.error === "insufficient") {
-              err.textContent = "رلیک کافی نیست. قیمت این هدیه " + num(sel.price) + " رلیکه و موجودی تو " + num(catalog.balance) + " رلیکه. از داخل ربات می‌تونی رلیک تهیه کنی.";
+              err.textContent = "XP کافی نیست. قیمت این هدیه " + num(sel.price) + " XP‌ه و موجودی تو " + num(catalog.balance) + " XP‌ه. از داخل ربات می‌تونی XP تهیه کنی.";
               NG.getCatalog(true).then(function (c2) { var b = sh.querySelector("#bal"); if (b) b.textContent = num(c2.balance); });
             } else if (r.data && r.data.error === "sold_out") {
               err.textContent = NG.errText(r); NG.getCatalog(true);
@@ -152,7 +152,7 @@
 
   /* ----------------------------------------------------------- chat request */
   NG.requestChat = function (b) {
-    NG.sheet('<div class="shd">درخواست چت ناشناس</div><div class="ctx">به <b style="color:var(--text)">' + esc(NG.nameOf(b)) + '</b> درخواست چت ناشناس فرستاده می‌شه.<br>اگه قبول کنه، ۱ رلیک از هر دو نفر کم می‌شه.</div><div class="pad"><button class="btn blue tall" id="go" style="width:100%">ارسال درخواست</button></div><button class="item" id="no" style="margin-top:6px">انصراف</button>', function (sh, close) {
+    NG.sheet('<div class="shd">درخواست چت ناشناس</div><div class="ctx">به <b style="color:var(--text)">' + esc(NG.nameOf(b)) + '</b> درخواست چت ناشناس فرستاده می‌شه.<br>اگه قبول کنه، ۱ XP از هر دو نفر کم می‌شه.</div><div class="pad"><button class="btn blue tall" id="go" style="width:100%">ارسال درخواست</button></div><button class="item" id="no" style="margin-top:6px">انصراف</button>', function (sh, close) {
       sh.querySelector("#no").onclick = function () { close(); };
       var go = sh.querySelector("#go");
       go.onclick = function () {
@@ -164,7 +164,7 @@
           if (s === "sent") { NG.haptic("ok"); NG.toast("✅ درخواست ارسال شد"); NG.emit("chat:requested", b.id); }
           else if (s === "already_pending") { NG.toast("قبلاً برای این کاربر درخواست دادی. منتظر جوابش باش."); NG.emit("chat:requested", b.id); }
           else if (s === "rate_limited") NG.toast("تعداد درخواست‌هات زیاد بوده؛ کمی بعد دوباره امتحان کن.");
-          else if (s === "no_balance") NG.toast("موجودی رلیکت کافی نیست (۱ رلیک لازمه).");
+          else if (s === "no_balance") NG.toast("موجودی XP‌ت کافی نیست (۱ XP لازمه).");
           else if (s === "in_chat") NG.toast("الان توی یه چت هستی. اول چت رو تموم کن.");
           else NG.toast("این کاربر الان در دسترس نیست.");
         }).catch(function () { close(); NG.netErr(); });
@@ -307,7 +307,8 @@
     var head = el("<div></div>"), hl = el("<div></div>"), tabsEl = el("<div></div>"), body = el('<div class="pbody"></div>');
     root.appendChild(topEl); root.appendChild(head); root.appendChild(hl); root.appendChild(tabsEl); root.appendChild(body);
     var P = null, tab = o.tabState || "posts", pids = [], gridCursor = null, gridMore = false, gridLoading = false, closeFn = null, coinEl = null;
-    function setRelic(n) { if (P && P.isMe) P.relic = n; if (coinEl) { var b = coinEl.querySelector("b"); if (b) b.textContent = num(n || 0); } }
+    function xpTxt(n) { return P && P.unlimited ? "∞" : num(n || 0); }
+    function setRelic(n) { if (P && P.isMe) P.relic = n; if (coinEl) { var b = coinEl.querySelector("b"); if (b) b.textContent = xpTxt(n); } }
 
     function renderTop() {
       topEl.innerHTML = "";
@@ -321,8 +322,8 @@
       var act = el('<div class="act"></div>');
       if (P && P.isMe) {
         // Relic balance in the corner: always the server's number (refreshed by the live "me" poll)
-        coinEl = el('<button class="coinchip" aria-label="relic"><span class="cn">🪙</span><b>' + num(P.relic || 0) + "</b></button>");
-        coinEl.onclick = function () { NG.toast("موجودی رلیک تو: " + num((NG.me && NG.me.relic != null ? NG.me.relic : P.relic) || 0)); };
+        coinEl = el('<button class="coinchip" aria-label="relic"><span class="cn">🪙</span><b>' + xpTxt(P.relic) + "</b></button>");
+        coinEl.onclick = function () { NG.toast("موجودی XP تو: " + (P.unlimited ? "نامحدود ∞" : num((NG.me && NG.me.relic != null ? NG.me.relic : P.relic) || 0))); };
         act.appendChild(coinEl);
         var add = el('<button class="ib" aria-label="new">' + svg("plus") + "</button>"); add.onclick = function () { NG.composeMenu(); };
         var mn = el('<button class="ib" aria-label="menu">' + svg("menu") + "</button>"); mn.onclick = function () { ownMenu(P); };
@@ -485,7 +486,7 @@
         var r = res[1]; body.innerHTML = "";
         if (!r.ok) return NG.toast(NG.errText(r));
         if (P && !P.isMe) {
-          var sg = el('<div class="sendgift"><div class="em">🎁</div><div><b>ارسال هدیه به ' + esc(NG.nameOf(P)) + "</b><span>با رلیک، هدیه‌ی متحرک بفرست</span></div></div>");
+          var sg = el('<div class="sendgift"><div class="em">🎁</div><div><b>ارسال هدیه به ' + esc(NG.nameOf(P)) + "</b><span>با XP، هدیه‌ی متحرک بفرست</span></div></div>");
           sg.onclick = function () { NG.openGiftSheet(P); }; body.appendChild(sg);
         }
         var grid = el('<div class="gifts"></div>');
@@ -540,7 +541,7 @@
         { label: "آرشیو استوری‌ها", fn: function () { NG.openArchive(); } },
         { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } },
         ].concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
-        { label: "رلیک: " + num(p.relic || 0) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
+        { label: "XP: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
       ]));
     }
     function togglePrivate(p) {
@@ -585,18 +586,38 @@
   var USER_ERR = { taken: "این یوزرنیم قبلاً انتخاب شده", too_short: "حداقل ۵ کاراکتر", too_long: "حداکثر ۲۴ کاراکتر", bad_chars: "فقط حروف انگلیسی، عدد، _ و . مجازه", bad_dots: "نقطه نباید اول/آخر یا پشت‌سرهم باشه", reserved: "این یوزرنیم رزرو شده" };
 
   function requestSheet(field, current) {
-    var isName = field === "nickname";
-    NG.sheet('<div class="shd">درخواست تغییر ' + (isName ? "نام" : "سن") + '</div><div class="ctx">' + (isName ? "نام جدید رو فارسی بنویس (حداکثر ۳۲ حرف)." : "سن جدید رو بین ۹ تا ۹۹ وارد کن.") + '<br>این درخواست برای مالک ربات فرستاده می‌شه و بعد از تأییدش اعمال می‌شه.</div><div class="pad"><input class="inp" id="rv" ' + (isName ? 'maxlength="32" placeholder="نام جدید"' : 'inputmode="numeric" maxlength="2" placeholder="سن جدید"') + ' value="' + esc(current || "") + '"></div><div class="gerr" id="re"></div><div class="pad" style="margin-top:10px"><button class="btn blue tall" id="rs" style="width:100%">ارسال درخواست</button></div>', function (sh, close) {
+    var isName = field === "nickname", ownerPg = !!(NG.me && NG.me.isOwnerPage);
+    NG.sheet('<div class="shd">' + (ownerPg ? "تغییر " : "درخواست تغییر ") + (isName ? "نام" : "سن") + '</div><div class="ctx">' + (ownerPg ? (isName ? "نام جدید (حداکثر ۳۲ حرف)." : "سن جدید؛ خالی بذاری سن حذف می‌شه (اختیاریه).") + "<br>بدون نیاز به تأیید و فوری اعمال می‌شه." : (isName ? "نام جدید رو فارسی بنویس (حداکثر ۳۲ حرف)." : "سن جدید رو بین ۹ تا ۹۹ وارد کن.") + "<br>این درخواست برای مالک ربات فرستاده می‌شه و بعد از تأییدش اعمال می‌شه.") + '</div><div class="pad"><input class="inp" id="rv" ' + (isName ? 'maxlength="32" placeholder="نام جدید"' : 'inputmode="numeric" maxlength="3" placeholder="سن جدید"') + ' value="' + esc(current || "") + '"></div><div class="gerr" id="re"></div><div class="pad" style="margin-top:10px"><button class="btn blue tall" id="rs" style="width:100%">' + (ownerPg ? "ذخیره" : "ارسال درخواست") + '</button></div>', function (sh, close) {
       var inp = sh.querySelector("#rv"), err = sh.querySelector("#re"), go = sh.querySelector("#rs");
       go.onclick = function () {
         go.disabled = true; err.classList.remove("show");
         NG.api("request_change", { field: field, value: inp.value.trim() }).then(function (r) {
           go.disabled = false;
           if (!r.ok) { err.textContent = NG.errText(r); err.classList.add("show"); NG.haptic("err"); return; }
-          NG.haptic("ok"); close(function () { NG.toast("✅ درخواستت برای مالک ارسال شد"); NG.refreshMe(); });
+          NG.haptic("ok"); var applied = r.data && r.data.status === "applied"; close(function () { NG.toast(applied ? "✅ ذخیره شد" : "✅ درخواستت برای مالک ارسال شد"); NG.refreshMe(); });
         }).catch(function () { go.disabled = false; NG.netErr(); });
       };
     });
+  }
+
+  /** owner only: switches for what other people see on his page (saved at once) */
+  function visibilityBlock(m) {
+    var rows = [["age", "سن"], ["bio", "بیوگرافی"], ["location", "محل"], ["gifts", "هدیه‌ها"], ["stats", "آمار (فالوور، لایک)"]];
+    var box = el('<div class="field-row" style="display:block"><label>نمایش برای دیگران</label></div>');
+    var hide = Object.assign({}, m.hide || {});
+    rows.forEach(function (r) {
+      var line = el('<label class="swrow" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0"><span>' + r[1] + '</span><input type="checkbox"></label>');
+      var cb = line.querySelector("input"); cb.checked = !hide[r[0]];
+      cb.onchange = function () {
+        var body = {}; body[r[0]] = !cb.checked; hide[r[0]] = !cb.checked;
+        NG.api("set_visibility", { hide: body }).then(function (x) {
+          if (!x.ok) { cb.checked = !cb.checked; hide[r[0]] = !cb.checked; NG.toast(NG.errText(x, "ذخیره نشد.")); return; }
+          m.hide = x.data.hide; NG.haptic("ok");
+        }).catch(function () { cb.checked = !cb.checked; NG.netErr(); });
+      };
+      box.appendChild(line);
+    });
+    return box;
   }
 
   NG.openEdit = function () {
@@ -610,15 +631,16 @@
     av.querySelector(".chg").onclick = function () { NG.changeProfilePhoto(); }; ring.onclick = function () { NG.changeProfilePhoto(); };
     w.appendChild(av);
     if (m.photoPending) w.appendChild(el('<div class="note" style="padding-top:0;text-align:center">📷 عکس جدیدت در انتظار تأیید مالکه.</div>'));
-    var f1 = el('<div class="field-row"><label>نام</label><div class="v"><span class="ro">' + esc(m.name) + '</span>' + (m.pendingName ? '<div class="msg">در انتظار تأیید: ' + esc(m.pendingName) + "</div>" : "") + '<div class="lnk">درخواست تغییر نام</div></div></div>');
+    var f1 = el('<div class="field-row"><label>نام</label><div class="v"><span class="ro">' + esc(m.name) + '</span>' + (m.pendingName ? '<div class="msg">در انتظار تأیید: ' + esc(m.pendingName) + "</div>" : "") + '<div class="lnk">' + (m.isOwnerPage ? "تغییر نام" : "درخواست تغییر نام") + '</div></div></div>');
     f1.querySelector(".lnk").onclick = function () { requestSheet("nickname", m.name); };
     var f2 = el('<div class="field-row"><label>یوزرنیم</label><div class="v"><input class="ltr" dir="ltr" maxlength="25" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="@username" value="' + esc(orig.u ? "@" + orig.u : "") + '"><div class="line"></div><div class="msg"></div></div></div>');
-    var f3 = el('<div class="field-row"><label>سن</label><div class="v"><span class="ro">' + (m.age != null ? num(m.age) : "-") + '</span>' + (m.pendingAge ? '<div class="msg">در انتظار تأیید: ' + num(m.pendingAge) + "</div>" : "") + '<div class="lnk">درخواست تغییر سن</div></div></div>');
+    var f3 = el('<div class="field-row"><label>سن</label><div class="v"><span class="ro">' + (m.age != null ? num(m.age) : "-") + '</span>' + (m.pendingAge ? '<div class="msg">در انتظار تأیید: ' + num(m.pendingAge) + "</div>" : "") + '<div class="lnk">' + (m.isOwnerPage ? "تغییر سن (اختیاری)" : "درخواست تغییر سن") + '</div></div></div>');
     f3.querySelector(".lnk").onclick = function () { requestSheet("age", m.age != null ? String(m.age) : ""); };
     var f4 = el('<div class="field-row"><label>بیوگرافی</label><div class="v"><textarea rows="4" maxlength="300" placeholder="بیوگرافی">' + esc(orig.b) + '</textarea><div class="line"></div><div class="cnt"></div></div></div>');
     var f5 = el('<div class="field-row"><label>محل</label><div class="v"><span class="ro">' + esc([m.city, m.province].filter(Boolean).join("، ") || "-") + "</span></div></div>");
     [f1, f2, f3, f4, f5].forEach(function (f) { w.appendChild(f); });
-    w.appendChild(el('<div class="note">عکس پروفایل و تغییر نام یا سن بعد از تأیید مالک اعمال می‌شن. یوزرنیم و بیوگرافی فوری ذخیره می‌شن. یوزرنیم مخصوص نوا گرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.</div>'));
+    if (m.isOwnerPage) w.appendChild(visibilityBlock(m));
+    w.appendChild(el('<div class="note">' + (m.isOwnerPage ? "اینجا همه‌چیز فوری و بدون تأیید اعمال می‌شه؛ از بخش «نمایش برای دیگران» هر چیزی رو که نمی‌خوای کسی ببینه خاموش کن." : "عکس پروفایل و تغییر نام یا سن بعد از تأیید مالک اعمال می‌شن. یوزرنیم و بیوگرافی فوری ذخیره می‌شن. یوزرنیم مخصوص نوا گرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.") + '</div>'));
     var ui = f2.querySelector("input"), um = f2.querySelector(".msg"), bi = f4.querySelector("textarea"), bc = f4.querySelector(".cnt"), dn = top.querySelector(".done");
     var okName = true, seq = 0, t;
     function cnt() { bc.textContent = [].concat(bi.value).join("").length + " / 300"; }

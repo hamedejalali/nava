@@ -86,7 +86,7 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
       }
       await setStep(ctx.from!.id, { stage: "await_amount", targetId });
       await ctx.reply(
-        `کاربر: ${target.anonId} — موجودی فعلی: ${target.relicBalance ?? 0} رلیک\n\n` +
+        `کاربر: ${target.anonId} — موجودی فعلی: ${target.relicBalance ?? 0} XP\n\n` +
           `عدد مثبت برای افزودن، عدد منفی برای کسر بفرست (مثلاً 10 یا 10-):`,
         { reply_markup: inlineKeyboard([[cancelButton("لغو", CB.cancel)]]) }
       );
@@ -112,9 +112,9 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
         return;
       }
 
-      await ctx.reply(`✅ انجام شد. موجودی جدید: ${result.newBalance} رلیک`);
+      await ctx.reply(`✅ انجام شد. موجودی جدید: ${result.newBalance} XP`);
       await ctx.api
-        .sendMessage(step.targetId!, delta > 0 ? `💰 ${delta} رلیک به حساب شما اضافه شد.` : `⚠️ ${-delta} رلیک از حساب شما کسر شد.`)
+        .sendMessage(step.targetId!, delta > 0 ? `💰 ${delta} XP به حساب شما اضافه شد.` : `⚠️ ${-delta} XP از حساب شما کسر شد.`)
         .catch(() => {});
     }
   });

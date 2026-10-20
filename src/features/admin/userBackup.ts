@@ -57,7 +57,7 @@ export function registerUserBackup(composer: Composer<NavaContext>) {
       await setAdminFlow(ctx.from!.id, { flow: "import_users", stage: "await_file" });
       await ctx.reply(
         "فایل اکسل خروجی (همون فرمت «خروجی اکسل کاربران») رو برای بازیابی ارسال کن.\n" +
-          "⚠️ این عملیات موجودی رلیک کاربرای موجود رو دست نمی‌زنه، فقط کاربرای جدید که توی دیتابیس نیستن کامل بازیابی می‌شن.",
+          "⚠️ این عملیات موجودی XP کاربرای موجود رو دست نمی‌زنه، فقط کاربرای جدید که توی دیتابیس نیستن کامل بازیابی می‌شن.",
         { reply_markup: cancelKeyboard() }
       );
       return;

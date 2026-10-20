@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { hasUnlimitedXp } from "../../db/models/relic.js";
 import type { NavaContext } from "../../bot-context.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -12,8 +13,8 @@ const REPLY = /^gr:([A-Za-z0-9_-]{6,24})$/;
 const CONFIRM = /^grc:([A-Za-z0-9_-]{6,24})$/;
 
 export const GIFT_REPLY_NO_BALANCE_TEXT =
-  "💎 برای پیام دادن به فرستنده‌ی هدیه ۱ رلیک لازمه و موجودی تو الان کافی نیست.\n" +
-  "<blockquote>از ربات کیف پول رلیک بخر و به همین ربات منتقلش کن؛ بعد دوباره روی دکمه بزن.</blockquote>";
+  "💎 برای پیام دادن به فرستنده‌ی هدیه ۱ XP لازمه و موجودی تو الان کافی نیست.\n" +
+  "<blockquote>از ربات کیف پول XP بخر و به همین ربات منتقلش کن؛ بعد دوباره روی دکمه بزن.</blockquote>";
 
 /** The gift only counts while the person tapping still OWNS it and it was not sent anonymously. */
 async function giftForReply(pub: string, me: number): Promise<{ senderId: number } | null> {
@@ -36,12 +37,12 @@ export function registerGiftReply(composer: Composer<NavaContext>) {
     if (!user) return void (await ctx.answerCallbackQuery());
     if (user.activeChatSessionId) return void (await ctx.answerCallbackQuery({ text: "الان توی یه چت هستی. اول اون رو تموم کن.", show_alert: true }));
     await ctx.answerCallbackQuery();
-    if ((user.relicBalance ?? 0) < 1) {
+    if (!hasUnlimitedXp(user._id) && (user.relicBalance ?? 0) < 1) {
       await ctx.reply(GIFT_REPLY_NO_BALANCE_TEXT, { parse_mode: "HTML" });
       return;
     }
     await ctx.reply(
-      "💬 پیام دادن به فرستنده‌ی هدیه ۱ رلیک هزینه داره.\n<blockquote>یه درخواست چت براش می‌فرستیم؛ اگه قبول کنه از هر دو نفر ۱ رلیک کم میشه و چت ناشناس شروع میشه. اگه قبول نکنه چیزی کم نمیشه.</blockquote>\nتأیید می‌کنی؟",
+      "💬 پیام دادن به فرستنده‌ی هدیه ۱ XP هزینه داره.\n<blockquote>یه درخواست چت براش می‌فرستیم؛ اگه قبول کنه از هر دو نفر ۱ XP کم میشه و چت ناشناس شروع میشه. اگه قبول نکنه چیزی کم نمیشه.</blockquote>\nتأیید می‌کنی؟",
       {
         parse_mode: "HTML",
         reply_markup: inlineKeyboard([[glassButton("تأیید", `grc:${pub}`, "success", buttonIcon("GREEN_CHECK")), glassButton("انصراف", "grc:no", "danger", buttonIcon("BAN"))]]),
@@ -63,7 +64,7 @@ export function registerGiftReply(composer: Composer<NavaContext>) {
     const [from, target] = await Promise.all([getUser(me), getUser(gift.senderId)]);
     if (!from || !target || target.banned) return void (await ctx.answerCallbackQuery({ text: "الان نمیشه به این کاربر پیام داد.", show_alert: true }));
     if (from.activeChatSessionId) return void (await ctx.answerCallbackQuery({ text: "الان توی یه چت هستی.", show_alert: true }));
-    if ((from.relicBalance ?? 0) < 1) {
+    if (!hasUnlimitedXp(from._id) && (from.relicBalance ?? 0) < 1) {
       await ctx.answerCallbackQuery();
       await ctx.reply(GIFT_REPLY_NO_BALANCE_TEXT, { parse_mode: "HTML" });
       return;

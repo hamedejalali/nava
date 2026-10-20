@@ -2,7 +2,8 @@ import { cancelKeyboard } from "../common/userFlows.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { searchUsers, resetUserToZero } from "../../db/models/user.js";
+import { searchUsers } from "../../db/models/user.js";
+import { resetUserEverywhere } from "../../services/resetUserEverywhere.js";
 import { isOwner } from "./constants.js";
 import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
@@ -44,7 +45,7 @@ export function registerAdminResetUser(composer: Composer<NavaContext>) {
 
     await ctx.reply(
       `⚠️ مطمئنی می‌خوای اطلاعات ${target.anonId} (${target.telegramId}) رو کامل ریست کنی؟\n\n` +
-        `این کار برگشت‌ناپذیره: نام مستعار، سن، جنسیت، استان/شهر، بیوگرافی، عکس، موجودی رلیک، وریفای، سطح و موقعیت مکانی همه پاک میشن و کاربر دقیقاً مثل یک کاربر تازه، از /start شروع می‌کنه.`,
+        `این کار برگشت‌ناپذیره: نام مستعار، سن، جنسیت، استان/شهر، بیوگرافی، عکس، موجودی XP، وریفای، سطح، موقعیت مکانی، یوزرنیم مینی‌اپ (آزاد می‌شه)، پست‌ها، استوری‌ها، فالوها، هدیه‌های دریافتی و توکن انتقال XP همه پاک میشن و کاربر دقیقاً مثل یک کاربر تازه، از /start شروع می‌کنه.`,
       {
         reply_markup: inlineKeyboard([
           [
@@ -66,7 +67,8 @@ export function registerAdminResetUser(composer: Composer<NavaContext>) {
     if (!isOwner(ctx)) return;
     const targetId = Number(ctx.match![1]);
 
-    const updated = await resetUserToZero(targetId);
+    const report = await resetUserEverywhere(targetId);
+    const updated = report.user;
     await logAdminAction(ctx.from!.id, "reset_user", String(targetId));
     await ctx.answerCallbackQuery({ text: "ریست شد ✅" });
 
@@ -75,7 +77,7 @@ export function registerAdminResetUser(composer: Composer<NavaContext>) {
       return;
     }
 
-    await ctx.editMessageText(`✅ اطلاعات کاربر ${targetId} کامل ریست شد.`).catch(() => {});
+    await ctx.editMessageText(`✅ اطلاعات کاربر ${targetId} از همه‌جا (ربات + مینی‌اپ) پاک شد و یوزرنیمش آزاد شد.${report.failed.length ? `\n⚠️ این بخش‌ها پاک نشدن: ${report.failed.join("، ")}` : ""}`).catch(() => {});
     await ctx.api
       .sendMessage(targetId, "🔄 اطلاعات حساب شما توسط ادمین ریست شد. لطفاً برای شروع دوباره /start رو بزنید.")
       .catch(() => {});

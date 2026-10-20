@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { hasUnlimitedXp } from "../src/db/models/relic.js";
 import {
   authenticateViewer,
   botApi,
@@ -7,7 +8,8 @@ import {
   findEligibleTarget,
   pickCandidate,
   sanitizeExclude,
-  viewerHasJoinedChannels,
+  missingChannels,
+  MINIAPP_INITDATA_MAX_AGE_SECONDS,
 } from "../src/services/miniapp.js";
 import { authenticateStaff } from "../src/services/monitor.js";
 import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setLike, setMiniUsername, uploadProfilePhoto } from "../src/services/miniappSocial.js";
@@ -17,6 +19,9 @@ import { getDb } from "../src/db/connect.js";
 import { getSupportLink } from "../src/features/support/index.js";
 import { checkRateLimit } from "../src/utils/rateLimit.js";
 import { env } from "../src/config/env.js";
+import { onboardCities, onboardSave, onboardState } from "../src/services/miniOnboarding.js";
+import { pickGuestCards, pickMemberCards } from "../src/services/matchCards.js";
+import { verifyTelegramWebAppInitData } from "../src/utils/telegramWebApp.js";
 import { parsePid } from "../src/services/nava/common.js";
 import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
 import { present } from "../src/services/nava/present.js";
@@ -31,7 +36,7 @@ import { giftCatalog, listReceivedGifts, regiftGift, sendGift } from "../src/ser
 import { logAdminAction } from "../src/db/models/adminLog.js";
 import { reportPost } from "../src/services/nava/postReports.js";
 import { giftAnimUrl, loadGiftSticker, verifyGiftAnimSig } from "../src/services/nava/giftSticker.js";
-import { getProfile, findRequestTarget, requestProfileChange } from "../src/services/nava/profile.js";
+import { getProfile, findRequestTarget, requestProfileChange, setProfileVisibility } from "../src/services/nava/profile.js";
 import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople } from "../src/services/nava/search.js";
 import { prepareShare } from "../src/services/nava/share.js";
 
@@ -51,20 +56,22 @@ import { prepareShare } from "../src/services/nava/share.js";
  *  on every call. Only POSITIVE results are cached. */
 const joinedCache = new Map<number, number>();
 const JOIN_CACHE_MS = 60_000;
-async function joinedOk(me: Parameters<typeof viewerHasJoinedChannels>[0]): Promise<boolean> {
+/** Channels the person still has to join ([] = fine). Positive answers are cached briefly so a busy moment
+ *  (many people opening the app) does not hammer Telegram's getChatMember. */
+async function joinMissing(me: Parameters<typeof missingChannels>[0]): Promise<Array<{ title: string; url: string }>> {
   const hit = joinedCache.get(me._id);
-  if (hit && hit > Date.now()) return true;
-  const ok = await viewerHasJoinedChannels(me);
-  if (ok) {
+  if (hit && hit > Date.now()) return [];
+  const miss = await missingChannels(me);
+  if (miss.length === 0) {
     if (joinedCache.size > 5000) joinedCache.clear();
     joinedCache.set(me._id, Date.now() + JOIN_CACHE_MS);
   }
-  return ok;
+  return miss;
 }
 
 const ACTIONS = new Set([
   // identity / profile
-  "whoami", "me", "profile", "check_username", "set_username", "set_bio", "upload_photo", "request_change",
+  "whoami", "guest_cards", "onboard_state", "onboard_cities", "onboard_save", "match_cards", "me", "profile", "check_username", "set_username", "set_bio", "upload_photo", "request_change", "set_visibility",
   // feed / explore / search
   "home", "explore", "search", "recent_add", "recent_remove", "recent_clear",
   // posts
@@ -179,6 +186,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" ? await authenticateStaff(body.initData) : null;
     if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
 
+    // Guest preview: somebody who opened the mini-app WITHOUT finishing registration in the bot sees 5 fictional
+    // member cards in the Matching tab. Signed initData is still required; nothing else is reachable.
+    if (action === "guest_cards") {
+      const tg = typeof body.initData === "string" && body.initData.length <= 4096 ? verifyTelegramWebAppInitData(body.initData, env.BOT_TOKEN, MINIAPP_INITDATA_MAX_AGE_SECONDS) : null;
+      if (!tg) return void res.status(401).json({ error: "unauthorized" });
+      try {
+        const rl = await checkRateLimit(tg.id, "miniapp-guest", 20, 60_000);
+        if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
+      } catch {
+        /* limiter down: fail open, like the rest of the app */
+      }
+      return void res.status(200).json(present({ cards: await pickGuestCards(), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null }));
+    }
+
+    // In-app registration (same fields/ending as the bot's questions) for people who have not finished them yet.
+    if (action === "onboard_state" || action === "onboard_cities" || action === "onboard_save") {
+      const tg = typeof body.initData === "string" && body.initData.length <= 4096 ? verifyTelegramWebAppInitData(body.initData, env.BOT_TOKEN, MINIAPP_INITDATA_MAX_AGE_SECONDS) : null;
+      if (!tg) return void res.status(401).json({ error: "unauthorized" });
+      try {
+        const rl = await checkRateLimit(tg.id, "miniapp-onboard", 40, 60_000);
+        if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
+      } catch {
+        /* limiter down: fail open */
+      }
+      if (action === "onboard_cities") {
+        const cities = onboardCities(body.province);
+        return cities ? void res.status(200).json({ cities }) : void res.status(400).json({ error: "bad_input" });
+      }
+      if (action === "onboard_state") {
+        const st = await onboardState(tg);
+        return "banned" in st ? void res.status(403).json({ error: "banned", support: await getSupportLink().catch(() => null) }) : void res.status(200).json(st);
+      }
+      const r = await onboardSave(tg, { gender: body.gender, age: body.age, province: body.province, city: body.city, nickname: body.nickname }, botApi());
+      if (r.status === "invalid") return void res.status(400).json({ error: "invalid_" + r.field });
+      if (r.status === "banned") return void res.status(403).json({ error: "banned" });
+      return void res.status(200).json({ status: r.status });
+    }
+
     const viewer = await authenticateViewer(body.initData);
     if (!viewer.ok) {
       // A banned person is told how to reach support (a link, never the support id as text) — same ban as in the bot.
@@ -215,7 +260,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const send = (data: unknown) => void res.status(200).json(present(data));
 
     if (action === "whoami") {
-      if (!(await joinedOk(me))) return void res.status(403).json({ error: "join_required" });
+      const miss = await joinMissing(me);
+      if (miss.length) return void res.status(403).json({ error: "join_required", channels: miss });
       if (!acting) await ensureOfficialFollow(me).catch((err) => console.error("[miniapp] official follow failed:", err instanceof Error ? err.name : "unknown"));
       return send({ role: "user", me: await getProfile(me, me.anonId), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null, staff: !!staff?.ok, acting: acting ? me.anonId : null });
     }
@@ -230,7 +276,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return void res.status(200).send(file.buffer);
     }
 
-    if (!(await joinedOk(me))) return void res.status(403).json({ error: "join_required" });
+    const missNow = await joinMissing(me);
+    if (missNow.length) return void res.status(403).json({ error: "join_required", channels: missNow });
 
     try {
       switch (action) {
@@ -241,6 +288,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const p = await getProfile(me, body.id);
           return p ? send({ profile: p }) : void res.status(404).json({ error: "not_found" });
         }
+        case "match_cards": {
+          const r = await pickMemberCards(me, sanitizeExclude(body.exclude));
+          if (r === "need_photo") throw new SocialError("need_photo");
+          return send({ cards: r });
+        }
         case "check_username":
           return void res.status(200).json(await checkUsername(me, body.username, !!staff?.ok));
         case "set_username":
@@ -249,6 +301,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return void res.status(200).json({ bio: await setBio(me, body.bio) });
         case "upload_photo":
           return void res.status(200).json({ status: await uploadProfilePhoto(me, body.image) });
+        case "set_visibility":
+          return void res.status(200).json({ hide: await setProfileVisibility(me, body.hide) });
         case "request_change": {
           if (body.field !== "nickname" && body.field !== "age") throw new SocialError("bad_input");
           return void res.status(200).json(await requestProfileChange(me, body.field, body.value));
@@ -321,8 +375,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await markNotifsSeen(me._id);
           return void res.status(200).json({ ok: true });
         case "pulse": {
-          const u = await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1, isPrivate: 1 } });
+          const u = await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1, isPrivate: 1, miniUsername: 1, nickname: 1, age: 1, bio: 1, profilePhotoAt: 1, profilePhotoFileId: 1, profileHide: 1 } });
+          // a tiny fingerprint of everything shown on the profile: when it changes (username / name / bio / photo edited from
+          // the bot, an admin, or another device) the app refreshes the page at once instead of waiting for a reopen
+          const sig = [u?.miniUsername ?? "", u?.nickname ?? "", u?.age ?? "", u?.bio ?? "", u?.profilePhotoAt ? new Date(u.profilePhotoAt).getTime() : "", u?.profilePhotoFileId ? 1 : 0, JSON.stringify(u?.profileHide ?? {})].join("|");
           return void res.status(200).json({
+            sig,
             relic: u?.relicBalance ?? 0,
             isPrivate: !!u?.isPrivate,
             requests: u?.isPrivate ? await countFollowRequests(me._id) : 0,
@@ -409,7 +467,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         /* ---------------------------------------------------- chat request */
         case "request": {
           if (me.activeChatSessionId) return void res.status(200).json({ status: "in_chat" });
-          if ((me.relicBalance ?? 0) < 1) return void res.status(200).json({ status: "no_balance" });
+          if (!hasUnlimitedXp(me._id) && (me.relicBalance ?? 0) < 1) return void res.status(200).json({ status: "no_balance" });
           const target = await findRequestTarget(me._id, body.id);
           if (!target) return void res.status(200).json({ status: "unavailable" });
           const created = await createChatRequest(me._id, target._id);

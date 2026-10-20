@@ -6,7 +6,7 @@ import { seedUser, col } from "../harness/fakeMongo.js";
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com", BOT_USERNAME: "NavaTestBot" });
 const { ensureSocialIndexesOnce } = await import("../../src/services/miniappSocial.js");
-const { setPostsChannel, getMiniSettings, setGiftUnique } = await import("../../src/services/nava/settings.js");
+const { setPostsChannel, setEventsChannel, getMiniSettings, setGiftUnique } = await import("../../src/services/nava/settings.js");
 const { giftCatalog } = await import("../../src/services/nava/gifts.js");
 const { adminDeleteGift, mintGiftFor } = await import("../../src/services/nava/giftAdmin.js");
 const { ensureGiftEventIndexes, placeBid, joinGiveaway, settleGiftEvent, processDueGiftEvents, createGiftEvent } = await import("../../src/services/nava/giftEvents.js");
@@ -27,6 +27,7 @@ beforeEach(async () => {
   seedUser({ id: OWNER_ID, anonId: "user_OWN0", nickname: "owner", relicBalance: 0 });
   seedUser({ id: ADMIN_ID, anonId: "user_ADM1", nickname: "admin", relicBalance: 0 });
   await setPostsChannel(CH, "کانال");
+  await setEventsChannel(CH, "رویدادها");
 });
 
 /* ============================================================ adding Telegram gifts */

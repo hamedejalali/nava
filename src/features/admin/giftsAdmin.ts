@@ -10,7 +10,7 @@ import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 import { giftCatalog } from "../../services/nava/gifts.js";
 import { addCustomGift, MAX_GIFT_NAME, MAX_GIFT_PRICE, stickerFormatOf, type StickerFormat } from "../../services/nava/giftDefs.js";
 import { adminDeleteGift, adminTakeGift, listUserGifts } from "../../services/nava/giftAdmin.js";
-import { createGiftEvent, getGiftEvent, listOpenEvents, MAX_EVENT_HOURS, settleGiftEvent } from "../../services/nava/giftEvents.js";
+import { createGiftEvent, getGiftEvent, listOpenEvents, MAX_EVENT_HOURS, MAX_WINNERS, settleGiftEvent } from "../../services/nava/giftEvents.js";
 import { getMiniSettings } from "../../services/nava/settings.js";
 
 /**
@@ -67,7 +67,7 @@ export async function openUserGiftsPrompt(ctx: NavaContext) {
 }
 
 export const GIFT_EVENTS_HOME = {
-  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال نوا گرام» (همونی که برای کپی پست‌ها تنظیم کردی) منتشر میشه.\nدر حراج، رلیک پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
+  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال حراج و قرعه‌کشی» (کانال جدا؛ از «کانال و تنظیمات نوا گرام» تنظیمش کن) منتشر میشه و همون پست ادیت میشه.\nدر حراج، XP پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
   reply_markup: inlineKeyboard([
     [glassButton("🔨 حراج جدید", `${GF.evNew}a`, "success"), glassButton("🎉 قرعه‌کشی جدید", `${GF.evNew}g`, "success")],
     [glassButton("📋 رویدادهای باز", GF.evList, "primary")],
@@ -207,7 +207,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
   composer.callbackQuery(new RegExp(`^${GF.evNew}([ag])$`), async (ctx) => {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));
     const s = await getMiniSettings();
-    if (!s.postsChannelId) return void (await ctx.answerCallbackQuery({ text: "اول کانال نوا گرام رو تنظیم کن.", show_alert: true }));
+    if (!s.eventsChannelId) return void (await ctx.answerCallbackQuery({ text: "اول «کانال حراج و قرعه‌کشی» رو تنظیم کن (از کانال و تنظیمات نوا گرام).", show_alert: true }));
     await ctx.answerCallbackQuery();
     const kind = ctx.match![1]!;
     const cards = await giftCatalog(true);
@@ -225,7 +225,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (!card) return void (await ctx.answerCallbackQuery());
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: kind === "a" ? "evPrice" : "evHours", data: { kind, giftId } });
-    await ctx.reply(kind === "a" ? `قیمت شروع حراج ${card.emoji} ${card.name} (به رلیک، ۱ تا ${MAX_GIFT_PRICE}):` : `قرعه‌کشی ${card.emoji} ${card.name} — تا چند ساعت دیگه تموم بشه؟ (۱ تا ${MAX_EVENT_HOURS})`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(kind === "a" ? `قیمت شروع حراج ${card.emoji} ${card.name} (به XP، ۱ تا ${MAX_GIFT_PRICE}):` : `قرعه‌کشی ${card.emoji} ${card.name} — تا چند ساعت دیگه تموم بشه؟ (۱ تا ${MAX_EVENT_HOURS})`, { reply_markup: cancelKeyboard() });
   });
 
   const eventsList = async () => {
@@ -262,7 +262,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));
     const r = await settleGiftEvent(ctx.api, ctx.match![1]!, { cancel: true });
     await logAdminAction(ctx.from!.id, "gift_event_cancel", `${ctx.match![1]}:${r?.outcome ?? "noop"}`);
-    await ctx.answerCallbackQuery({ text: r ? "لغو شد (رلیک پیشنهاد دهنده برگشت)" : "این رویداد دیگه باز نیست" });
+    await ctx.answerCallbackQuery({ text: r ? "لغو شد (XP پیشنهاد دهنده برگشت)" : "این رویداد دیگه باز نیست" });
     const v = await eventsList();
     await show(ctx, v.text, v.reply_markup);
   });
@@ -285,7 +285,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
       const name = text.slice(0, MAX_GIFT_NAME);
       if (!name) return void (await ctx.reply("نام خالیه.", { reply_markup: cancelKeyboard() }));
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "price", data: { pick: flow.data?.pick, name } });
-      await ctx.reply(`قیمت این هدیه به رلیک؟ (عدد صحیح ۱ تا ${MAX_GIFT_PRICE})`, { reply_markup: cancelKeyboard() });
+      await ctx.reply(`قیمت این هدیه به XP؟ (عدد صحیح ۱ تا ${MAX_GIFT_PRICE})`, { reply_markup: cancelKeyboard() });
       return;
     }
 
@@ -328,10 +328,31 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (flow.stage === "evHours") {
       if (!Number.isFinite(num) || num < 1 || num > MAX_EVENT_HOURS) return void (await ctx.reply(`مدت باید بین ۱ تا ${MAX_EVENT_HOURS} ساعت باشه.`, { reply_markup: cancelKeyboard() }));
       if (!isOwner(ctx)) return void (await setAdminFlow(ctx.from!.id, null));
+      if (flow.data?.kind === "g") {
+        const card = (await giftCatalog(true)).find((c) => c.id === String(flow.data?.giftId));
+        if (card && !card.unique) {
+          await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "evWinners", data: { ...flow.data, hours: num } });
+          await ctx.reply(`چند نفر برنده بشن؟ (۱ تا ${MAX_WINNERS})\n<i>هر برنده یک نسخه از هدیه می‌گیره.</i>`, { parse_mode: "HTML", reply_markup: cancelKeyboard() });
+          return;
+        }
+      }
+      return void (await finishEvent(ctx, flow.data, num, 1));
+    }
+
+    if (flow.stage === "evWinners") {
+      if (!Number.isInteger(num) || num < 1 || num > MAX_WINNERS) return void (await ctx.reply(`تعداد برنده باید یه عدد صحیح بین ۱ تا ${MAX_WINNERS} باشه.`, { reply_markup: cancelKeyboard() }));
+      if (!isOwner(ctx)) return void (await setAdminFlow(ctx.from!.id, null));
+      return void (await finishEvent(ctx, flow.data, Number(flow.data?.hours), num));
+    }
+    return next();
+  });
+
+  async function finishEvent(ctx: any, data: any, hours: number, winners: number): Promise<void> {
+    {
       const s = await getMiniSettings();
-      if (!s.postsChannelId) return void (await ctx.reply("کانال نوا گرام تنظیم نشده."));
-      const kind = flow.data?.kind === "a" ? "auction" : "giveaway";
-      const r = await createGiftEvent(ctx.api, { kind, giftId: String(flow.data?.giftId), ownerId: ctx.from!.id, channelId: s.postsChannelId, startPrice: flow.data?.startPrice as number | undefined, hours: num });
+      if (!s.eventsChannelId) return void (await ctx.reply("کانال حراج و قرعه‌کشی تنظیم نشده."));
+      const kind = data?.kind === "a" ? "auction" : "giveaway";
+      const r = await createGiftEvent(ctx.api, { kind, giftId: String(data?.giftId), ownerId: ctx.from!.id, channelId: s.eventsChannelId, startPrice: data?.startPrice as number | undefined, hours, winners });
       await setAdminFlow(ctx.from!.id, null);
       if (r.status !== "ok") {
         const why = r.status === "sold_out" ? "این هدیه یکتاست و قبلاً به کسی داده شده (اگه می‌خوای ازش استفاده کنی، اول از «هدیه‌های یک کاربر» برای خودت بردارش)." : r.status === "channel_failed" ? "نتونستم توی کانال پست بذارم؛ مطمئن شو ربات اونجا ادمینه." : "ورودی نامعتبر بود.";
@@ -339,10 +360,8 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
       }
       await logAdminAction(ctx.from!.id, "gift_event_create", `${r.event._id}:${kind}:${r.event.giftId}`);
       await ctx.reply(`✅ ${kind === "auction" ? "حراج" : "قرعه‌کشی"} توی کانال منتشر شد.`);
-      return;
     }
-    return next();
-  });
+  }
 }
 
 export { getGiftEvent };

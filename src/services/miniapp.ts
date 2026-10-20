@@ -1,3 +1,4 @@
+import { alertChannelProblem, checkMembership } from "../features/forcejoin/membership.js";
 import { Api } from "grammy";
 import { env } from "../config/env.js";
 import { getDb } from "../db/connect.js";
@@ -50,20 +51,26 @@ export async function authenticateViewer(initData: unknown): Promise<ViewerResul
   return { ok: true, user };
 }
 
-/** Same live force-join rule the bot applies (admin-exempt users skip it). */
+/** Same live force-join rule the bot applies (admin-exempt users skip it) — one shared definition, see forcejoin/membership.ts. */
 export async function viewerHasJoinedChannels(user: UserDoc): Promise<boolean> {
-  if (user.channelsExempt) return true;
+  return (await missingChannels(user)).length === 0;
+}
+
+/** The required channels this person is NOT in (empty = fine). A channel that cannot be checked counts as missing, like the bot. */
+export async function missingChannels(user: UserDoc): Promise<Array<{ title: string; url: string }>> {
+  if (user.channelsExempt) return [];
   const channels = await listActiveChannels();
+  const out: Array<{ title: string; url: string }> = [];
   for (const channel of channels) {
-    try {
-      const member = await botApi().getChatMember(channel.chatRef, user._id);
-      if (!["member", "administrator", "creator"].includes(member.status)) return false;
-    } catch (err) {
-      console.error(`[miniapp] getChatMember failed for channel ${channel._id}:`, err);
-      return false; // fail closed, same as the bot
+    const v = await checkMembership(botApi(), channel.chatRef, user._id);
+    if (v === "joined") continue;
+    if (v === "error") {
+      console.error(`[miniapp] getChatMember failed for channel ${channel._id}`);
+      await alertChannelProblem(botApi(), String(channel.chatRef), channel.title ?? channel.handle);
     }
+    out.push({ title: channel.title ?? channel.handle, url: channel.url });
   }
-  return true;
+  return out;
 }
 
 /** Mongo filter for "a registered user whose photo may be shown". */

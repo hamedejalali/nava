@@ -33,7 +33,7 @@ function notificationText(cost: number): string {
     "پیام ربات 👇\n\n" +
     `کاربری پروفایلِ ${nava}نوا${nava}  شما را مشاهده کرد.\n\n` +
     "<blockquote>⚠️ توجه: پروفایل نوا اطلاعاتی است که در بخش پروفایل ربات ثبت کرده اید!</blockquote>\n" +
-    `شما میتوانید با پرداخت ${toPersianDigits(cost)} رلیک اطلاعات کاربری که پروفایل شما را مشاهده کرده را ببینید`
+    `شما میتوانید با پرداخت ${toPersianDigits(cost)} XP اطلاعات کاربری که پروفایل شما را مشاهده کرده را ببینید`
   );
 }
 
@@ -83,12 +83,12 @@ export function registerProfileReveal(composer: Composer<NavaContext>) {
       await ctx.answerCallbackQuery();
       const balance = await getRelicBalance(payerId);
       await ctx.reply(
-        `😔 موجودی رلیک شما کافی نیست!\n\n` +
-          `برای دیدن اطلاعات کاربری که پروفایلت رو مشاهده کرده به ${toPersianDigits(cost)} رلیک نیاز داری.\n` +
-          `موجودی فعلی شما: ${toPersianDigits(balance)} رلیک\n\n` +
+        `😔 موجودی XP شما کافی نیست!\n\n` +
+          `برای دیدن اطلاعات کاربری که پروفایلت رو مشاهده کرده به ${toPersianDigits(cost)} XP نیاز داری.\n` +
+          `موجودی فعلی شما: ${toPersianDigits(balance)} XP\n\n` +
           `بعد از شارژ حساب، دوباره روی دکمه‌ی «پرداخت» پیام بالا بزن 👆`,
         {
-          reply_markup: inlineKeyboard([[glassButton("خرید رلیک", MENU_CALLBACKS.relicCoin, "primary", buttonIcon("CROWN"))]]),
+          reply_markup: inlineKeyboard([[glassButton("خرید XP", MENU_CALLBACKS.relicCoin, "primary", buttonIcon("CROWN"))]]),
         }
       );
       return;

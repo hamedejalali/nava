@@ -3,7 +3,7 @@ import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { getUser } from "../../db/models/user.js";
-import { transferRelicOnce } from "../../db/models/relic.js";
+import { transferRelicOnce, hasUnlimitedXp } from "../../db/models/relic.js";
 import {
   startTransferSession,
   setTransferAmount,
@@ -12,7 +12,7 @@ import {
   transferOperationId,
 } from "../../db/models/transferSession.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
-import { toAsciiDigits } from "../../utils/digits.js";
+import { parseXpAmount } from "../../services/wallet/xpAmount.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
 
@@ -32,7 +32,7 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     }
     if (target.isSeed) {
       // default (seed) members have no wallet: Relic sent there would simply vanish
-      await ctx.answerCallbackQuery({ text: "انتقال رلیک به این کاربر در حال حاضر ممکن نیست.", show_alert: true });
+      await ctx.answerCallbackQuery({ text: "انتقال XP به این کاربر در حال حاضر ممکن نیست.", show_alert: true });
       return;
     }
 
@@ -50,15 +50,15 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     if (!session || session.amount !== undefined) return next();
 
     const t = dictionary(ctx.userLang);
-    const raw = toAsciiDigits(ctx.message.text.trim());
-
-    if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
+    // the same strict whole-number parser as the Wallet API: no decimals, signs, exponents, overflow
+    const parsed = parseXpAmount(ctx.message.text, { humanDigits: true });
+    if (!parsed.ok) {
       await ctx.reply(t.relic.invalidAmount, { reply_markup: cancelKeyboard() });
       return;
     }
 
-    const amount = Number(raw);
-    if ((ctx.dbUser?.relicBalance ?? 0) < amount) {
+    const amount = parsed.amount;
+    if (!hasUnlimitedXp(ctx.from!.id) && (ctx.dbUser?.relicBalance ?? 0) < amount) {
       await ctx.reply(t.relic.insufficientForTransfer);
       await clearTransferSession(ctx.from!.id);
       return;

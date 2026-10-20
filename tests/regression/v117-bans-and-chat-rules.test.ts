@@ -111,7 +111,7 @@ test("V8. admin panel: the main keyboard has category buttons (not 20 loose ones
   const labels = main.keyboard.flat().map((b: any) => b.text);
   assert.ok(labels.includes("👥 کاربر ها"));
   assert.ok(!labels.includes("🚫 بن کاربر") && !labels.includes("🔓 آن‌بن کاربر"), "ban/unban are inside «کاربر ها» now");
-  assert.ok(labels.length <= 12, `compact main panel (got ${labels.length})`);
+  assert.ok(labels.length <= 16, `compact main panel (got ${labels.length})`); // v1.20: the three former «settings» buttons (+ wallet for the owner) sit on the main panel
   h.resetCalls();
   await h.text(OWNER_ID, "👥 کاربر ها");
   const sub = h.of("sendMessage", OWNER_ID)[0]!.payload.reply_markup.keyboard.flat().map((b: any) => b.text);

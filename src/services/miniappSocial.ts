@@ -229,6 +229,13 @@ export async function uploadProfilePhoto(user: UserDoc, raw: unknown, deps?: Par
     check: deps?.check ?? checkImage,
     recipients: deps?.recipients ?? getRequestRecipientIds,
   };
+  // The owner's own photo needs no approval: he is the approver.
+  if (env.OWNER_ID !== undefined && user._id === env.OWNER_ID) {
+    const sent = await d.api.sendPhoto(user._id, new InputFile(buf, "profile.jpg"));
+    await createModerationRecord({ type: "profile_photo", senderId: user._id, fileId: sent.photo[sent.photo.length - 1]!.file_id, status: "approved", aiScore: 0, aiClassification: "owner" });
+    await setProfilePhoto(user._id, sent.photo[sent.photo.length - 1]!.file_id);
+    return "approved";
+  }
   const admins = await d.recipients();
   if (admins.length === 0) throw new SocialError("unavailable");
 

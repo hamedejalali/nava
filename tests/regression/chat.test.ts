@@ -139,7 +139,7 @@ test("e. refund only for short chats (<4 messages), once, and only to the partne
   assert.equal(col("users").byId(A).relicBalance, 6);
   assert.equal(col("users").byId(B).relicBalance, 5, "the user who ended gets no refund");
   assert.equal(col("relic_transactions").byId(`refund:${SESSION}:${A}`)?.amount, 1);
-  assert.equal(h.of("sendMessage", A).filter((c) => /رلیک/.test(c.payload?.text ?? "")).length >= 1, true, "cashback text sent");
+  assert.equal(h.of("sendMessage", A).filter((c) => /XP/.test(c.payload?.text ?? "")).length >= 1, true, "cashback text sent");
 
   // idempotent at the ledger level (duplicate / retried processing)
   const { refundChatCostOnce } = await import("../../src/db/models/relic.js");

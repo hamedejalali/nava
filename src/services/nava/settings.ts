@@ -7,13 +7,16 @@ export interface MiniSettings {
   postsChannelEnabled: boolean;
   postsChannelId: number | null;
   postsChannelTitle: string | null;
+  /** SEPARATE channel for auctions / giveaways: nothing for management (logs, photos, reports) is ever sent there */
+  eventsChannelId: number | null;
+  eventsChannelTitle: string | null;
   giftPrices: Record<string, number>;
   giftsDisabled: Record<string, boolean>;
   /** gifts of which only ONE copy may ever exist (sold once; resold only by being re-gifted) */
   giftUnique: Record<string, boolean>;
 }
 
-const DEFAULTS: MiniSettings = { _id: "singleton", postsChannelEnabled: false, postsChannelId: null, postsChannelTitle: null, giftPrices: {}, giftsDisabled: {}, giftUnique: {} };
+const DEFAULTS: MiniSettings = { _id: "singleton", postsChannelEnabled: false, postsChannelId: null, postsChannelTitle: null, eventsChannelId: null, eventsChannelTitle: null, giftPrices: {}, giftsDisabled: {}, giftUnique: {} };
 
 export async function getMiniSettings(): Promise<MiniSettings> {
   const c = await col<MiniSettings>(C.settings);
@@ -28,6 +31,7 @@ async function patch(update: Record<string, unknown>): Promise<void> {
 
 export const setPostsChannelEnabled = (on: boolean) => patch({ postsChannelEnabled: on });
 export const setPostsChannel = (id: number | null, title: string | null) => patch({ postsChannelId: id, postsChannelTitle: title });
+export const setEventsChannel = (id: number | null, title: string | null) => patch({ eventsChannelId: id, eventsChannelTitle: title });
 export async function setGiftPrice(giftId: string, price: number): Promise<void> {
   const s = await getMiniSettings();
   await patch({ giftPrices: { ...s.giftPrices, [giftId]: price } });

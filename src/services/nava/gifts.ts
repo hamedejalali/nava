@@ -230,6 +230,7 @@ export async function countGifts(userId: number): Promise<number> {
 export async function listReceivedGifts(viewerId: number, anonId: unknown, before?: unknown): Promise<{ items: ReceivedGift[]; hasMore: boolean; next: number | null; total: number } | null> {
   const owner = await findVisibleUser(viewerId, anonId, { includeSelf: true });
   if (!owner) return null;
+  if (owner._id !== viewerId && owner.profileHide?.gifts) return { items: [], hasMore: false, next: null, total: 0 };
   const gifts = await col<any>(C.gifts);
   const beforeDate = typeof before === "number" && Number.isFinite(before) && before > 0 ? new Date(before) : null;
   const rows = await gifts

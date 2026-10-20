@@ -12,7 +12,7 @@ function guidesAndChannelsMenu() {
     [glassButton("ویرایش راهنما ها", ADMIN_CALLBACKS.openGuideMenu, "primary")],
     [glassButton("آیدی پشتیبانی", ADMIN_CALLBACKS.editSupportId, "primary")],
     [glassButton("تنظیم کانال جوین اجباری", CHANNEL_ADMIN_CALLBACKS.open, "primary")],
-    [glassButton("مدیریت رلیک کاربر", RELIC_ADMIN_CALLBACKS.open, "primary")],
+    [glassButton("مدیریت XP کاربر", RELIC_ADMIN_CALLBACKS.open, "primary")],
   ]);
 }
 

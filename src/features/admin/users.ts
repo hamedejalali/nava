@@ -32,7 +32,7 @@ function formatFullProfile(u: UserDoc, balance: number): string {
     `وریفای: ${u.verified ? "✅" : "❌"}`,
     `بن: ${u.banned ? `🚫 (${u.banReason ?? "بدون دلیل"})` : "❌"}`,
     `ادمین: ${u.isAdmin ? "✅" : "❌"}`,
-    `موجودی رلیک: ${balance}`,
+    `موجودی XP: ${balance}`,
     `مرحله‌ی onboarding: ${u.onboardingStep}`,
   ].join("\n");
 }

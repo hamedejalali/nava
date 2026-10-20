@@ -7,7 +7,7 @@ import { insertDeliveries, newDeliveryDocs } from "../../db/models/matchDelivery
 import { voidSearchNotices } from "../../db/models/searchNotice.js";
 import { getBlockedCounterparts } from "../../db/models/blocks.js";
 import type { MatchQueueDoc, SearchType } from "../../db/models/matchQueue.js";
-import { pickSeedFor, recentSeedIdsFor } from "../../db/models/seeds.js";
+import { pickSeedFor } from "../../db/models/seeds.js";
 import type { UserDoc } from "../../db/models/user.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { textEmoji } from "../../config/emojis.js";
@@ -45,7 +45,25 @@ export const SEED_GREET_DELAY_MS: [number, number] = [1500, 4000];
 export const SEED_NOTICE_GAP_MS: [number, number] = [800, 1800];
 export const SEED_END_DELAY_MS: [number, number] = [10_000, 20_000];
 
-const GREETINGS = ["سلام", "سلام 🙂", "سلام خوبی؟", "سلام عزیز", "های", "سلام، خوبی؟", "درود", "سلام وقت بخیر"];
+/** One-message openers, and two-message openers (the second one follows a few seconds later, like a person typing again). */
+export const SINGLE_GREETINGS = ["سلام", "سلام 🙂", "سلام خوبی؟", "سلام عزیز", "های", "سلام، خوبی؟", "درود", "سلام وقت بخیر", "سلاامم", "هی سلام 😊", "سلام چطوری؟", "سلام شب بخیر", "سلام خوش اومدی", "هلو", "سلام، حالت چطوره؟", "سلام ☺️"];
+export const DOUBLE_GREETINGS: Array<[string, string]> = [
+  ["سلام", "خوبی؟"],
+  ["های", "چه خبر؟"],
+  ["سلام", "چطوری؟ 🙂"],
+  ["درود", "حالت چطوره؟"],
+  ["سلام عزیز", "کجایی هستی؟"],
+  ["سلام", "اسمت چیه؟"],
+  ["هی", "سلام خوبی؟"],
+  ["سلام 🙂", "از کجا میای؟"],
+];
+export const DOUBLE_GREETING_CHANCE = 0.35;
+export const SEED_SECOND_GREET_GAP_MS: [number, number] = [1800, 4500];
+
+export function pickGreeting(rnd: () => number = Math.random): string[] {
+  if (rnd() < DOUBLE_GREETING_CHANCE) return [...DOUBLE_GREETINGS[Math.floor(rnd() * DOUBLE_GREETINGS.length)]!];
+  return [SINGLE_GREETINGS[Math.floor(rnd() * SINGLE_GREETINGS.length)]!];
+}
 
 export interface SeedJobDoc {
   _id: string; // session id
@@ -63,6 +81,13 @@ export interface SeedJobDoc {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const between = ([lo, hi]: [number, number], rnd: () => number = Math.random) => Math.round(lo + rnd() * (hi - lo));
 
+async function pairs() {
+  return (await getDb()).collection<any>("seed_user_pairs");
+}
+export async function seedIdsEverMatched(userId: number): Promise<number[]> {
+  return (await (await pairs()).find({ userId }).limit(5000).toArray()).map((r: any) => r.seedId as number);
+}
+
 async function jobs() {
   return (await getDb()).collection<SeedJobDoc>("seed_chat_jobs");
 }
@@ -77,17 +102,16 @@ export interface SeedMatchOptions {
 /** Atomically turns a queued real searcher into a chat with a default member. Never throws for "normal" outcomes. */
 export async function trySeedMatch(api: Api, user: UserDoc, searchType: SearchType, status: { chatId: number; messageId: number } | undefined, opts: SeedMatchOptions = {}): Promise<SeedMatchResult> {
   const rnd = opts.rnd ?? Math.random;
-  const exclude = new Set<number>([user._id, ...(await getBlockedCounterparts(user._id)), ...(await recentSeedIdsFor(user._id))]);
+  // a default member is connected to a given real person ONLY ONCE, ever (not just "not within 24 h")
+  const exclude = new Set<number>([user._id, ...(await getBlockedCounterparts(user._id)), ...(await seedIdsEverMatched(user._id))]);
   const db = await getDb();
   const queue = db.collection<MatchQueueDoc>("match_queue");
   const usersCol = db.collection<any>("users");
   const sessions = db.collection<ChatSessionDoc>("chat_sessions");
 
   for (let attempt = 0; attempt < 4; attempt++) {
-    let seed = await pickSeedFor(user, searchType, [...exclude]);
-    // every eligible member was already used for this person in the last 24 h: reuse one rather than leave them waiting
-    if (!seed && attempt === 0) seed = await pickSeedFor(user, searchType, [user._id, ...(await getBlockedCounterparts(user._id))]);
-    if (!seed) return { status: "none" };
+    const seed = await pickSeedFor(user, searchType, [...exclude]);
+    if (!seed) return { status: "none" }; // every suitable member was already used for this person: the normal "nobody found" ending
     const sessionId = newSessionId();
     const now = new Date();
     try {
@@ -98,6 +122,13 @@ export async function trySeedMatch(api: Api, user: UserDoc, searchType: SearchTy
         if (me.matchedCount !== 1) throw new TxAbort("busy");
         const sd = await usersCol.updateOne({ _id: seed!._id, isSeed: true, seedChatEnabled: true, banned: { $ne: true }, activeChatSessionId: null }, { $set: { activeChatSessionId: sessionId } }, { session });
         if (sd.matchedCount !== 1) throw new TxAbort("seed_taken");
+        // the unique pair id is what makes "only once" hold even for two parallel searches of the same person
+        try {
+          await (await pairs()).insertOne({ _id: `${user._id}:${seed!._id}`, userId: user._id, seedId: seed!._id, at: now }, { session });
+        } catch (e: any) {
+          if (e?.code === 11000) throw new TxAbort("seed_taken");
+          throw e;
+        }
         await sessions.insertOne({ _id: sessionId, userA: user._id, userB: seed!._id, active: true, createdAt: now, seedChat: true } as ChatSessionDoc, { session });
         await insertDeliveries(newDeliveryDocs(sessionId, [user._id], "match"), session);
         await voidSearchNotices([user._id], session);
@@ -142,12 +173,19 @@ async function langOf(userId: number): Promise<Language> {
   return (u?.languageCode as Language) ?? "fa";
 }
 
-async function sendGreeting(api: Api, job: SeedJobDoc, rnd: () => number): Promise<void> {
+async function sendGreeting(api: Api, job: SeedJobDoc, rnd: () => number, wait: (ms: number) => Promise<unknown>): Promise<void> {
   const s = await sessionActive(job._id);
   if (!s || !(await claimStep(job._id, "greeted"))) return;
-  const text = GREETINGS[Math.floor(rnd() * GREETINGS.length)]!;
-  await api.sendMessage(job.userId, text, { protect_content: s.safeChatEnabled || undefined }).catch(() => {});
-  await incrementMessageCount(job._id).catch(() => {});
+  const parts = pickGreeting(rnd);
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0) {
+      await api.sendChatAction(job.userId, "typing").catch(() => {});
+      await wait(between(SEED_SECOND_GREET_GAP_MS, rnd));
+      if (!(await sessionActive(job._id))) return; // the person left meanwhile
+    }
+    await api.sendMessage(job.userId, parts[i]!, { protect_content: s.safeChatEnabled || undefined }).catch(() => {});
+    await incrementMessageCount(job._id).catch(() => {});
+  }
 }
 
 async function sendProfileViewedNotice(api: Api, job: SeedJobDoc): Promise<void> {
@@ -227,7 +265,7 @@ export async function runSeedScript(api: Api, sessionId: string, opts: SeedScrip
     const job = await (await jobs()).findOne({ _id: sessionId });
     if (!job || job.state === "done") return;
     await wait(Math.max(0, job.greetAt.getTime() - Date.now()));
-    await sendGreeting(api, job, rnd);
+    await sendGreeting(api, job, rnd, wait);
     await wait(between(SEED_NOTICE_GAP_MS, rnd));
     await sendProfileViewedNotice(api, job);
     // wait for the end time, but notice early if the real user ended the chat themselves

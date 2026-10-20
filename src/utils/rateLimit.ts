@@ -38,3 +38,12 @@ export async function ensureRateLimitIndexes(): Promise<void> {
   const db = await getDb();
   await db.collection("rate_limits").createIndexes([{ key: { expiresAt: 1 }, name: "expiresAt_ttl", expireAfterSeconds: 0 }]);
 }
+
+/** Reads the counter of the CURRENT window without counting a new hit (used to block after N failures). */
+export async function peekRateLimit(userId: number, bucket: string, windowMs: number): Promise<number> {
+  const db = await getDb();
+  const col = db.collection<{ _id: string; count: number }>("rate_limits");
+  const windowStart = Math.floor(Date.now() / windowMs) * windowMs;
+  const doc = await col.findOne({ _id: `${userId}:${bucket}:${windowStart}` });
+  return doc?.count ?? 0;
+}

@@ -4,11 +4,12 @@ import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { cancelKeyboard } from "../common/userFlows.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { escapeHtml } from "../../utils/html.js";
+import { env } from "../../config/env.js";
 import { isAdmin } from "./constants.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 import { giftCatalog } from "../../services/nava/gifts.js";
 import { removeCustomGift } from "../../services/nava/giftDefs.js";
-import { getMiniSettings, setGiftEnabled, setGiftPrice, setGiftUnique, setPostsChannel, setPostsChannelEnabled } from "../../services/nava/settings.js";
+import { getMiniSettings, setGiftEnabled, setGiftPrice, setGiftUnique, setPostsChannel, setPostsChannelEnabled, setEventsChannel } from "../../services/nava/settings.js";
 import { GF } from "./giftsAdmin.js";
 
 /**
@@ -21,6 +22,8 @@ export const NG_CB = {
   toggleChannel: "admin:ng:tch",
   setChannel: "admin:ng:sch",
   clearChannel: "admin:ng:cch",
+  setEventsChannel: "admin:ng:sev",
+  clearEventsChannel: "admin:ng:cev",
   gifts: "admin:ng:gifts",
   gift: "admin:ng:g:", // + giftId
   giftToggle: "admin:ng:gt:", // + giftId
@@ -34,16 +37,20 @@ export const MAX_GIFT_PRICE = 100_000;
 export async function navagramScreen(): Promise<{ text: string; reply_markup: ReturnType<typeof inlineKeyboard> }> {
   const s = await getMiniSettings();
   const ch = s.postsChannelId ? `${s.postsChannelTitle ? escapeHtml(s.postsChannelTitle) + " — " : ""}<code>${s.postsChannelId}</code>` : "— تنظیم نشده —";
+  const evch = s.eventsChannelId ? `${s.eventsChannelTitle ? escapeHtml(s.eventsChannelTitle) + " — " : ""}<code>${s.eventsChannelId}</code>` : "— تنظیم نشده —";
   const text =
     `📸 <b>تنظیمات نوا گرام</b>\n\n` +
     `کپی پست‌ها در کانال: ${s.postsChannelEnabled ? "🟢 روشن" : "🔴 خاموش"}\n` +
-    `کانال: ${ch}\n\n` +
+    `کانال: ${ch}\n` +
+    `کانال حراج و قرعه‌کشی (جدا از بالایی): ${evch}\n\n` +
     `وقتی روشنه، از هر پست جدید فقط <b>یک</b> کپی (عکس + کپشن + نام نویسنده) داخل کانال فرستاده میشه. پست‌ها نیاز به تأیید ندارن؛ فقط عکس پروفایل تأیید مالک می‌خواد.\n` +
     (s.postsChannelEnabled && !s.postsChannelId ? `\n⚠️ کانال تنظیم نشده؛ تا وقتی کانال نذاری کپی‌ای فرستاده نمیشه.\n` : "");
   const rows = [
     [glassButton(s.postsChannelEnabled ? "خاموش کردن کپی در کانال" : "روشن کردن کپی در کانال", NG_CB.toggleChannel, s.postsChannelEnabled ? "danger" : "success")],
     [glassButton("تنظیم / تغییر کانال", NG_CB.setChannel, "primary")],
     ...(s.postsChannelId ? [[glassButton("حذف کانال", NG_CB.clearChannel, "danger")]] : []),
+    [glassButton("🔨 تنظیم کانال حراج و قرعه‌کشی", NG_CB.setEventsChannel, "primary")],
+    ...(s.eventsChannelId ? [[glassButton("حذف کانال حراج و قرعه‌کشی", NG_CB.clearEventsChannel, "danger")]] : []),
     [glassButton("🎁 هدیه‌ها و قیمت‌ها", NG_CB.gifts, "primary")],
   ];
   return { text, reply_markup: inlineKeyboard(rows) };
@@ -51,12 +58,12 @@ export async function navagramScreen(): Promise<{ text: string; reply_markup: Re
 
 export async function giftsScreen() {
   const cards = await giftCatalog(true);
-  const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} رلیک${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
+  const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} XP${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
   const rows = cards.map((g) => [glassButton(`${g.emoji} ${g.name}${g.off ? " (غیرفعال)" : ""}`, `${NG_CB.gift}${g.id}`, "primary")]);
   rows.push([glassButton("➕ هدیه‌ی تلگرامی جدید", GF.add, "success")]);
   rows.push([glassButton("🔨 حراج و قرعه‌کشی", GF.ev, "primary"), glassButton("👤 هدیه‌های یک کاربر", GF.users, "primary")]);
   rows.push([glassButton("↩️ بازگشت", NG_CB.open, "primary")]);
-  return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به رلیک هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
+  return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به XP هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
 }
 
 async function giftScreen(giftId: string) {
@@ -64,7 +71,7 @@ async function giftScreen(giftId: string) {
   if (!g) return null;
   const off = g.off;
   return {
-    text: `${g.emoji} <b>${escapeHtml(g.name)}</b>\n\nقیمت: ${g.price} رلیک\nوضعیت: ${off ? "🔴 غیرفعال" : "🟢 فعال"}\nنسخه‌ی یکتا: ${g.unique ? (g.soldOut ? "✨ بله (فروخته شده)" : "✨ بله (هنوز فروخته نشده)") : "نه"}${g.custom ? "\nنوع: 🎞 هدیه‌ی انیمیشنی تلگرام" : ""}`,
+    text: `${g.emoji} <b>${escapeHtml(g.name)}</b>\n\nقیمت: ${g.price} XP\nوضعیت: ${off ? "🔴 غیرفعال" : "🟢 فعال"}\nنسخه‌ی یکتا: ${g.unique ? (g.soldOut ? "✨ بله (فروخته شده)" : "✨ بله (هنوز فروخته نشده)") : "نه"}${g.custom ? "\nنوع: 🎞 هدیه‌ی انیمیشنی تلگرام" : ""}`,
     reply_markup: inlineKeyboard([
       [glassButton("تغییر قیمت", `${NG_CB.giftPrice}${g.id}`, "primary")],
       [glassButton(off ? "فعال کردن" : "غیرفعال کردن", `${NG_CB.giftToggle}${g.id}`, off ? "success" : "danger")],
@@ -114,6 +121,24 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     await setPostsChannelEnabled(false);
     await logAdminAction(ctx.from!.id, "navagram_channel_clear", "");
     await ctx.answerCallbackQuery({ text: "کانال حذف و کپی خاموش شد" });
+    await show(ctx, await navagramScreen());
+  });
+
+  composer.callbackQuery(NG_CB.setEventsChannel, async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    await ctx.answerCallbackQuery();
+    await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "events_channel" });
+    await ctx.reply(
+      "کانال مخصوص حراج و قرعه‌کشی رو بفرست (آیدی عددی مثل -1001234567890، @یوزرنیم یا یه پیام فورواردی از کانال).\nاین کانال باید با کانال کپی پست‌ها و کانال‌های مدیریتی (لاگ/گزارش) متفاوت باشه. ربات باید توش ادمین باشه.",
+      { reply_markup: cancelKeyboard() }
+    );
+  });
+
+  composer.callbackQuery(NG_CB.clearEventsChannel, async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    await setEventsChannel(null, null);
+    await logAdminAction(ctx.from!.id, "navagram_events_channel_clear", "");
+    await ctx.answerCallbackQuery({ text: "کانال حراج و قرعه‌کشی حذف شد" });
     await show(ctx, await navagramScreen());
   });
 
@@ -169,7 +194,7 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     if (!(await giftCatalog(true)).some((x) => x.id === id)) return void (await ctx.answerCallbackQuery());
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "price", data: { giftId: id } });
-    await ctx.reply(`قیمت جدید (به رلیک، عدد صحیح بین ۱ تا ${MAX_GIFT_PRICE}) رو بفرست:`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(`قیمت جدید (به XP، عدد صحیح بین ۱ تا ${MAX_GIFT_PRICE}) رو بفرست:`, { reply_markup: cancelKeyboard() });
   });
 
   composer.on("message:text", async (ctx, next) => {
@@ -199,7 +224,8 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
       return;
     }
 
-    if (flow.stage === "channel") {
+    if (flow.stage === "channel" || flow.stage === "events_channel") {
+      const isEvents = flow.stage === "events_channel";
       const fwd: any = (ctx.message as any).forward_origin;
       let ref: string | number | null = null;
       if (fwd?.type === "channel" && fwd.chat?.id) ref = fwd.chat.id;
@@ -214,8 +240,16 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
         if (chat.type !== "channel" && chat.type !== "supergroup" && chat.type !== "group") throw new Error("not a channel");
         const me = await ctx.api.getChatMember(chat.id, ctx.me.id);
         if (me.status !== "administrator" && me.status !== "creator") throw new Error("not admin");
-        await setPostsChannel(chat.id, "title" in chat ? (chat.title ?? null) : null);
-        await logAdminAction(ctx.from!.id, "navagram_channel_set", String(chat.id));
+        const cur = await getMiniSettings();
+        const mgmt = env.MODERATION_LOG_CHAT_ID;
+        const clash = isEvents ? chat.id === cur.postsChannelId || chat.id === mgmt : chat.id === cur.eventsChannelId;
+        if (clash) {
+          await ctx.reply("این کانال با یکی از کانال‌های دیگه (کپی پست‌ها / حراج و قرعه‌کشی / مدیریت) یکیه. برای جلوگیری از قاطی‌شدن، یه کانال جدا بفرست.", { reply_markup: cancelKeyboard() });
+          return;
+        }
+        if (isEvents) await setEventsChannel(chat.id, "title" in chat ? (chat.title ?? null) : null);
+        else await setPostsChannel(chat.id, "title" in chat ? (chat.title ?? null) : null);
+        await logAdminAction(ctx.from!.id, isEvents ? "navagram_events_channel_set" : "navagram_channel_set", String(chat.id));
         await setAdminFlow(ctx.from!.id, null);
         const v = await navagramScreen();
         await ctx.reply(`✅ کانال ذخیره شد.\n\n${v.text}`, { parse_mode: "HTML", reply_markup: v.reply_markup });

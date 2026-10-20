@@ -199,7 +199,7 @@ test("G8. «پیام به فرستنده»: no Relic -> buy-from-wallet message;
   h.resetCalls();
   api.length = 0;
   await h.callback(2, `gr:${pub}`);
-  const ask = h.of("sendMessage", 2).find((c) => /۱ رلیک/.test(String(c.payload.text)))!;
+  const ask = h.of("sendMessage", 2).find((c) => /۱ XP/.test(String(c.payload.text)))!;
   assert.ok(ask, "confirmation asked");
   assert.equal(ask.payload.reply_markup.inline_keyboard.flat()[0].callback_data, `grc:${pub}`);
   await h.callback(2, `grc:${pub}`);

@@ -86,6 +86,19 @@ export function registerLanguageHandlers(composer: Composer<NavaContext>) {
       return;
     }
 
+    // A registered user opening the bot must see the SAME force-join screen the mini-app demands (before, /start
+    // showed the menu and only the mini-app complained — the person had no idea what to do).
+    if (user.onboardingStep === "COMPLETED" && !user.channelsExempt) {
+      ctx.dbUser = ctx.dbUser ?? (user as any);
+      const { listActiveChannels } = await import("../../db/models/channel.js");
+      const { isMemberOfAll, sendForceJoinScreen } = await import("../forcejoin/guard.js");
+      const channels = await listActiveChannels();
+      if (channels.length > 0 && !(await isMemberOfAll(ctx, channels))) {
+        await sendForceJoinScreen(ctx, (user.languageCode ?? "fa") as any, channels);
+        return;
+      }
+    }
+
     await resumeAt(ctx, user.onboardingStep, user.languageCode ?? "fa", user.province);
   });
 

@@ -19,7 +19,7 @@ export const ADMIN_MENU_LABELS = {
   reports: "⚠️ گزارش‌های کاربران",
   search: "🔎 جستجوی کاربر",
   fullProfile: "👤 پروفایل کامل کاربر",
-  relic: "🪙 مدیریت Relic",
+  relic: "🪙 مدیریت XP",
   level: "⭐ مدیریت Level",
   moderators: "🛡️ مدیریت Moderator / Admin",
   stats: "📊 آمار ربات",
@@ -27,12 +27,13 @@ export const ADMIN_MENU_LABELS = {
   settings: "⚙️ تنظیمات ربات",
   guidesAndChannels: "🛠 راهنما / کانال جوین / پشتیبانی",
   resetUser: "♻️ ریست اطلاعات کاربر",
-  pricing: "💳 تنظیم قیمت رلیک",
+  pricing: "💳 تنظیم قیمت XP",
   reactionGate: "🎯 تنظیم گیت ری‌اکشن",
   exportUsers: "📤 خروجی اکسل کاربران",
   importUsers: "📥 ورودی اکسل (بازیابی)",
   seedPanel: "🎭 نمایش و اتصال ممبرها",
   seedAdd: "➕ ساخت ممبر جدید",
+  seedBatch: "📦 ساخت دسته‌ای ممبر",
   seedList: "📋 لیست ممبرها",
   ngSettings: "📸 کانال و تنظیمات نوا گرام",
   ngGifts: "🎁 هدیه‌ها و قیمت‌ها",
@@ -41,6 +42,7 @@ export const ADMIN_MENU_LABELS = {
   ngUserGifts: "👤 هدیه‌های یک کاربر",
   ngShortNames: "🔢 یوزرنیم کوتاه",
   ownerProfile: "👑 اکانت مالک (Nava)",
+  wallet: "🔌 اتصال ولت",
   close: "❌ بستن پنل",
 } as const;
 
@@ -68,6 +70,7 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.ngUserGifts,
   ADMIN_MENU_LABELS.ngShortNames,
   ADMIN_MENU_LABELS.ownerProfile,
+  ADMIN_MENU_LABELS.wallet,
 ];
 
 /** Admin panel categories (v1.17): the main keyboard shows ONE button per group instead of ~20 loose buttons.
@@ -79,7 +82,6 @@ export const ADMIN_CATEGORY_LABELS = {
   nava: "📸 نوا گرام",
   seeds: "🎭 ممبرهای پیش‌فرض",
   staff: "🛡️ مدیریت و لاگ",
-  settings: "⚙️ تنظیمات و ابزار",
   data: "💾 داده‌ها",
   back: "↩️ بازگشت به پنل",
 } as const;
@@ -112,13 +114,8 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.ngShortNames },
     { label: ADMIN_MENU_LABELS.ownerProfile },
   ],
-  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
+  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedBatch }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
   staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
-  settings: [
-    { label: ADMIN_MENU_LABELS.settings, icon: () => buttonIcon("SETTINGS") },
-    { label: ADMIN_MENU_LABELS.guidesAndChannels },
-    { label: ADMIN_MENU_LABELS.reactionGate },
-  ],
   data: [{ label: ADMIN_MENU_LABELS.exportUsers }, { label: ADMIN_MENU_LABELS.importUsers }],
 };
 
@@ -135,9 +132,18 @@ function pairRows(items: Array<{ label: string; icon?: IconInput }>) {
   return rows;
 }
 
+/** v1.20: the former «تنظیمات و ابزار» group is gone — its three buttons sit directly on the main panel. */
+const MAIN_PANEL_TOOLS: Array<{ label: string; icon?: () => IconInput }> = [
+  { label: ADMIN_MENU_LABELS.settings, icon: () => buttonIcon("SETTINGS") },
+  { label: ADMIN_MENU_LABELS.guidesAndChannels },
+  { label: ADMIN_MENU_LABELS.reactionGate },
+  { label: ADMIN_MENU_LABELS.wallet },
+];
+
 export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const cats = (Object.keys(ADMIN_CATEGORIES) as CategoryId[]).filter((id) => visibleEntries(ctx, id).length > 0);
   const items: Array<{ label: string; icon?: IconInput }> = cats.map((id) => ({ label: ADMIN_CATEGORY_LABELS[id] }));
+  for (const e of MAIN_PANEL_TOOLS.filter((t) => isOwner(ctx) || !OWNER_ONLY.includes(t.label))) items.push({ label: e.label, icon: e.icon?.() });
   items.push({ label: ADMIN_MENU_LABELS.stats, icon: buttonIcon("STATS") });
   const rows = pairRows(items);
   // Version button: does nothing when tapped (see registerAdminVersionButton)

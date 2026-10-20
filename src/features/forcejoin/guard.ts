@@ -6,6 +6,7 @@ import { listActiveChannels, type RequiredChannelDoc } from "../../db/models/cha
 import { escapeHtml } from "../../utils/html.js";
 import { FORCE_JOIN_VERIFY_CALLBACK } from "./constants.js";
 import { requireReactionGate } from "../reactionGate/gate.js";
+import { alertChannelProblem, checkMembership } from "./membership.js";
 
 /** Checks the user's live Telegram membership for every required channel.
  *  Never cached — re-verified on every gated action, per spec ("do not
@@ -14,17 +15,14 @@ import { requireReactionGate } from "../reactionGate/gate.js";
  *  granting access, and is logged rather than crashing the request. */
 export async function isMemberOfAll(ctx: NavaContext, channels: RequiredChannelDoc[]): Promise<boolean> {
   const userId = ctx.from!.id;
-
   for (const channel of channels) {
-    try {
-      const member = await ctx.api.getChatMember(channel.chatRef, userId);
-      const joined = member.status === "member" || member.status === "administrator" || member.status === "creator";
-      if (!joined) return false;
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(`[forceJoin] getChatMember failed for channel ${channel._id} (${channel.chatRef}):`, err);
+    const v = await checkMembership(ctx.api, channel.chatRef, userId);
+    if (v === "error") {
+      console.error(`[forceJoin] getChatMember failed for channel ${channel._id} (${channel.chatRef})`);
+      await alertChannelProblem(ctx.api, String(channel.chatRef), channel.title ?? channel.handle);
       return false;
     }
+    if (v === "not_joined") return false;
   }
   return true;
 }

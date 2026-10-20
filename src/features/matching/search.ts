@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { hasUnlimitedXp } from "../../db/models/relic.js";
 import { GrammyError } from "grammy";
 import { waitUntil } from "@vercel/functions";
 import type { NavaContext } from "../../bot-context.js";
@@ -221,7 +222,7 @@ export function registerSearch(composer: Composer<NavaContext>) {
     const searchType = TYPE_BY_CALLBACK[ctx.callbackQuery.data!];
     if (!searchType) return;
 
-    if ((user.relicBalance ?? 0) < 1) {
+    if (!hasUnlimitedXp(user._id) && (user.relicBalance ?? 0) < 1) {
       const t = dictionary(ctx.userLang);
       await ctx.reply(t.errors.insufficientBalance);
       return;

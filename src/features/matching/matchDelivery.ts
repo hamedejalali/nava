@@ -23,7 +23,7 @@ type Api = NavaContext["api"];
  *  keeps the "found you a partner" text, but here nobody was "found": the request was accepted. */
 export const CHAT_REQUEST_ACCEPTED_TEXT = "✅ درخواست چت قبول شد و الان می‌تونید باهم صحبت کنید.";
 
-export const UNDELIVERED_NOTICE = "⚠️ مخاطبت در دسترس نبود و اتصال لغو شد. رلیکت برگشت داده شد؛ می‌تونی دوباره جستجو کنی.";
+export const UNDELIVERED_NOTICE = "⚠️ مخاطبت در دسترس نبود و اتصال لغو شد. XP‌ت برگشت داده شد؛ می‌تونی دوباره جستجو کنی.";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

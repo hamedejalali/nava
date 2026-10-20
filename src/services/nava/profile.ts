@@ -4,7 +4,8 @@ import { getRequestRecipientIds } from "../../features/admin/constants.js";
 import { isValidPersianNickname } from "../../features/onboarding/nickname.js";
 import { MAX_AGE, MIN_AGE, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
 import { botApi } from "../miniapp.js";
-import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
+import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, isOfficial, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
+import { hasUnlimitedXp } from "../../db/models/relic.js";
 import { countFollowRequests, followCounts } from "./follow.js";
 import { countGifts } from "./gifts.js";
 import { countPosts } from "./posts.js";
@@ -42,7 +43,17 @@ export interface ProfileView extends Brief {
   photoPending?: boolean;
   pendingName?: string | null;
   pendingAge?: string | null;
+  /** the owner's own switches: what he hides from everybody else on his page (own view only) */
+  hide?: ProfileHide;
+  /** infinite XP (the owner) — the app shows ∞ instead of a number */
+  unlimited?: boolean;
+  /** this page belongs to the owner: he edits name / age / bio / photo directly, without approval */
+  isOwnerPage?: boolean;
 }
+
+export const HIDE_KEYS = ["age", "bio", "location", "gifts", "stats"] as const;
+export type HideKey = (typeof HIDE_KEYS)[number];
+export type ProfileHide = Partial<Record<HideKey, boolean>>;
 
 export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileView | null> {
   const owner = await findVisibleUser(viewer._id, anonId, { includeSelf: true });
@@ -74,8 +85,20 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     highlights: locked ? [] : await highlightBriefs(owner._id),
     chat: "none",
   };
+  const hide: ProfileHide = (owner.profileHide ?? {}) as ProfileHide;
+  if (!isMe) {
+    // the page owner's own "don't show" switches (only the owner can set them)
+    if (hide.age) view.age = null;
+    if (hide.bio) view.bio = "";
+    if (hide.location) { view.province = null; view.city = null; }
+    if (hide.gifts) view.gifts = 0;
+    if (hide.stats) { view.followers = 0; view.following = 0; view.likes = 0; }
+  }
   if (isMe) {
     view.chat = "me";
+    view.hide = hide;
+    view.unlimited = hasUnlimitedXp(owner._id);
+    view.isOwnerPage = isOfficial(owner._id);
     const db = await usersCol();
     const fresh = (await db.findOne({ _id: owner._id })) ?? owner;
     const pendingPhoto = await (await col("image_moderation")).findOne({ senderId: owner._id, type: "profile_photo", status: "pending" });
@@ -116,7 +139,27 @@ export async function requestProfileChange(
   field: "nickname" | "age",
   raw: unknown,
   deps: { api?: Parameters<typeof notifyRecipientsOfEditRequest>[0]; recipients?: () => Promise<number[]> } = {}
-): Promise<{ status: "pending" }> {
+): Promise<{ status: "pending" } | { status: "applied"; value: string | null }> {
+  // The owner's own page needs nobody's approval (he IS the approver): name and age are applied at once,
+  // and the age is optional (an empty value removes it).
+  if (isOfficial(user._id)) {
+    const db = await usersCol();
+    if (field === "nickname") {
+      const v = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "";
+      if (v.length < 1 || v.length > 32) throw new SocialError("bad_name");
+      await db.updateOne({ _id: user._id }, { $set: { nickname: v } });
+      return { status: "applied", value: v };
+    }
+    const txt = typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : "";
+    if (txt === "") {
+      await db.updateOne({ _id: user._id }, { $unset: { age: "" } });
+      return { status: "applied", value: null };
+    }
+    const n = /^\d{1,3}$/.test(txt) ? Number(txt) : NaN;
+    if (!Number.isInteger(n) || n < 1 || n > 120) throw new SocialError("bad_age");
+    await db.updateOne({ _id: user._id }, { $set: { age: n } });
+    return { status: "applied", value: String(n) };
+  }
   let value: string;
   if (field === "nickname") {
     if (typeof raw !== "string" || !isValidPersianNickname(raw)) throw new SocialError("bad_name");
@@ -136,4 +179,14 @@ export async function requestProfileChange(
   const request = await createEditRequest(user._id, field, previous, value);
   await notifyRecipientsOfEditRequest(deps.api ?? botApi(), request._id, user, field, previous, value);
   return { status: "pending" };
+}
+
+/** Owner only: choose what the rest of the world sees on his page. Unknown keys are ignored. */
+export async function setProfileVisibility(user: any, input: unknown): Promise<ProfileHide> {
+  if (!isOfficial(user._id)) throw new SocialError("forbidden");
+  const cur: ProfileHide = { ...((user.profileHide ?? {}) as ProfileHide) };
+  const src = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  for (const k of HIDE_KEYS) if (typeof src[k] === "boolean") cur[k] = src[k] as boolean;
+  await (await usersCol()).updateOne({ _id: user._id }, { $set: { profileHide: cur } });
+  return cur;
 }

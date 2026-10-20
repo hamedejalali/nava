@@ -1,6 +1,7 @@
 import type { ClientSession, Collection } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { getDb, getClient } from "../connect.js";
+import { env } from "../../config/env.js";
 
 /**
  * Central Relic ledger. Relic belongs to the GLOBAL user account
@@ -40,7 +41,10 @@ export type RelicTransactionType =
   | "PROFILE_VIEW_REVEAL"
   | "GIFT_SENT"
   | "ADMIN_ADJUSTMENT"
-  | "BONUS";
+  | "BONUS"
+  | "WALLET_TRANSFER"
+  | "AUCTION_BID"
+  | "AUCTION_SALE";
 
 export interface RelicTransactionDoc {
   /** Deterministic per operation (e.g. `chatcost:<sessionId>:<userId>`) so
@@ -60,6 +64,12 @@ export interface RelicTransactionDoc {
   metadata?: Record<string, unknown>;
   createdAt: Date;
   completedAt?: Date;
+}
+
+/** The OWNER has unlimited XP: nothing is ever deducted from his balance (he can spend and give XP freely).
+ *  Ledger rows are still written (amount 0 for his side) so the history stays complete. */
+export function hasUnlimitedXp(userId: number): boolean {
+  return env.OWNER_ID !== undefined && userId === env.OWNER_ID;
 }
 
 async function ledgerCollection(): Promise<Collection<RelicTransactionDoc>> {
@@ -210,9 +220,10 @@ export async function grantInitialBalanceIfNeeded(userId: number, usersCol: Coll
  *  InsufficientBalanceError if the user doesn't have enough — callers
  *  should let that abort the transaction. */
 export async function chargeChatCost(userId: number, sessionId: string, usersCol: Collection<any>, mongoSession: ClientSession): Promise<void> {
+  const unlimited = hasUnlimitedXp(userId);
   const guarded = await usersCol.findOneAndUpdate(
-    { _id: userId, relicBalance: { $gte: 1 } },
-    { $inc: { relicBalance: -1 } },
+    unlimited ? { _id: userId } : { _id: userId, relicBalance: { $gte: 1 } },
+    { $inc: { relicBalance: unlimited ? 0 : -1 } },
     { session: mongoSession }
   );
   if (!guarded) throw new InsufficientBalanceError(userId);
@@ -222,7 +233,7 @@ export async function chargeChatCost(userId: number, sessionId: string, usersCol
     {
       _id: `chatcost:${sessionId}:${userId}`,
       userId,
-      amount: -1,
+      amount: unlimited ? 0 : -1,
       type: "CHAT_COST",
       status: "completed",
       reference: sessionId,
@@ -248,9 +259,10 @@ export async function chargeRelicInSession(
 ): Promise<boolean> {
   const db = await getDb();
   const usersCol = db.collection<any>("users");
+  const unlimited = hasUnlimitedXp(userId);
   const debited = await usersCol.findOneAndUpdate(
-    { _id: userId, relicBalance: { $gte: amount } },
-    { $inc: { relicBalance: -amount } },
+    unlimited ? { _id: userId } : { _id: userId, relicBalance: { $gte: amount } },
+    { $inc: { relicBalance: unlimited ? 0 : -amount } },
     { session: mongoSession }
   );
   if (!debited) return false;
@@ -260,7 +272,7 @@ export async function chargeRelicInSession(
     {
       _id: ledgerId,
       userId,
-      amount: -amount,
+      amount: unlimited ? 0 : -amount,
       type,
       status: "completed",
       reference,
@@ -305,9 +317,10 @@ export async function transferRelicOnce(
     let outcome: "completed" | "insufficient" = "completed";
 
     await mongoSession.withTransaction(async () => {
+      const unlimitedSender = hasUnlimitedXp(senderId);
       const debited = await usersCol.findOneAndUpdate(
-        { _id: senderId, relicBalance: { $gte: amount } },
-        { $inc: { relicBalance: -amount } },
+        unlimitedSender ? { _id: senderId } : { _id: senderId, relicBalance: { $gte: amount } },
+        { $inc: { relicBalance: unlimitedSender ? 0 : -amount } },
         { session: mongoSession }
       );
       if (!debited) {
@@ -326,7 +339,7 @@ export async function transferRelicOnce(
             _id: debitId,
             userId: senderId,
             counterpartyUserId: recipientId,
-            amount: -amount,
+            amount: unlimitedSender ? 0 : -amount,
             type: "TRANSFER",
             status: "completed",
             reference: transferId,

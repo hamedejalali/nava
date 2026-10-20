@@ -7,12 +7,14 @@ import { registerAdminRelic } from "./relic.js";
 import { registerPostReportsAdmin } from "./postReportsAdmin.js";
 import { registerGiftsAdmin } from "./giftsAdmin.js";
 import { registerSeedsAdmin } from "./seedsAdmin.js";
+import { registerSeedsBatch } from "./seedsBatch.js";
 import { registerOwnerAdmin } from "./ownerAdmin.js";
 import { registerAdminCategories, registerAdminVersionButton } from "./menu.js";
 
 export function registerAdmin(composer: Composer<NavaContext>) {
   registerAdminVersionButton(composer);
   registerAdminCategories(composer);
+  registerSeedsBatch(composer);
   registerSeedsAdmin(composer);
   registerOwnerAdmin(composer);
   registerAdminPanel(composer);

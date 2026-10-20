@@ -525,3 +525,63 @@ button:active>.ring,.story:active .ring{transform:scale(.93)}
 .nrow .nbtn.on{color:#ed4956}
 .nrow .fbtn{height:30px;padding:0 14px;border-radius:8px;font-weight:600;font-size:13px;background:var(--blue);color:#fff}
 .nrow .fbtn.gray{background:var(--chip);color:var(--text)}
+
+/* ---- Matching tab (v1.20) ---- */
+.mt{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:10px 14px 110px;direction:rtl}
+.mcnt{align-self:center;color:var(--muted);font-size:13px;margin:2px 0 8px}
+.mstage{width:100%;max-width:420px;flex:1;display:flex}
+.mcard{position:relative;width:100%;aspect-ratio:3/4;max-height:68vh;border-radius:22px;overflow:hidden;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.35);animation:mcin .35s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes mcin{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.mcard .mph{position:absolute;inset:0;background:var(--chip)}
+.mcard .mph img{width:100%;height:100%;object-fit:cover}
+.mcard .ph0{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:84px;color:var(--muted)}
+.mcard .mgr{position:absolute;inset:auto 0 0 0;height:55%;background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,0))}
+.mcard .mtx{position:absolute;inset:auto 0 0 0;padding:18px;color:#fff}
+.mcard .mnm{font-size:26px;font-weight:800}
+.mcard .msb{margin-top:2px;font-size:14px;opacity:.9}
+.mcard .mbio{margin-top:8px;font-size:14px;line-height:1.7;opacity:.95;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.mcta{background:linear-gradient(160deg,#1c3a6e,#6a2c91);display:flex;align-items:center;justify-content:center;aspect-ratio:auto;min-height:56vh}
+.mctab{padding:28px;text-align:center;color:#fff}
+.mctab .mbig{font-size:54px;margin-bottom:8px}
+.mctab h3{margin:0 0 8px;font-size:21px}
+.mctab p{margin:0 0 20px;line-height:1.9;opacity:.92}
+.mbar{display:flex;gap:14px;justify-content:center;margin-top:16px;width:100%;max-width:420px}
+.mbar .mb{height:54px;border-radius:27px;font-size:17px;font-weight:700;transition:transform .15s}
+.mbar .mb:active{transform:scale(.92)}
+.mbar .x{flex:1;background:var(--chip);color:var(--text)}
+.mbar .h{width:74px;background:var(--red);color:#fff;font-size:26px}
+@media (prefers-reduced-motion:reduce){.mcard{animation:none}}
+
+/* ---- splash v1.21: optional background image + logo, English brand, progress bar, Telegram Mini App mark ---- */
+.splash{background:radial-gradient(120% 90% at 50% 0%,#241033 0%,#0b0b12 55%,#000 100%) center/cover no-repeat}
+.splash.has-bg::before{content:"";position:absolute;inset:0;background:var(--splash-bg) center/cover no-repeat;opacity:.55}
+.splash.has-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.35),rgba(0,0,0,.75))}
+.splash>*{position:relative;z-index:1}
+.splash .brand{font-family:"Vazirmatn",system-ui,sans-serif;font-weight:800;font-size:38px;letter-spacing:1px;direction:ltr}
+.logo-img{width:100%;height:100%;object-fit:contain;border-radius:24px;animation:logoin .9s cubic-bezier(.2,1.2,.3,1) both}
+.splash-prog{width:min(56vw,220px);height:4px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:22px}
+.splash-prog i{display:block;height:100%;width:6%;border-radius:4px;background:var(--grad);transition:width .5s cubic-bezier(.3,.8,.3,1)}
+.splash-tg{position:absolute!important;bottom:calc(26px + env(safe-area-inset-bottom));left:0;right:0;display:flex;align-items:center;justify-content:center;gap:7px;color:rgba(255,255,255,.65);font-size:12px;letter-spacing:.6px;direction:ltr;animation:brandin .8s 1s both var(--ease)}
+.splash-tg svg{width:17px;height:17px;color:#37aee2}
+@media (prefers-reduced-motion:reduce){.splash-prog i{transition:none}}
+
+/* ---- in-app registration (v1.21) ---- */
+.ob{position:fixed;inset:0;z-index:150;background:var(--bg);display:flex;flex-direction:column;direction:rtl;animation:obin .3s var(--ease)}
+@keyframes obin{from{opacity:0;transform:translateY(24px)}}
+.obh{display:flex;align-items:center;gap:12px;padding:calc(12px + env(safe-area-inset-top)) 16px 8px}
+.obx{width:34px;height:34px;border-radius:50%;background:var(--chip);color:var(--text)}
+.obdots{display:flex;gap:6px;flex:1;justify-content:center;margin-inline-end:34px}
+.obdots i{width:26px;height:4px;border-radius:4px;background:var(--chip);transition:background .3s,width .3s}
+.obdots i.d{background:var(--blue)}.obdots i.c{background:var(--text);width:38px}
+.obb{flex:1;overflow-y:auto;padding:18px 20px}
+.obt{font-size:24px;margin:10px 0 6px}.obs{color:var(--muted);margin:0 0 18px;line-height:1.8}
+.obi{width:100%;margin-top:8px}
+.obg{display:flex;gap:14px;margin-top:20px}
+.obc{flex:1;aspect-ratio:1/1.1;border-radius:20px;background:var(--card);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px solid transparent;transition:transform .15s,border-color .2s}
+.obc span{font-size:46px}.obc b{font-size:18px}.obc:active{transform:scale(.95)}.obc.on{border-color:var(--blue)}
+.obl{margin-top:10px;display:flex;flex-direction:column}
+.obr{text-align:start;padding:14px 6px;border-bottom:.5px solid var(--sep);color:var(--text);font-size:16px}
+.obr.on{color:var(--blue);font-weight:700}.obr:active{background:var(--chip2)}
+.obf{padding:12px 20px calc(16px + env(safe-area-inset-bottom))}
+.obdone{text-align:center;padding-top:90px}
+.mcta .obl2{margin-top:10px;font-size:13px;opacity:.85;text-decoration:underline;cursor:pointer}

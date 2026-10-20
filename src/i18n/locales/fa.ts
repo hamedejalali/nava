@@ -22,9 +22,9 @@ export const fa: Dictionary = {
       `${textEmoji("P1", "1️⃣")} نوا چیه؟\n` +
       `یه ربات چت #ناشناس که میتونی باهاش با افراد مختلف حرف بزنی و وقت بگذرونی.\n\n` +
       `${textEmoji("P2", "2️⃣")} چجوری #رایگان از ربات استفاده کنم؟\n` +
-      `با 《🎲جستجوی شانسی》 بصورت نامحدود و  بدون نیاز به رلیک چت کن !\n\n` +
-      `${textEmoji("P3", "3️⃣")} چجوری دوستامو دعوت کنم و #رلیک بدست بیارم؟\n` +
-      `کافیه /link رو بزنی و لینک مخصوص خودتو دریافت کنی ، با معرفی هرکدوم از دوستات ۲۰ تا رلیک کوین بگیری 😍\n\n` +
+      `با 《🎲جستجوی شانسی》 بصورت نامحدود و  بدون نیاز به XP چت کن !\n\n` +
+      `${textEmoji("P3", "3️⃣")} چجوری دوستامو دعوت کنم و #XP بدست بیارم؟\n` +
+      `کافیه /link رو بزنی و لینک مخصوص خودتو دریافت کنی ، با معرفی هرکدوم از دوستات ۲۰ تا XP کوین بگیری 😍\n\n` +
       `${textEmoji("P4", "4️⃣")} اطلاعاتمو چجوری ویرایش کنم؟\n` +
       `همونطور که میدونی تو این ربات یه #پروفایل داری ! برای ویرایش کردن اطلاعاتت گزینه 《👤 پروفایل》  رو از منو انتخاب کن بعد《 📝 ویرایش پروفایل》 رو بزن.\n\n` +
       `${textEmoji("P5", "5️⃣")} سوالامو از کجا بپرسم؟\n` +
@@ -106,7 +106,7 @@ export const fa: Dictionary = {
       `{{NAVA_EMOJI}} چت شما با /${anonId} توسط مخاطب شما قطع شد.\n\n` +
       `برای گزارش عدم رعایت قوانین (/ghavanin) می توانید با لمس 《 🚫 گزارش کاربر 》 در پروفایل، کاربر را گزارش کنید.`,
 
-    chatCashback: "{{RELIC_EMOJI}} تعداد 1 رلیک به دلیل ناموفق بودن چت به حساب شما برگشت!",
+    chatCashback: "{{RELIC_EMOJI}} تعداد 1 XP به دلیل ناموفق بودن چت به حساب شما برگشت!",
 
     profileViewNotification:
       "پیام ربات 👇\n\n" +
@@ -120,10 +120,10 @@ export const fa: Dictionary = {
     searchUsers: "جستجوی کاربران",
     guide: "راهنما",
     profile: "پروفایل",
-    relicCoin: "رلیک کوین",
+    relicCoin: "XP کوین",
     feedback: "پیشنهادات و انتقادات",
     myAnonymousLink: "لینک ناشناس من",
-    inviteFriends: "دعوت دوستان (رلیک کوین رایگان)",
+    inviteFriends: "دعوت دوستان (XP کوین رایگان)",
     contacts: "مخاطبین من",
   },
 
@@ -141,23 +141,23 @@ export const fa: Dictionary = {
     exemptConfirmation: "باشه، دیگه لازم نیست توی کانال‌های اسپانسری عضو بشی ✅",
     nearbyUnavailable: "موقعیت مکانی شما هنوز ثبت نشده، فعلاً این نوع جستجو در دسترس نیست.",
     alreadyInChat: "شما همین الان توی یه چت فعال هستید.",
-    insufficientBalance: "😔 موجودی رلیک شما کافی نیست. برای اتصال به چت ناشناس به ۱ رلیک نیاز داری.",
+    insufficientBalance: "😔 موجودی XP شما کافی نیست. برای اتصال به چت ناشناس به ۱ XP نیاز داری.",
     searchTimedOut: "⏳ زمان جستجو تموم شد و کسی پیدا نشد. می‌تونی دوباره تلاش کنی.",
     rateLimited: "⚠️ یکم آروم‌تر! لطفاً چند ثانیه صبر کن و دوباره امتحان کن.",
   },
 
   relic: {
-    transferButton: "ارسال رلیک",
-    amountPrompt: "چند رلیک می‌خوای بفرستی؟ فقط عدد بفرست.",
+    transferButton: "ارسال XP",
+    amountPrompt: "چند XP می‌خوای بفرستی؟ فقط عدد بفرست.",
     invalidAmount: "عدد واردشده معتبر نیست. یه عدد صحیح و مثبت بفرست.",
-    cannotTransferToSelf: "نمی‌تونی به خودت رلیک بفرستی!",
-    insufficientForTransfer: "😔 موجودی رلیک شما برای این انتقال کافی نیست.",
-    transferConfirmMessage: (amount: number, anonId: string) => `آیا از ارسال ${amount} رلیک به ${anonId} مطمئن هستید؟`,
+    cannotTransferToSelf: "نمی‌تونی به خودت XP بفرستی!",
+    insufficientForTransfer: "😔 موجودی XP شما برای این انتقال کافی نیست.",
+    transferConfirmMessage: (amount: number, anonId: string) => `آیا از ارسال ${amount} XP به ${anonId} مطمئن هستید؟`,
     confirmButton: "✅ تأیید",
     cancelTransferButton: "❌ لغو",
-    transferSuccess: "✅ رلیک با موفقیت ارسال شد.",
+    transferSuccess: "✅ XP با موفقیت ارسال شد.",
     transferCancelled: "انتقال لغو شد.",
-    transferReceived: (amount: number, anonId: string) => `🎉 ${amount} رلیک از طرف ${anonId} برات ارسال شد!`,
+    transferReceived: (amount: number, anonId: string) => `🎉 ${amount} XP از طرف ${anonId} برات ارسال شد!`,
   },
 
   photo: {

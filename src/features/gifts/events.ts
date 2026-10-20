@@ -14,18 +14,18 @@ export function registerGiftEvents(composer: Composer<NavaContext>) {
       ended: "زمان این حراج تموم شده.",
       owner: "صاحب حراج نمی‌تونه پیشنهاد بده.",
       already_top: "پیشنهاد تو همین الان بالاترینه.",
-      insufficient: "رلیکت برای این پیشنهاد کافی نیست. از ربات کیف پول رلیک بخر و به ربات منتقل کن.",
+      insufficient: "XP‌ت برای این پیشنهاد کافی نیست. از ربات کیف پول XP بخر و به ربات منتقل کن.",
       not_found: "این حراج پیدا نشد.",
       busy: "همزمان چند نفر پیشنهاد دادن؛ دوباره بزن.",
     };
-    if (r.status === "ok") return void (await ctx.answerCallbackQuery({ text: `✅ پیشنهاد ${r.amount} رلیک ثبت شد.`, show_alert: true }));
+    if (r.status === "ok") return void (await ctx.answerCallbackQuery({ text: `✅ پیشنهاد ${r.amount} XP ثبت شد.`, show_alert: true }));
     await ctx.answerCallbackQuery({ text: msg[r.status] ?? "نشد.", show_alert: true });
   });
 
   composer.callbackQuery(new RegExp(`^${JOIN_PREFIX}([A-Za-z0-9_-]{6,24})$`), async (ctx) => {
     if (!ready(ctx)) return void (await ctx.answerCallbackQuery({ text: "اول ربات رو استارت کن و ثبت‌نامت رو کامل کن.", show_alert: true }));
     const id = ctx.match![1]!;
-    const r = await joinGiveaway(id, ctx.from!.id);
+    const r = await joinGiveaway(id, ctx.from!.id, new Date(), ctx.api);
     const text =
       r === "joined" ? `🎉 ثبت شد! تا الان ${await countEntries(id)} نفر شرکت کردن.`
       : r === "already" ? "قبلاً شرکت کردی؛ موفق باشی!"

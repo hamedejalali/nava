@@ -138,7 +138,7 @@ async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId
 
   const decisionKb = inlineKeyboard([
     [
-      glassButton("✅ تایید (۵ رلیک پاداش)", `${DECISION_CB.approve}${report._id}`, "success"),
+      glassButton("✅ تایید (۵ XP پاداش)", `${DECISION_CB.approve}${report._id}`, "success"),
       glassButton("❌ رد", `${DECISION_CB.reject}${report._id}`, "danger"),
     ],
   ]);
@@ -180,7 +180,7 @@ async function decide(ctx: NavaContext, reportId: string, decision: "approved" |
     const relicEmoji = textEmoji("RELIC", "💰");
     if (rewarded) {
       await ctx.api
-        .sendMessage(report.reporterId, `✅ گزارش شما بررسی و تایید شد.\n${relicEmoji} ۵ رلیک به‌عنوان پاداش به حساب شما اضافه شد.`)
+        .sendMessage(report.reporterId, `✅ گزارش شما بررسی و تایید شد.\n${relicEmoji} ۵ XP به‌عنوان پاداش به حساب شما اضافه شد.`)
         .catch(() => {});
     }
   } else {

@@ -4,10 +4,10 @@
   var NG = window.NG, $ = NG.$, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;
 
   /* ------------------------------------------------------------------ shell */
-  var TABS = ["home", "explore", "search", "profile"];
-  var ORDER = ["profile", "search", "explore", "home"]; // rendered LTR => Home sits on the right (RTL feel)
+  var TABS = ["home", "explore", "match", "search", "profile"];
+  var ORDER = ["profile", "search", "match", "explore", "home"]; // rendered LTR => Home sits on the right (RTL feel)
   var pages = (NG.pages = {}), current = "home", tabbar, pill, scrollAt = {};
-  var profileV = null;
+  var profileV = null, matchV = null;
 
   function buildShell() {
     NG.col.innerHTML = "";
@@ -44,6 +44,8 @@
   NG.onScreens = function (n) { if (tabbar) tabbar.classList.toggle("away", n > 0); };
 
   NG.selectTab = function (t, user) {
+    // not registered in the bot yet: only the Matching preview is open; everything else says "register first"
+    if (NG.guest && t !== "match") { NG.haptic("err"); NG.toast("ابتدا ثبت‌نام کنید"); return; }
     if (user) NG.haptic("sel");
     var pg = pages[t];
     if (t === current && user) {
@@ -60,6 +62,7 @@
     pg.scrollTop = scrollAt[t] || 0;
     movePill();
     if (t === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
+    if (t === "match") { if (!matchV) matchV = NG.matchView(pages.match); else matchV.reload(); }
     if (t === "search") renderSearch(true);
     if (t === "profile") { renderProfileTab(); }
   };
@@ -179,7 +182,7 @@
     var o = d.old, m = d.me;
     setTabAvatar();
     if (o && m && profileV && o.relic !== m.relic) profileV.setRelic(m.relic);
-    if (o && m && (o.av !== m.av || o.name !== m.name || o.age !== m.age || !!o.photoPending !== !!m.photoPending || o.pendingName !== m.pendingName || o.pendingAge !== m.pendingAge)) {
+    if (o && m && (o.av !== m.av || o.name !== m.name || o.age !== m.age || o.username !== m.username || o.bio !== m.bio || !!o.photoPending !== !!m.photoPending || o.pendingName !== m.pendingName || o.pendingAge !== m.pendingAge)) {
       if (profileV) profileV.reload();
       if (o.av !== m.av) { NG.refresh(); NG.refreshTray(); }
       if (o.photoPending && !m.photoPending && o.av === m.av) NG.toast("درخواست عکس پروفایل بررسی شد.");
@@ -200,6 +203,7 @@
   }
   function applyPulse(d) {
     var m = NG.me; if (!m) return;
+    if (d.sig != null) { if (NG.sigSeen != null && NG.sigSeen !== d.sig) NG.refreshMe(); NG.sigSeen = d.sig; }
     if (d.relic != null && d.relic !== m.relic) { m.relic = d.relic; if (profileV) profileV.setRelic(d.relic); }
     if ((d.requests || 0) !== (m.requests || 0) || !!d.isPrivate !== !!m.isPrivate) {
       m.requests = d.requests || 0; m.isPrivate = !!d.isPrivate;
@@ -238,10 +242,17 @@
     var t0 = Date.now();
     function reveal() { var wait = Math.max(0, 1500 - (Date.now() - t0)); setTimeout(NG.hideSplash, wait); }
     if (!NG.initData) { NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن."); return; }
+    NG.splashProgress(30);
     NG.api("whoami").then(function (r) {
+      NG.splashProgress(60);
       if (!r.ok) {
         var er = r.data && r.data.error;
         if (NG.actAs && (er === "not_found" || er === "forbidden" || er === "not_registered")) { NG.setActAs(null); location.reload(); return; }
+        if (er === "not_registered") {
+          // guest preview: Matching tab with 5 fictional-member cards, nothing else
+          NG.guest = true; NG.me = null; buildShell();
+          NG.selectTab("match"); reveal(); return;
+        }
         NG.fail(r); return;
       }
       if (r.data.role === "staff") { location.replace("/monitor/"); return; }
@@ -249,6 +260,7 @@
       buildShell(); renderExploreShell();
       if (r.data.acting) actBanner();
       pages.home.classList.add("on"); movePill();
+      NG.splashProgress(80);
       var done = NG.renderHome(pages.home);
       var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); };
       if (done && done.then) done.then(fin, fin); else fin();

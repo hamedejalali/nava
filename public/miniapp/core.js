@@ -63,6 +63,8 @@
   var P = (NG.P = {
     homeO: '<path d="M9.005 16.545a2.997 2.997 0 0 1 2.997-2.997A2.997 2.997 0 0 1 15 16.545V22h7V11.543L12 2 2 11.543V22h7.005Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>',
     homeF: '<path d="M22 23h-6.001a1 1 0 0 1-1-1v-5.455a2.997 2.997 0 1 0-5.993 0V22a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V11.543a1.002 1.002 0 0 1 .31-.724l10-9.543a1.001 1.001 0 0 1 1.38 0l10 9.543a1.002 1.002 0 0 1 .31.724V22a1 1 0 0 1-1 1Z" fill="currentColor"/>',
+    matchO: '<rect x="4" y="3" width="16" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16.2s-3.6-2.2-3.6-4.8a2 2 0 0 1 3.6-1.2 2 2 0 0 1 3.6 1.2c0 2.6-3.6 4.8-3.6 4.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    matchF: '<rect x="4" y="3" width="16" height="18" rx="4" fill="currentColor"/><path d="M12 16.2s-3.6-2.2-3.6-4.8a2 2 0 0 1 3.6-1.2 2 2 0 0 1 3.6 1.2c0 2.6-3.6 4.8-3.6 4.8Z" fill="var(--bg)"/>',
     exploreO: '<polygon fill="none" points="13.941 13.953 7.581 16.424 10.06 10.056 16.42 7.585 13.941 13.953" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/><polygon fill="currentColor" fill-rule="evenodd" points="10.06 10.056 13.941 13.953 7.581 16.424 10.06 10.056"/><circle cx="12.001" cy="12.005" fill="none" r="10.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>',
     exploreF: '<path d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5Zm4.42 7.085a.5.5 0 0 1 .64.64l-2.6 6.66a.5.5 0 0 1-.29.29l-6.66 2.6a.5.5 0 0 1-.64-.64l2.6-6.66a.5.5 0 0 1 .29-.29Z" fill="currentColor" fill-rule="evenodd"/><path d="M10.06 10.056l3.881 3.897-6.36 2.471Z" fill="currentColor"/>',
     searchO: '<path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="16.511" x2="22" y1="16.511" y2="22"/>',
@@ -104,7 +106,7 @@
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
   };
   var ERR = {
-    insufficient: "رلیک کافی نیست", too_fast: "کمی صبر کن و دوباره امتحان کن.", too_many: "به سقف مجاز امروز رسیدی.",
+    insufficient: "XP کافی نیست", need_photo: "برای این بخش اول باید عکس پروفایلت تأیید شده باشه.", not_registered: "ابتدا از داخل ربات ثبت‌نام کنید", too_fast: "کمی صبر کن و دوباره امتحان کن.", too_many: "به سقف مجاز امروز رسیدی.",
     bad_image: "این عکس قابل استفاده نیست.", text_too_long: "متن خیلی طولانیه.", bad_text: "متن معتبر نیست.", bad_input: "ورودی نامعتبره.",
     forbidden: "اجازه‌ی این کار رو نداری.", comments_off: "کامنت‌ها برای این پست بسته شده.", not_found: "پیدا نشد (ممکنه حذف شده باشه).",
     share_unavailable: "الان اشتراک‌گذاری ممکن نیست.", unavailable: "فعلاً امکانش نیست.", self: "این کار روی خودت ممکن نیست.",
@@ -131,9 +133,28 @@
     };
     NG.hideSplash();
   };
+  /** force-join: lists the channels still missing (with join buttons) and a re-check that does not need the app to be reopened */
+  NG.joinScreen = function (channels) {
+    var h = '<div class="fatal"><h3>عضویت در کانال‌ها لازمه</h3>' + NG.esc("اول داخل این کانال‌ها عضو شو، بعد دکمه‌ی «بررسی دوباره» رو بزن.") + "<div>";
+    (channels || []).forEach(function (c, i) { h += '<a class="btn blue tall fatalbtn jn" href="#" data-i="' + i + '" style="display:block;margin:8px 0">' + NG.esc(c.title || "کانال") + "</a>"; });
+    h += '<a class="btn tall fatalbtn" href="#" id="jnre" style="display:block;margin:8px 0">✅ بررسی دوباره</a></div></div>';
+    NG.col.innerHTML = h;
+    NG.col.querySelectorAll(".jn").forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault();
+        var url = (channels[Number(a.getAttribute("data-i"))] || {}).url;
+        if (!url) return;
+        try { if (window.Telegram && Telegram.WebApp && /^https:\/\/t\.me\//i.test(url)) return Telegram.WebApp.openTelegramLink(url); } catch (x) {}
+        window.open(url, "_blank");
+      };
+    });
+    NG.col.querySelector("#jnre").onclick = function (e) { e.preventDefault(); location.reload(); };
+    NG.hideSplash();
+  };
   NG.fail = function (r) {
     var e = r && r.data && r.data.error;
-    if (e === "join_required") return NG.fatal("عضویت در کانال‌ها لازمه", "اول داخل کانال‌های ربات عضو شو، بعد دوباره مینی‌اپ رو باز کن.");
+    if (e === "join_required") return NG.joinScreen((r.data && r.data.channels) || []);
+    if (e === "not_registered" && NG.guest) return NG.toast("ابتدا ثبت‌نام کنید");
     if (e === "not_registered") return NG.fatal("ثبت‌نام کامل نیست", "اول ثبت‌نام رو داخل ربات کامل کن (/start).");
     if (e === "maintenance") return NG.fatal("🛠 نوا در حال به‌روزرسانی است", (r.data && r.data.text) || "به‌زودی برمی‌گردیم.");
     if (e === "banned") return NG.fatal("شما مسدود شدید", "برای رفع مسدودیت به پشتیبانی پیام بدین.", r.data.support ? { label: "📩 پیام به پشتیبانی", url: r.data.support } : null);
@@ -145,7 +166,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.19.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.21.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -184,8 +205,25 @@
   document.addEventListener("pointerdown", function (e) { NG.lastTap = { x: e.clientX, y: e.clientY, t: Date.now() }; }, true);
 
   NG.netErr = function () { NG.toast("اتصال برقرار نیست."); };
+  /** splash progress bar (0..100) — only ever moves forward */
+  var splashPct = 6;
+  NG.splashProgress = function (p) {
+    var b = $("splashbar"); if (!b || p <= splashPct) return;
+    splashPct = Math.min(100, p); b.style.width = splashPct + "%";
+  };
+  // optional artwork (assets/logo.png, assets/splash-bg.jpg): used only if the file really exists
+  (function () {
+    function probe(url, ok) { var i = new Image(); i.onload = function () { ok(url); }; i.src = url; }
+    probe("assets/splash-bg.jpg?v=1", function (u) { var s = $("splash"); if (s) { s.style.setProperty("--splash-bg", "url('" + u + "')"); s.classList.add("has-bg"); } });
+    probe("assets/logo.png?v=1", function (u) {
+      var w = document.querySelector("#splash .logo-wrap"); if (!w) return;
+      var img = document.createElement("img"); img.className = "logo-img"; img.alt = ""; img.src = u;
+      var svgEl = w.querySelector(".logo"); if (svgEl) svgEl.replaceWith(img);
+    });
+  })();
   NG.hideSplash = function () {
     var s = $("splash"); if (!s) return;
+    NG.splashProgress(100);
     s.classList.add("gone"); setTimeout(function () { if (s.parentNode) s.remove(); }, 520);
   };
 

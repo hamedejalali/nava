@@ -161,6 +161,21 @@ export const env = {
     throw new Error('[env] STARS_PACKAGES is not valid JSON of the form [{"stars":50,"relic":10}, ...]');
   },
 
+  /** Wallet -> Nava XP integration (see docs/WALLET_API.md). These are SECRETS: set them only in Vercel's
+   *  Environment Variables, never in source control. Missing = the integration stays OFF (503), nothing else breaks. */
+  wallet: {
+    get keyId(): string | undefined {
+      return optional("WALLET_API_KEY_ID")?.trim();
+    },
+    get secret(): string | undefined {
+      return optional("WALLET_API_SECRET")?.trim();
+    },
+    /** second secret accepted during a rotation (put the new one here, switch the Wallet, then promote it) */
+    get secretNext(): string | undefined {
+      return optional("WALLET_API_SECRET_NEXT")?.trim();
+    },
+  },
+
   // Admin IDs are optional at this stage of the project (introduced fully in
   // Feature 04). Parsed as an array of Telegram numeric user IDs.
   get ADMIN_IDS(): number[] {

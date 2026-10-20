@@ -11,35 +11,71 @@ h1{font-size:18px;margin:0 0 4px}.sub{color:var(--mu);font-size:12px;margin-bott
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.na{color:var(--mu);font-size:13px;font-weight:500}
 .note{color:var(--mu);font-size:11px;margin-top:4px}#err{color:var(--bad);text-align:center;margin:20px 0}
 button{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font:inherit}
+
+@keyframes up{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(62,207,142,.6)}100%{box-shadow:0 0 0 10px rgba(62,207,142,0)}}
+@keyframes shine{from{background-position:-200% 0}to{background-position:200% 0}}
+.card{animation:up .5s cubic-bezier(.2,.9,.3,1) both;transition:transform .2s,border-color .3s}.card:active{transform:scale(.985)}
+.card:hover{border-color:#3a4352}
+.v{font-variant-numeric:tabular-nums;transition:color .4s}
+.live{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ok);margin-inline-end:6px;animation:pulse 1.6s infinite}
+.live.off{background:var(--bad);animation:none}
+.skel{height:76px;border-radius:14px;background:linear-gradient(90deg,#151a21 25%,#1d242e 50%,#151a21 75%);background-size:200% 100%;animation:shine 1.4s linear infinite}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.acc{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 6px;cursor:pointer;transition:transform .15s}
+.acc:active{transform:scale(.95)}.acc .av{width:28px;height:28px;border-radius:50%;background:#2a3140 center/cover;display:flex;align-items:center;justify-content:center;font-size:13px}
+.acc .ch{font-size:11px;color:var(--mu)}
+.sheetbg{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;transition:opacity .25s;z-index:20}.sheetbg.on{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:70vh;overflow:auto;background:var(--card);border-radius:20px 20px 0 0;padding:10px 16px 28px;transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.9,.3,1);z-index:21}
+.sheet.on{transform:none}.sheet .grab{width:42px;height:4px;border-radius:4px;background:var(--line);margin:4px auto 12px}
+.sheet h3{margin:0 0 8px;font-size:16px}.arow{display:flex;align-items:center;gap:12px;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer}
+.arow:first-of-type{border-top:0}.arow .av{width:44px;height:44px;border-radius:50%;background:#2a3140 center/cover;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+.arow b{display:block}.arow span{color:var(--mu);font-size:12px}.arow .tick{margin-inline-start:auto;color:var(--ok);font-weight:800}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
-<h1>📊 مانیتورینگ نوا</h1><div class="sub" id="ts">در حال بارگذاری…</div><div class="sub"><a href="/miniapp/?as=user" style="color:#2aabee;text-decoration:none">🌐 باز کردن «نوا گرام» به‌عنوان کاربر</a></div>
+<div class="top"><h1><span class="live" id="lv"></span>مانیتورینگ نوا</h1><div class="acc" id="acc"><div class="av" id="accav">👤</div><b id="accn">Nava</b><span class="ch">⌄</span></div></div><div class="sub" id="ts">در حال بارگذاری…</div><div class="sub"><a href="/miniapp/?as=user" style="color:#2aabee;text-decoration:none">🌐 باز کردن «نوا گرام» به‌عنوان کاربر</a></div>
 <div id="err" hidden></div><div class="grid" id="g"></div>
 <p class="note">مقدارهایی که قابل اندازه‌گیری نیستند به‌جای عدد ساختگی «در دسترس نیست» نمایش داده می‌شوند. بار سیستم (٪) روی سرورلس معنا ندارد؛ به‌جای آن ترافیک، تأخیر و صف تلگرام نمایش داده می‌شود.</p>
 <button id="r">به‌روزرسانی</button>
 <script>
 const tg=window.Telegram&&Telegram.WebApp;if(tg){tg.ready();tg.expand()}
 const g=document.getElementById("g");
+g.innerHTML=Array(8).fill('<div class="skel"></div>').join("");
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
 function card(k,m,fmt,cls,wide,note){const c=el("div","card"+(wide?" wide":""));c.append(el("div","k",k));
  if(!m||!m.available){c.append(el("div","v na","در دسترس نیست"));if(m&&m.reason)c.append(el("div","note",m.reason))}
- else{const v=fmt(m.value);c.append(el("div","v "+(cls?cls(m.value):""),v))}
+ else{const v=fmt(m.value);const ve=el("div","v "+(cls?cls(m.value):""),v);c.append(ve);if(typeof m.value==="number"&&fmt===n)count(ve,k,m.value,n)}
  if(note)c.append(el("div","note",note));return c}
 const n=x=>Number(x).toLocaleString("fa-IR");
+const prev={};
+/* numbers glide to their new value instead of jumping */
+function count(node,key,to,fmt){const from=prev[key]==null?0:prev[key];prev[key]=to;if(from===to||matchMedia("(prefers-reduced-motion:reduce)").matches){node.textContent=fmt(to);return}const t0=performance.now(),D=700;(function f(t){const k=Math.min(1,(t-t0)/D),e=1-Math.pow(1-k,3);node.textContent=fmt(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(f)})(t0)}
 function win(w){return w.requests?`${n(w.requests)} درخواست · خطا ${w.errorRatePct}٪ · میانگین ${n(w.avgLatencyMs)}ms`:"بدون ترافیک ثبت‌شده"}
-function render(s){const T=s.thresholds;g.replaceChildren(
+function render(s){const T=s.thresholds;document.getElementById("lv").className="live";g.replaceChildren(
  card("دیتابیس (پینگ زنده)",s.database,v=>n(v.latencyMs)+" ms",v=>v.latencyMs>T.dbLatencyMs?"warn":"ok"),
  card("صف آپدیت تلگرام",s.telegramWebhook,v=>n(v.pending_update_count),v=>v.pending_update_count>=T.pendingUpdates?"warn":"ok"),
  card("ترافیک ۵ دقیقه اخیر",s.traffic.last5min,win,v=>v.errorRatePct!=null&&v.errorRatePct>=T.errorRatePct?"bad":"",true),
  card("ترافیک ۶۰ دقیقه اخیر",s.traffic.last60min,win,null,true),
  card("کاربران ثبت‌نام‌شده",s.users.registered,n),card("کل کاربران",s.users.total,n),
  card("چت‌های فعال",s.activity.activeChats,n),card("صف جستجو",s.activity.searchQueue,n),
- card("درخواست چت (۲۴س)",s.activity.chatRequests24h,n),card("تراکنش رلیک (۱س)",s.activity.ledgerEntries1h,n),
+ card("درخواست چت (۲۴س)",s.activity.chatRequests24h,n),card("تراکنش XP (۱س)",s.activity.ledgerEntries1h,n),
  card("بار سیستم (٪)",s.systemLoadPercent,String,null,true),
  card("آخرین خطای وب‌هوک",s.telegramWebhook,v=>v.last_error_message?v.last_error_message.slice(0,120):"ندارد",v=>v.last_error_message?"warn":"ok",true));
- document.getElementById("ts").textContent="به‌روزرسانی: "+new Date(s.generatedAt).toLocaleTimeString("fa-IR")}
+ document.getElementById("ts").textContent="به‌روزرسانی: "+new Date(s.generatedAt).toLocaleTimeString("fa-IR");[...g.children].forEach((c,i)=>c.style.animationDelay=(i*45)+"ms")}
 async function load(){const e=document.getElementById("err");
  try{const r=await fetch("/api/monitor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?tg.initData:"",action:"snapshot"})});
   if(r.status===401||r.status===403){e.hidden=false;e.textContent="دسترسی فقط برای مالک و ادمین‌ها است (از داخل تلگرام و با /monitor باز کنید).";g.replaceChildren();return}
-  if(!r.ok)throw 0;e.hidden=true;render(await r.json())}catch(x){e.hidden=false;e.textContent="خطا در دریافت اطلاعات"}}
+  if(!r.ok)throw 0;e.hidden=true;render(await r.json())}catch(x){e.hidden=false;e.textContent="خطا در دریافت اطلاعات";document.getElementById("lv").className="live off"}}
 document.getElementById("r").onclick=load;load();setInterval(load,20000);
+/* ---- Instagram-style account switcher: Nava first, then the default members; opens the app AS that account ---- */
+let accounts=null;
+function avStyle(a,node){if(a.av){node.style.backgroundImage="url('"+a.av+"')";node.textContent=""}else node.textContent=(a.name||"؟").charAt(0)}
+async function loadAccounts(){try{const r=await fetch("/api/monitor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?tg.initData:"",action:"accounts"})});if(r.ok){accounts=(await r.json()).items||[];const m=accounts.find(a=>a.main);if(m){document.getElementById("accn").textContent=m.name;avStyle(m,document.getElementById("accav"))}}}catch(e){}}
+function openSwitcher(){
+ if(!accounts)return;const bg=el("div","sheetbg"),sh=el("div","sheet");sh.append(el("div","grab"),el("h3",null,"تعویض اکانت"));
+ accounts.forEach(a=>{const row=el("div","arow");const av=el("div","av");avStyle(a,av);const t=el("div");const b=el("b",null,a.name+(a.verified?" ✔":""));t.append(b,el("span",null,a.main?"اکانت اصلی (Nava)":"ممبر پیش‌فرض"));row.append(av,t);if(a.main)row.append(el("div","tick","●"));
+  row.onclick=()=>{try{if(a.main)sessionStorage.removeItem("ng_actas");else sessionStorage.setItem("ng_actas",a.id)}catch(e){}location.href="/miniapp/?as=user"};sh.append(row)});
+ if(accounts.length<2)sh.append(el("div","note","هنوز ممبر پیش‌فرضی نساخته‌ای."));
+ const close=()=>{bg.classList.remove("on");sh.classList.remove("on");setTimeout(()=>{bg.remove();sh.remove()},330)};bg.onclick=close;document.body.append(bg,sh);requestAnimationFrame(()=>{bg.classList.add("on");sh.classList.add("on")})}
+document.getElementById("acc").onclick=openSwitcher;loadAccounts();
 </script></body></html>

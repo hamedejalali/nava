@@ -25,7 +25,7 @@ function defaultStarsPackages(): RelicPackage[] {
 }
 
 /** Placeholder gateway packages shown until you set real ones from the admin
- *  panel (💳 تنظیم قیمت رلیک ← قیمت‌های درگاه). price = Toman. */
+ *  panel (💳 تنظیم قیمت XP ← قیمت‌های درگاه). price = Toman. */
 export const DEFAULT_GATEWAY_PACKAGES: RelicPackage[] = [
   { price: 50_000, relic: 10 },
   { price: 100_000, relic: 25 },
