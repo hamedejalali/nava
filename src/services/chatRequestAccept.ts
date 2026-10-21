@@ -8,7 +8,7 @@ import { voidSearchNotices } from "../db/models/searchNotice.js";
 import { insertDeliveries, newDeliveryDocs } from "../db/models/matchDelivery.js";
 
 export type AcceptResult =
-  | { status: "accepted"; sessionId: string; fromId: number; toId: number }
+  | { status: "accepted"; sessionId: string; fromId: number; toId: number; origin: "bot" | "miniapp" }
   | { status: "not_pending" } // already answered / expired / not addressed to this user
   | { status: "busy" } // somebody is already in another chat
   | { status: "blocked" }
@@ -77,18 +77,20 @@ export async function acceptChatRequest(token: string, acceptorId: number, now =
           throw err;
         }
 
+        const origin: "bot" | "miniapp" = claimed.origin === "miniapp" ? "miniapp" : "bot";
         await sessions.insertOne(
-          { _id: sessionId, userA: fromId, userB: toId, active: true, createdAt: now },
+          { _id: sessionId, userA: fromId, userB: toId, active: true, createdAt: now, origin, ...(origin === "miniapp" ? { dmSeq: 0, readA: 0, readB: 0 } : {}) },
           { session: mongoSession }
         );
         await requests.updateOne({ _id: token }, { $set: { sessionId } }, { session: mongoSession });
-        // durable "tell both people" work, committed together with the session (see matchDelivery.ts)
-        await insertDeliveries(newDeliveryDocs(sessionId, [fromId, toId], "request", now), mongoSession);
+        // durable "tell both people" work, committed together with the session (see matchDelivery.ts).
+        // A Navagram (miniapp) chat happens INSIDE the app: the bot's "you are connected + keyboard" notice is not used.
+        if (origin === "bot") await insertDeliveries(newDeliveryDocs(sessionId, [fromId, toId], "request", now), mongoSession);
         // neither user should still be waiting in the random-search queue
         await queue.deleteMany({ _id: { $in: [fromId, toId] } }, { session: mongoSession });
         await voidSearchNotices([fromId, toId], mongoSession);
 
-        result = { status: "accepted", sessionId, fromId, toId };
+        result = { status: "accepted", sessionId, fromId, toId, origin };
       });
     } catch (err) {
       if (err instanceof Abort) return err.result;

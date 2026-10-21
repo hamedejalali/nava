@@ -4,10 +4,11 @@
   var NG = window.NG, $ = NG.$, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;
 
   /* ------------------------------------------------------------------ shell */
-  var TABS = ["home", "explore", "match", "search", "profile"];
-  var ORDER = ["profile", "search", "match", "explore", "home"]; // rendered LTR => Home sits on the right (RTL feel)
+  var TABS = ["home", "explore", "match", "dm", "profile"];
+  var ORDER = ["profile", "dm", "match", "explore", "home"]; // rendered LTR => Home sits on the right (RTL feel)
+  var ICON = { explore: "search", dm: "dm" }; // the Explore tab wears the magnifier; Directs sits where Search used to be
   var pages = (NG.pages = {}), current = "home", tabbar, pill, scrollAt = {};
-  var profileV = null, matchV = null;
+  var profileV = null, matchV = null, dmV = null, profileAt = 0;
 
   function buildShell() {
     NG.col.innerHTML = "";
@@ -16,7 +17,7 @@
     ORDER.forEach(function (t) {
       var b = el('<button class="tab" data-tab="' + t + '" aria-label="' + t + '"></button>');
       if (t === "profile") b.innerHTML = '<div class="av" id="tabav"></div>';
-      else b.innerHTML = '<span class="o">' + svg(t + "O", "") + '</span><span class="f">' + svg(t + "F", "") + "</span>";
+      else b.innerHTML = '<span class="o">' + svg((ICON[t] || t) + "O", "") + '</span><span class="f">' + svg((ICON[t] || t) + "F", "") + "</span>";
       b.addEventListener("click", function () { NG.selectTab(t, true); });
       tabbar.appendChild(b);
     });
@@ -51,8 +52,8 @@
     if (t === current && user) {
       if (pg.scrollTop > 4) pg.scrollTo({ top: 0, behavior: "smooth" });
       else if (t === "home") NG.refresh();
-      else if (t === "explore") loadExplore(true);
-      else if (t === "search") { var i = pg.querySelector("input"); if (i) i.focus(); }
+      else if (t === "explore") { var si = pg.querySelector("input"); if (si && si.value) { si.value = ""; si.oninput(); } else loadExplore(true); }
+      else if (t === "dm" && dmV) dmV.reload();
       else if (t === "profile" && profileV) profileV.reload();
       return;
     }
@@ -63,7 +64,7 @@
     movePill();
     if (t === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
     if (t === "match") { if (!matchV) matchV = NG.matchView(pages.match); else matchV.reload(); }
-    if (t === "search") renderSearch(true);
+    if (t === "dm") { if (!dmV) dmV = NG.dmView(pages.dm); else dmV.reload(); }
     if (t === "profile") { renderProfileTab(); }
   };
 
@@ -73,7 +74,7 @@
       profileV = NG.profileView(NG.me.id, { tab: true });
       pages.profile.innerHTML = ""; pages.profile.appendChild(profileV.node);
     }
-    profileV.reload();
+    if (Date.now() - profileAt > 15000) { profileAt = Date.now(); profileV.reload(); } // the live pulse keeps it fresh in between
   }
 
   /* ---------------------------------------------------------------- explore */
@@ -89,10 +90,19 @@
   }
   function renderExploreShell() {
     var pg = pages.explore; pg.innerHTML = "";
-    var sp = el('<button class="searchpill">' + svg("searchO", "") + "<span>جستجو</span></button>");
-    sp.onclick = function () { NG.selectTab("search", true); };
-    var top = el('<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding-top:6px"></div>'); top.appendChild(sp);
-    pg.appendChild(top);
+    var bar = el('<div class="sbar" style="position:sticky;top:0;z-index:5;background:var(--bg)"><div class="field">' + svg("searchO", "") + '<input type="text" placeholder="جستجوی نام یا یوزرنیم" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40"><button class="x hide" aria-label="clear">' + svg("close", "") + "</button></div></div>");
+    pg.appendChild(bar);
+    var sres = el('<div id="sres" class="hide"></div>'); pg.appendChild(sres);
+    var inp = bar.querySelector("input"), xb = bar.querySelector(".x");
+    function mode() { var on = !!inp.value.trim() || document.activeElement === inp; $("xgrid").classList.toggle("hide", on); $("xspin").classList.add("hide"); sres.classList.toggle("hide", !on); }
+    inp.oninput = function () {
+      xb.classList.toggle("hide", !inp.value); mode();
+      clearTimeout(searchT); searchT = setTimeout(function () { searchQuery(inp.value); }, 240);
+    };
+    inp.onfocus = function () { mode(); if (!searchedOnce) { searchedOnce = true; searchQuery(inp.value); } };
+    inp.onblur = function () { if (!inp.value.trim()) setTimeout(mode, 120); };
+    xb.onclick = function () { inp.value = ""; xb.classList.add("hide"); searchQuery(""); inp.focus(); };
+    inp.onkeydown = function (e) { if (e.key === "Enter") { clearTimeout(searchT); searchQuery(inp.value); inp.blur(); } };
     pg.appendChild(el('<div class="grid" id="xgrid"></div>'));
     pg.appendChild(el('<div class="more-spin hide" id="xspin"><div class="spin"></div></div>'));
     pg.appendChild(el('<div id="xend" style="height:2px"></div>'));
@@ -117,7 +127,7 @@
   }
 
   /* ----------------------------------------------------------------- search */
-  var searchSeq = 0, searchT = null, searchBuilt = false;
+  var searchSeq = 0, searchT = null, searchedOnce = false;
   function userRow(u, o) {
     o = o || {};
     var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + NG.vb(u) + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
@@ -130,23 +140,6 @@
       r.appendChild(x);
     }
     return r;
-  }
-  function renderSearch(focus) {
-    var pg = pages.search;
-    if (!searchBuilt) {
-      searchBuilt = true; pg.innerHTML = "";
-      var bar = el('<div class="sbar"><div class="field">' + svg("searchO", "") + '<input type="text" placeholder="جستجو" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40"><button class="x hide" aria-label="clear">' + svg("close", "") + "</button></div></div>");
-      pg.appendChild(bar); pg.appendChild(el('<div id="sres"></div>'));
-      var inp = bar.querySelector("input"), x = bar.querySelector(".x");
-      inp.oninput = function () {
-        x.classList.toggle("hide", !inp.value);
-        clearTimeout(searchT); searchT = setTimeout(function () { searchQuery(inp.value); }, 240);
-      };
-      x.onclick = function () { inp.value = ""; x.classList.add("hide"); searchQuery(""); inp.focus(); };
-      inp.onkeydown = function (e) { if (e.key === "Enter") { clearTimeout(searchT); searchQuery(inp.value); inp.blur(); } };
-      searchQuery("");
-    } else if (!pages.search.querySelector("input").value) searchQuery("");
-    if (focus) { var i = pg.querySelector("input"); setTimeout(function () { try { i.focus(); } catch (e) {} }, 60); }
   }
   function searchQuery(q) {
     var box = $("sres"); if (!box) return;
@@ -194,12 +187,12 @@
   var pulseT = null, pulsing = false;
   function pulse() {
     clearTimeout(pulseT);
-    if (document.hidden || !NG.me || pulsing) { pulseT = setTimeout(pulse, 6000); return; }
+    if (document.hidden || !NG.me || pulsing) { pulseT = setTimeout(pulse, 4000); return; }
     pulsing = true;
     NG.api("pulse").then(function (r) {
       pulsing = false;
       if (r.ok) applyPulse(r.data);
-    }).catch(function () { pulsing = false; }).then(function () { clearTimeout(pulseT); pulseT = setTimeout(pulse, 6000); });
+    }).catch(function () { pulsing = false; }).then(function () { clearTimeout(pulseT); pulseT = setTimeout(pulse, 4000); });
   }
   function applyPulse(d) {
     var m = NG.me; if (!m) return;
@@ -210,6 +203,14 @@
       if (profileV) profileV.reload();
     }
     NG.setPulse(d.unread);
+    if (d.dm) {
+      var prevSid = NG.dmSid || null;
+      NG.dmSid = d.dm.sid || null;
+      NG.setDmBadge((d.dm.unread || 0) + (d.dm.requests || 0));
+      if (d.dm.unread > (NG.dmUnread || 0) || (d.dm.requests || 0) > (NG.dmReq || 0) || NG.dmSid !== prevSid) NG.emit("dm:changed");
+      if (NG.dmSid && !prevSid && NG.dmReady) NG.toast("💬 یه چت جدید شروع شد");
+      NG.dmUnread = d.dm.unread || 0; NG.dmReq = d.dm.requests || 0; NG.dmReady = true;
+    }
   }
   NG.pulse = pulse;
   document.addEventListener("visibilitychange", function () {
@@ -237,6 +238,16 @@
     document.body.appendChild(b);
   }
 
+  /** warms the other tabs while the user looks at Home, so switching tabs is instant */
+  function prefetch() {
+    if (NG.guest || document.hidden) return;
+    try {
+      if (!expl.loaded && !expl.loading) loadExplore(true);
+      if (!dmV) dmV = NG.dmView(pages.dm);
+      if (!matchV) matchV = NG.matchView(pages.match);
+      if (!profileV) { renderProfileTab(); }
+    } catch (e) {}
+  }
   /* -------------------------------------------------------------------- boot */
   function boot() {
     var t0 = Date.now();
@@ -262,7 +273,7 @@
       pages.home.classList.add("on"); movePill();
       NG.splashProgress(80);
       var done = NG.renderHome(pages.home);
-      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); };
+      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); setTimeout(prefetch, 1500); };
       if (done && done.then) done.then(fin, fin); else fin();
       setTimeout(movePill, 120);
     }).catch(function () { NG.fatal("اتصال برقرار نیست", "اینترنتت رو چک کن و دوباره باز کن."); });

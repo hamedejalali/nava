@@ -1,3 +1,4 @@
+import { cleanBadges } from "../../config/badges.js";
 import { createHash, randomBytes } from "node:crypto";
 import { getDb } from "../../db/connect.js";
 import { getBlockedCounterparts } from "../../db/models/blocks.js";
@@ -23,6 +24,7 @@ export const C = {
   followRequests: "mini_follow_requests",
   stories: "mini_stories",
   storyViews: "mini_story_views",
+  storyLikes: "mini_story_likes",
   highlights: "mini_highlights",
   gifts: "mini_gifts",
   giftDefs: "mini_gift_defs",
@@ -137,6 +139,8 @@ export interface Brief {
   verified: boolean;
   /** the official account (the owner's «Nava»): a gold coin next to the blue tick */
   gold?: true;
+  /** badges (ids from config/badges.ts) shown next to the name; absent = none */
+  bd?: string[];
   pv: string | null; // photo version (null = no photo)
   story: 0 | 1 | 2; // 0 none, 1 all seen, 2 has unseen
 }
@@ -174,6 +178,7 @@ export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> 
     name: u.nickname ?? "-",
     verified: !!u.verified || isOfficial(u._id),
     ...(isOfficial(u._id) ? { gold: true as const } : {}),
+    ...(Array.isArray(u.badges) && u.badges.length ? { bd: cleanBadges(u.badges) } : {}),
     pv: photoVer(u.profilePhotoFileId),
     story: (st.get(u._id) ?? 0) as 0 | 1 | 2,
   }));

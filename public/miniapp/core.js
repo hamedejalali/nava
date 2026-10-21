@@ -92,6 +92,8 @@
     archive: '<rect x="3" y="4" width="18" height="4.5" rx="1" ' + S + ' stroke-width="2"/><path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5M10 13h4" ' + S + ' stroke-width="2"/>',
     edit: '<path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z" ' + S + ' stroke-width="2"/>',
     star: '<path d="m12 3 2.7 5.7 6.3.8-4.6 4.3 1.2 6.2L12 17l-5.6 3 1.2-6.2L3 9.5l6.3-.8Z" ' + S + ' stroke-width="1.8"/>',
+    dmO: '<line fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2" x1="22" x2="9.218" y1="3" y2="10.083"/><polygon fill="none" points="11.698 20.334 22 3.001 2 3.001 9.218 10.084 11.698 20.334" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>',
+    dmF: '<polygon points="11.698 20.334 22 3.001 2 3.001 9.218 10.084 11.698 20.334" fill="currentColor" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/><line fill="none" stroke="var(--bg)" stroke-linejoin="round" stroke-width="2" x1="22" x2="9.218" y1="3" y2="10.083"/>',
     chat: '<path d="M4 5.5h16v10.5H9.5L5.5 20v-4H4Z" ' + S + ' stroke-width="2"/>'
   });
   NG.VERIFIED = '<svg class="verified" viewBox="0 0 40 40"><path d="M19.998 3.094 14.638 0l-2.972 5.15H5.432v6.354L0 14.64 3.094 20 0 25.359l5.432 3.137v5.905h5.975L14.638 40l5.36-3.094L25.358 40l3.232-5.6h6.162v-6.01L40 25.359 36.905 20 40 14.641l-5.248-3.03v-6.46h-6.419L25.358 0l-5.36 3.094Z" fill="#0095f6"/><path d="M28.452 14.97 17.4 26.02l-5.47-5.47" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -112,7 +114,7 @@
     share_unavailable: "الان اشتراک‌گذاری ممکن نیست.", unavailable: "فعلاً امکانش نیست.", self: "این کار روی خودت ممکن نیست.",
     bad_gift: "این هدیه در دسترس نیست.", bad_name: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
     same_value: "این مقدار همونیه که الان داری.", pending_request: "یه درخواست در حال بررسی داری.", bio_too_long: "بیوگرافی حداکثر ۳۰۰ کاراکتر.",
-    taken: "این یوزرنیم قبلاً انتخاب شده", sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
+    taken: "این یوزرنیم قبلاً انتخاب شده", chat_ended: "این چت تموم شده.", contact_forbidden: "فرستادن آیدی/شماره/لینک تلگرام مجاز نیست.", busy: "الان توی یه بازی/چت دیگه‌ای هستی.", not_your_turn: "نوبت تو نیست.", illegal_move: "این حرکت مجاز نیست.",  sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
   };
   /** The account the owner is working as (a default member's Nava ID), remembered for this session only. */
   NG.actAs = null;
@@ -166,7 +168,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.21.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.22.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

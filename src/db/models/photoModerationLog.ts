@@ -23,6 +23,8 @@ export interface PhotoModerationDoc {
   receiverMessageId: number;
   chatSessionId: string;
   fileId: string;
+  /** set for a photo sent in a Navagram direct-message chat (`dm_messages` _id); then there is no Telegram copy to delete */
+  dmMessageId?: string;
   status: PhotoModerationStatus;
   /** Result of the real AI check (Sightengine) — informational only, never
    *  gates delivery. Absent if the AI service call itself failed. */
@@ -53,6 +55,7 @@ export async function createPhotoModerationLog(input: {
   receiverMessageId: number;
   chatSessionId: string;
   fileId: string;
+  dmMessageId?: string;
   aiFlagged?: boolean;
   aiScore?: number;
   aiClassification?: string;

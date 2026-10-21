@@ -1,3 +1,5 @@
+import { checkRateLimit } from "../../utils/rateLimit.js";
+import { dropNotifs, notifKey, pushNotif } from "./notifs.js";
 import { ARCHIVE_MS, C, SocialError, STORY_TTL_MS, col, cleanText, findVisibleUser, hiddenOwnerIds, isId, lockedOwnerIds, newId, toBriefs, usersCol, type Brief } from "./common.js";
 import { decodeImage, deleteMedia, storeMedia } from "./media.js";
 
@@ -23,6 +25,9 @@ export interface StoryView {
   expiresAt: number;
   seen: boolean;
   views?: number; // owner only
+  likes?: number; // owner only
+  /** I liked it (viewer) */
+  liked?: boolean;
 }
 export interface HighlightDoc {
   _id: string;
@@ -56,9 +61,11 @@ export async function createStory(owner: any, imageRaw: unknown, captionRaw: unk
   return { id: doc._id, mediaId, caption, at: now.getTime(), expiresAt: doc.expiresAt.getTime(), seen: true, views: 0 };
 }
 
-function toView(d: StoryDoc, seen: boolean, views?: number): StoryView {
+function toView(d: StoryDoc, seen: boolean, views?: number, extra: { likes?: number; liked?: boolean } = {}): StoryView {
   const v: StoryView = { id: d._id, mediaId: d.mediaId, caption: d.caption ?? "", at: d.createdAt.getTime(), expiresAt: d.expiresAt.getTime(), seen };
   if (views !== undefined) v.views = views;
+  if (extra.likes !== undefined) v.likes = extra.likes;
+  if (extra.liked) v.liked = true;
   return v;
 }
 
@@ -86,8 +93,17 @@ export async function activeStoriesOf(viewerId: number, anonId: unknown): Promis
   const seen = new Set(seenRows.map((r: any) => String(r._id)));
   const mine = owner._id === viewerId;
   const counts = mine ? await viewCounts(docs.map((d) => d._id)) : null;
+  const likesCol = await col(C.storyLikes);
+  const ids = docs.map((d) => d._id);
+  const likeRows = ids.length ? await likesCol.find(mine ? { storyId: { $in: ids } } : { _id: { $in: ids.map((i) => `${i}:${viewerId}`) } }, { projection: { storyId: 1, viewerId: 1 } }).toArray() : [];
+  const likeCount = new Map<string, number>();
+  const iLiked = new Set<string>();
+  for (const r of likeRows) {
+    likeCount.set(r.storyId, (likeCount.get(r.storyId) ?? 0) + 1);
+    if (r.viewerId === viewerId) iLiked.add(r.storyId);
+  }
   const [brief] = await toBriefs(viewerId, [owner]);
-  return { owner: brief!, stories: docs.map((d) => toView(d, mine || seen.has(`${d._id}:${viewerId}`), mine ? (counts!.get(d._id) ?? 0) : undefined)) };
+  return { owner: brief!, stories: docs.map((d) => toView(d, mine || seen.has(`${d._id}:${viewerId}`), mine ? (counts!.get(d._id) ?? 0) : undefined, { ...(mine ? { likes: likeCount.get(d._id) ?? 0 } : {}), liked: iLiked.has(d._id) })) };
 }
 
 /** Home stories tray: the viewer first, then everybody with an active story (unseen first). */
@@ -128,7 +144,13 @@ export async function markStoryViewed(viewer: any, storyId: unknown): Promise<bo
   return true;
 }
 
-export async function storyViewers(owner: any, storyId: unknown): Promise<{ count: number; viewers: Brief[] }> {
+export interface StoryReplyItem {
+  who: Brief;
+  text: string;
+  at: number;
+}
+
+export async function storyViewers(owner: any, storyId: unknown): Promise<{ count: number; viewers: Array<Brief & { liked?: boolean }>; replies: StoryReplyItem[] }> {
   if (!isId(storyId)) throw new SocialError("not_found");
   const stories = await col<StoryDoc>(C.stories);
   const s = await stories.findOne({ _id: storyId, ownerId: owner._id } as any);
@@ -140,7 +162,59 @@ export async function storyViewers(owner: any, storyId: unknown): Promise<{ coun
   const docs = await users.find({ _id: { $in: rows.map((r: any) => r.viewerId) } }).toArray();
   const briefs = await toBriefs(owner._id, docs);
   const by = new Map(docs.map((d: any, i: number) => [d._id as number, briefs[i]!]));
-  return { count, viewers: rows.map((r: any) => by.get(r.viewerId)).filter(Boolean) as Brief[] };
+  const likers = new Set((await (await col(C.storyLikes)).find({ storyId: s._id }, { projection: { viewerId: 1 } }).toArray()).map((r: any) => r.viewerId as number));
+  const viewers = rows.map((r: any) => {
+    const b = by.get(r.viewerId);
+    return b ? ({ ...b, ...(likers.has(r.viewerId) ? { liked: true } : {}) } as Brief & { liked?: boolean }) : null;
+  }).filter(Boolean) as Array<Brief & { liked?: boolean }>;
+  // replies (only the story's owner sees them here)
+  const repRows = await (await col(C.notifs)).find({ userId: owner._id, type: "story_reply", storyId: s._id }).sort({ at: -1 }).limit(50).toArray();
+  const rDocs = repRows.length ? await users.find({ _id: { $in: [...new Set(repRows.map((r: any) => r.actorId))] } }).toArray() : [];
+  const rBriefs = await toBriefs(owner._id, rDocs);
+  const rBy = new Map(rDocs.map((d: any, i: number) => [d._id as number, rBriefs[i]!]));
+  const replies = repRows.map((r: any) => (rBy.get(r.actorId) ? { who: rBy.get(r.actorId)!, text: String(r.text ?? ""), at: (r.at as Date).getTime() } : null)).filter(Boolean) as StoryReplyItem[];
+  return { count, viewers, replies };
+}
+
+async function visibleStoryFor(viewer: any, storyId: unknown): Promise<StoryDoc> {
+  if (!isId(storyId)) throw new SocialError("not_found");
+  const s = await (await col<StoryDoc>(C.stories)).findOne({ _id: storyId, expiresAt: { $gt: new Date() } } as any);
+  if (!s) throw new SocialError("not_found");
+  const hidden = [...(await hiddenOwnerIds(viewer._id, { direct: true })), ...(await lockedOwnerIds(viewer._id))];
+  if (hidden.includes(s.ownerId)) throw new SocialError("not_found");
+  return s;
+}
+
+/** ❤ a story (not your own): the owner gets an Activity row and sees the heart next to your name in the viewers list. */
+export async function setStoryLike(viewer: any, storyId: unknown, like: boolean): Promise<{ liked: boolean }> {
+  const s = await visibleStoryFor(viewer, storyId);
+  if (s.ownerId === viewer._id) throw new SocialError("self");
+  const likes = await col(C.storyLikes);
+  const id = `${s._id}:${viewer._id}`;
+  if (like) {
+    try {
+      await likes.insertOne({ _id: id, storyId: s._id, ownerId: s.ownerId, viewerId: viewer._id, createdAt: new Date() });
+    } catch (err: any) {
+      if (err?.code !== 11000) throw err;
+    }
+    await markStoryViewed(viewer, s._id);
+    await pushNotif(notifKey.storyLike(s._id, viewer._id), { userId: s.ownerId, actorId: viewer._id, type: "story_like", storyId: s._id, mediaId: s.mediaId });
+  } else {
+    await likes.deleteOne({ _id: id });
+    await dropNotifs({ _id: notifKey.storyLike(s._id, viewer._id) });
+  }
+  return { liked: like };
+}
+
+/** Reply to a story (≤ 300 chars): arrives in the owner's Activity and in the viewers sheet of that story. */
+export async function replyToStory(viewer: any, storyId: unknown, raw: unknown): Promise<void> {
+  const text = cleanText(raw, 300, { min: 1 });
+  const s = await visibleStoryFor(viewer, storyId);
+  if (s.ownerId === viewer._id) throw new SocialError("self");
+  const rl = await checkRateLimit(viewer._id, "story-reply", 30, 3_600_000);
+  if (!rl.allowed) throw new SocialError("too_fast");
+  await markStoryViewed(viewer, s._id);
+  await pushNotif(notifKey.storyReply(newId()), { userId: s.ownerId, actorId: viewer._id, type: "story_reply", storyId: s._id, mediaId: s.mediaId, text });
 }
 
 export async function deleteStory(owner: any, storyId: unknown, opts: { asStaff?: boolean } = {}): Promise<{ ownerId: number } | void> {
@@ -150,6 +224,8 @@ export async function deleteStory(owner: any, storyId: unknown, opts: { asStaff?
   if (!s) throw new SocialError("not_found");
   await stories.deleteOne({ _id: s._id } as any);
   await (await col(C.storyViews)).deleteMany({ storyId: s._id });
+  await (await col(C.storyLikes)).deleteMany({ storyId: s._id });
+  await dropNotifs({ storyId: s._id });
   // remove it from any highlight; an emptied highlight disappears
   const hl = await col<HighlightDoc>(C.highlights);
   const holders = await hl.find({ ownerId: s.ownerId, storyIds: s._id } as any).toArray();

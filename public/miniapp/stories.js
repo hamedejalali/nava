@@ -94,12 +94,39 @@
         frame.appendChild(vb);
         var sc = frame.querySelector(".scap"); if (sc) sc.style.paddingBottom = "calc(64px + env(safe-area-inset-bottom))";
       }
+      if (!mine && o.kind === "story" && NG.me) { frame.appendChild(replyBar(s)); var sc2 = frame.querySelector(".scap"); if (sc2) sc2.style.paddingBottom = "calc(74px + env(safe-area-inset-bottom))"; }
       if (!mine && o.kind === "story" && !viewed[s.id]) {
         viewed[s.id] = true; s.seen = true;
         NG.api("story_view", { storyId: s.id });
       }
       if (!raf) raf = requestAnimationFrame(tick);
       NG.haptic();
+    }
+
+    /* bottom bar for somebody else's story: reply (goes to the owner's Activity) + ❤ */
+    function replyBar(s) {
+      var bar = el('<div class="srep"><input type="text" maxlength="300" placeholder="ارسال پیام…" autocomplete="off"><button class="send hide" aria-label="send">' + svg("plane") + '</button><button class="hrt' + (s.liked ? " on" : "") + '" aria-label="like">' + svg(s.liked ? "heartF" : "heartO") + "</button></div>");
+      var inp = bar.querySelector("input"), snd = bar.querySelector(".send"), hr = bar.querySelector(".hrt");
+      ["pointerdown", "pointerup", "click"].forEach(function (ev) { bar.addEventListener(ev, function (e) { e.stopPropagation(); }); });
+      inp.onfocus = function () { hold++; };
+      inp.onblur = function () { hold = Math.max(0, hold - 1); };
+      inp.oninput = function () { var on = !!inp.value.trim(); snd.classList.toggle("hide", !on); hr.classList.toggle("hide", on); };
+      function send() {
+        var t = inp.value.trim(); if (!t) return; snd.disabled = true;
+        NG.api("story_reply", { storyId: s.id, text: t }).then(function (r) {
+          snd.disabled = false;
+          if (!r.ok) return NG.toast(NG.errText(r));
+          inp.value = ""; inp.oninput(); inp.blur(); NG.haptic("ok"); NG.toast("پیامت ارسال شد ✓");
+        }).catch(function () { snd.disabled = false; NG.netErr(); });
+      }
+      snd.onclick = send;
+      inp.onkeydown = function (e) { if (e.key === "Enter") send(); };
+      hr.onclick = function () {
+        var want = !s.liked; s.liked = want; hr.classList.toggle("on", want); hr.innerHTML = svg(want ? "heartF" : "heartO"); NG.haptic(want ? "ok" : "sel");
+        if (want) { hr.classList.remove("beat"); void hr.offsetWidth; hr.classList.add("beat"); }
+        NG.api("story_like", { storyId: s.id, like: want }).then(function (r) { if (!r.ok) { s.liked = !want; hr.classList.toggle("on", !want); hr.innerHTML = svg(!want ? "heartF" : "heartO"); NG.toast(NG.errText(r)); } }).catch(function () { NG.netErr(); });
+      };
+      return bar;
     }
 
     function setBar(f) {
@@ -184,11 +211,21 @@
           sh.querySelector(".shd").textContent = num(r.data.count) + " بازدید";
           if (!r.data.viewers.length) box.innerHTML = '<div class="empty" style="padding:40px">هنوز کسی ندیده.</div>';
           r.data.viewers.forEach(function (u) {
-            var row = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div></div>");
+            var row = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(u)) + NG.vb(u) + "</b><span>" + (u.username ? esc(u.name) : "") + "</span></div>" + (u.liked ? '<span class="vh">' + svg("heartF", "") + "</span>" : "") + "</div>");
             var rg = NG.ring(u, { noStory: true }); rg.className = "ring none"; row.insertBefore(rg, row.firstChild);
             row.onclick = function () { closeSheet(function () { close(); setTimeout(function () { NG.openProfile(u.id); }, 240); }); };
             box.appendChild(row);
           });
+          var reps = r.data.replies || [];
+          if (reps.length) {
+            box.appendChild(el('<div class="hint"><span>پیام‌ها</span></div>'));
+            reps.forEach(function (x) {
+              var rr = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(x.who)) + NG.vb(x.who) + "</b><span>" + esc(x.text) + "</span></div></div>");
+              var rg2 = NG.ring(x.who, { noStory: true }); rg2.className = "ring none"; rr.insertBefore(rg2, rr.firstChild);
+              rr.onclick = function () { closeSheet(function () { close(); setTimeout(function () { NG.openProfile(x.who.id); }, 240); }); };
+              box.appendChild(rr);
+            });
+          }
         });
       }, { cls: "tall", onClose: function () { hold = Math.max(0, hold - 1); } });
     }

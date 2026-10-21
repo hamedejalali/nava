@@ -299,6 +299,9 @@
 
   /* ---------------------------------------------------------------- profile */
   /** Builds a profile page. o = { tab: true } for the bottom-bar tab, else it is pushed as a screen. */
+  var PCACHE = {};
+  NG.on("follow", function (d) { if (d && d.id) delete PCACHE[d.id]; });
+  NG.on("block", function (d) { if (d && d.id) delete PCACHE[d.id]; });
   function profileView(id, o) {
     o = o || {};
     var isMeId = NG.me && id === NG.me.id;
@@ -406,7 +409,7 @@
         }
         cs(); c.onclick = function () { NG.requestChat(P); };
         var g = el('<button class="btn sq" aria-label="gift">' + svg("gift") + "</button>"); g.onclick = function () { NG.openGiftSheet(P); };
-        btns.appendChild(f); btns.appendChild(c); btns.appendChild(g);
+        btns.appendChild(f); if (P.chat !== "official") btns.appendChild(c); btns.appendChild(g);
         P._cs = cs;
       }
       head.appendChild(btns);
@@ -516,13 +519,17 @@
           return NG.fail(r);
         }
         var firstTime = !P; P = r.data.profile;
+        PCACHE[id] = { p: P, t: Date.now() };
         if (P.isMe) NG.me = Object.assign(NG.me || {}, P);
         renderTop(); renderHead(); renderHighlights(); renderTabs();
         if (firstTime || o.tab) renderBody(true); else renderBody(false);
       }).catch(NG.netErr);
     }
     // instant paint for the own profile (data is already there)
-    if (isMeId && NG.me && o.tab) { P = NG.me; renderTop(); renderHead(); renderHighlights(); renderTabs(); renderBody(true); } else { renderTop(); renderHead(); renderBody(); }
+    var cached = PCACHE[id];
+    if (isMeId && NG.me && o.tab) { P = NG.me; renderTop(); renderHead(); renderHighlights(); renderTabs(); renderBody(true); }
+    else if (cached && Date.now() - cached.t < 300000) { P = cached.p; renderTop(); renderHead(); renderHighlights(); renderTabs(); renderBody(true); } // stale-while-revalidate: paint now, refresh right after
+    else { renderTop(); renderHead(); renderBody(); }
 
     // live updates from other parts of the app
     var offs = [];
@@ -539,6 +546,7 @@
         { label: "ساخت پست", fn: function () { NG.composeMenu("post"); } },
         { label: "ساخت استوری", fn: function () { NG.createStory(); } },
         { label: "آرشیو استوری‌ها", fn: function () { NG.openArchive(); } },
+        { label: "کاربران مسدود‌شده", fn: function () { NG.openBlocked(); } },
         { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } },
         ].concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
         { label: "XP: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
@@ -558,11 +566,15 @@
         }, false);
     }
     function otherMenu(p) {
-      NG.actions([
-        { label: "ارسال هدیه", fn: function () { NG.openGiftSheet(p); } },
-        { label: "درخواست چت ناشناس", fn: function () { NG.requestChat(p); } },
-        { label: "اشتراک‌گذاری پروفایل", fn: function () { NG.share("uid", p.id); } }
-      ]);
+      var items = [{ label: "ارسال هدیه", fn: function () { NG.openGiftSheet(p); } }];
+      if (p.chat !== "official") items.push({ label: "درخواست چت ناشناس", fn: function () { NG.requestChat(p); } });
+      items.push({ label: "اشتراک‌گذاری پروفایل", fn: function () { NG.share("uid", p.id); } });
+      if (p.chat !== "official") {
+        items.push(p.blockedByMe ? { label: "رفع مسدودی", fn: function () { NG.unblockUser(p, function () { reload(); }); } } : { label: "مسدود کردن", cls: "red", fn: function () { NG.blockUser(p, function () { reload(); }); } });
+        items.push({ label: "گزارش", cls: "red", fn: function () { NG.reportUser(p); } });
+      }
+      if (NG.staff && p.mod) items.push({ label: "🛠 مدیریت (ادمین)", fn: function () { NG.staffMenu(p, function () { reload(); }); } });
+      NG.actions(items);
     }
 
     return { node: root, reload: reload, setRelic: setRelic, setClose: function (f) { closeFn = f; }, get profile() { return P; } };

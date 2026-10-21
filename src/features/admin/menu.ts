@@ -12,6 +12,7 @@ import { setAdminFlow } from "./flowState.js";
 export const ADMIN_MENU_LABELS = {
   broadcast: "📢 پیام همگانی",
   verify: "☑️ وریفای / تیک تأیید",
+  badges: "🏅 بج‌ها",
   verifiedUsers: "✅ کاربران وریفای",
   userList: "👥 لیست کاربران",
   ban: "🚫 بن کاربر",
@@ -97,6 +98,7 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.unban, icon: () => buttonIcon("UNBAN") },
     { label: ADMIN_MENU_LABELS.verify, icon: () => buttonIcon("VERIFIED_BADGE") },
     { label: ADMIN_MENU_LABELS.verifiedUsers, icon: () => buttonIcon("VERIFIED_BADGE") },
+    { label: ADMIN_MENU_LABELS.badges },
     { label: ADMIN_MENU_LABELS.resetUser, icon: () => buttonIcon("RESET_USER") },
   ],
   messages: [{ label: ADMIN_MENU_LABELS.broadcast, icon: () => buttonIcon("BROADCAST") }, { label: ADMIN_MENU_LABELS.reports }],

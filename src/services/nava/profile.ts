@@ -4,8 +4,10 @@ import { getRequestRecipientIds } from "../../features/admin/constants.js";
 import { isValidPersianNickname } from "../../features/onboarding/nickname.js";
 import { MAX_AGE, MIN_AGE, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
 import { botApi } from "../miniapp.js";
-import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, isOfficial, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
+import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, isOfficial, isStaffId, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
+import { cleanBadges } from "../../config/badges.js";
 import { hasUnlimitedXp } from "../../db/models/relic.js";
+import { hasPendingProfilePhoto } from "../../db/models/imageModeration.js";
 import { countFollowRequests, followCounts } from "./follow.js";
 import { countGifts } from "./gifts.js";
 import { countPosts } from "./posts.js";
@@ -33,7 +35,7 @@ export interface ProfileView extends Brief {
   liked: boolean;
   highlights: HighlightBrief[];
   /** none = can request · requested = a request of mine is waiting · busy = in another chat · me */
-  chat: "none" | "requested" | "busy" | "me" | "with_you";
+  chat: "none" | "requested" | "busy" | "me" | "with_you" | "official";
   // ---- own profile only ----
   /** follow requests waiting for my approval (private page) */
   requests?: number;
@@ -49,11 +51,22 @@ export interface ProfileView extends Brief {
   unlimited?: boolean;
   /** this page belongs to the owner: he edits name / age / bio / photo directly, without approval */
   isOwnerPage?: boolean;
+  /** staff viewers only: the moderation state of this person */
+  mod?: { banned: boolean; hasPhoto: boolean; badges: string[] };
+  /** I blocked this person */
+  blockedByMe?: boolean;
 }
 
 export const HIDE_KEYS = ["age", "bio", "location", "gifts", "stats"] as const;
 export type HideKey = (typeof HIDE_KEYS)[number];
 export type ProfileHide = Partial<Record<HideKey, boolean>>;
+
+/** What a page owner hides from other people. The official «Nava» account hides age and location by default
+ *  (it is a brand page, not a person); the owner can still switch them on with an explicit `false`. */
+export function effectiveHide(owner: any): ProfileHide {
+  const stored: ProfileHide = (owner.profileHide ?? {}) as ProfileHide;
+  return isOfficial(owner._id) ? { age: true, location: true, ...stored } : stored;
+}
 
 export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileView | null> {
   const owner = await findVisibleUser(viewer._id, anonId, { includeSelf: true });
@@ -85,7 +98,7 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     highlights: locked ? [] : await highlightBriefs(owner._id),
     chat: "none",
   };
-  const hide: ProfileHide = (owner.profileHide ?? {}) as ProfileHide;
+  const hide: ProfileHide = effectiveHide(owner);
   if (!isMe) {
     // the page owner's own "don't show" switches (only the owner can set them)
     if (hide.age) view.age = null;
@@ -101,7 +114,7 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     view.isOwnerPage = isOfficial(owner._id);
     const db = await usersCol();
     const fresh = (await db.findOne({ _id: owner._id })) ?? owner;
-    const pendingPhoto = await (await col("image_moderation")).findOne({ senderId: owner._id, type: "profile_photo", status: "pending" });
+    const pendingPhoto = await hasPendingProfilePhoto(owner._id);
     const reqs = await col("edit_requests");
     const pName = await reqs.findOne({ telegramId: owner._id, field: "nickname", status: "pending" });
     const pAge = await reqs.findOne({ telegramId: owner._id, field: "age", status: "pending" });
@@ -113,8 +126,10 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     view.pendingName = pName ? String(pName.newValue) : null;
     view.pendingAge = pAge ? String(pAge.newValue) : null;
   } else {
+    if (isStaffId(viewer._id)) view.mod = { banned: !!owner.banned, hasPhoto: !!owner.profilePhotoFileId, badges: cleanBadges(owner.badges) };
     // they are chatting RIGHT NOW with the person who opened the profile: «در حال چت با شما هست»
-    if (owner.activeChatSessionId && owner.activeChatSessionId === viewer.activeChatSessionId) view.chat = "with_you";
+    if (isOfficial(owner._id)) view.chat = "official";
+    else if (owner.activeChatSessionId && owner.activeChatSessionId === viewer.activeChatSessionId) view.chat = "with_you";
     else if (owner.activeChatSessionId) view.chat = "busy";
     else {
       const pending = await (await col("chat_requests")).findOne({ fromId: viewer._id, toId: owner._id, status: "pending", expiresAt: { $gt: new Date() } });
@@ -129,7 +144,8 @@ export async function findRequestTarget(viewerId: number, anonId: unknown): Prom
   if (!isAnonId(anonId)) return null;
   const users = await usersCol();
   const hidden = await hiddenOwnerIds(viewerId);
-  return users.findOne({ _id: { $nin: [viewerId, ...hidden] }, onboardingStep: "COMPLETED", banned: { $ne: true }, activeChatSessionId: null, anonId });
+  const t = await users.findOne({ _id: { $nin: [viewerId, ...hidden] }, onboardingStep: "COMPLETED", banned: { $ne: true }, activeChatSessionId: null, anonId });
+  return t && !isOfficial(t._id) ? t : null; // the official «Nava» account never takes chat requests
 }
 
 /* ------------------------------------------------- name / age (owner-approved, like the bot) */

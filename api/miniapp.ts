@@ -20,14 +20,14 @@ import { getSupportLink } from "../src/features/support/index.js";
 import { checkRateLimit } from "../src/utils/rateLimit.js";
 import { env } from "../src/config/env.js";
 import { onboardCities, onboardSave, onboardState } from "../src/services/miniOnboarding.js";
-import { pickGuestCards, pickMemberCards } from "../src/services/matchCards.js";
+import { pickGuestCards, pickMemberCards, sanitizeMatchExclude } from "../src/services/matchCards.js";
 import { verifyTelegramWebAppInitData } from "../src/utils/telegramWebApp.js";
 import { parsePid } from "../src/services/nava/common.js";
 import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
 import { present } from "../src/services/nava/present.js";
 import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setCommentLike, setPostLike } from "../src/services/nava/posts.js";
 import { listNotifs, markNotifsSeen, unreadCounts } from "../src/services/nava/notifs.js";
-import { activeStoriesOf, createHighlight, createStory, deleteHighlight, deleteStory, editHighlight, getHighlight, markStoryViewed, storiesTray, storyArchive, storyViewers } from "../src/services/nava/stories.js";
+import { activeStoriesOf, createHighlight, createStory, deleteHighlight, deleteStory, editHighlight, getHighlight, markStoryViewed, replyToStory, setStoryLike, storiesTray, storyArchive, storyViewers } from "../src/services/nava/stories.js";
 import { ensureOfficialFollow, countFollowRequests, listFollowRequests, listFollows, respondFollowRequest, setFollow, setPrivate } from "../src/services/nava/follow.js";
 import { allSeeds, getSeedByAnonId } from "../src/db/models/seeds.js";
 import { getMaintenanceState, maintenanceAllows, maintenanceText } from "../src/services/maintenance.js";
@@ -36,9 +36,15 @@ import { giftCatalog, listReceivedGifts, regiftGift, sendGift } from "../src/ser
 import { logAdminAction } from "../src/db/models/adminLog.js";
 import { reportPost } from "../src/services/nava/postReports.js";
 import { giftAnimUrl, loadGiftSticker, verifyGiftAnimSig } from "../src/services/nava/giftSticker.js";
-import { getProfile, findRequestTarget, requestProfileChange, setProfileVisibility } from "../src/services/nava/profile.js";
+import { getProfile, findRequestTarget, requestProfileChange, setProfileVisibility, effectiveHide } from "../src/services/nava/profile.js";
+import { hasPendingProfilePhoto } from "../src/db/models/imageModeration.js";
 import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople } from "../src/services/nava/search.js";
 import { prepareShare } from "../src/services/nava/share.js";
+import { waitUntil } from "@vercel/functions";
+import * as bg from "../src/services/games/backgammonGames.js";
+import { cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
+import { blockInApp, listBlocked, reportInApp, unblockInApp } from "../src/services/nava/safety.js";
+import { staffModerate, type StaffOp } from "../src/services/nava/staffMod.js";
 
 /**
  * Navagram (نوا گرام) Mini App backend — ONE serverless function with an `action`
@@ -83,10 +89,16 @@ const ACTIONS = new Set([
   // owner / admins: work as a default member
   "accounts",
   // stories + highlights
-  "stories", "story_create", "story_view", "story_viewers", "story_delete", "story_archive",
+  "stories", "story_create", "story_view", "story_viewers", "story_like", "story_reply", "story_delete", "story_archive",
   "highlight", "highlight_create", "highlight_edit", "highlight_delete",
   // gifts / share / chat request
   "gift_catalog", "gift_send", "gift_regift", "gifts", "share", "request",
+  // direct messages (Navagram chat) + chat requests inbox
+  "dm_overview", "dm_open", "dm_send", "dm_photo", "dm_end", "dm_requests", "dm_respond", "dm_cancel",
+  // safety: block / report (synced with the bot) and staff moderation from a profile's ⋮ menu
+  "block", "unblock", "blocked_list", "report", "mod",
+  // backgammon (experimental two-player game)
+  "game_lobby", "game_create", "game_join", "game_state", "game_roll", "game_move", "game_resign",
   // legacy (v1.14/v1.15 clients)
   "feed", "photo",
 ]);
@@ -99,7 +111,7 @@ const SOCIAL_ERRORS: Record<string, number> = {
   bad_bio: 400, bio_too_long: 400, bad_image: 400, bad_text: 400, text_too_long: 400, bad_input: 400, bad_gift: 400,
   bad_name: 400, bad_age: 400, same_value: 400, pending_request: 409, self: 400,
   too_fast: 429, too_many: 429, insufficient: 402, forbidden: 403, comments_off: 403, not_found: 404,
-  unavailable: 503, share_unavailable: 503, sold_out: 409,
+  unavailable: 503, share_unavailable: 503, sold_out: 409, busy: 409, not_your_turn: 409, illegal_move: 400, chat_ended: 409, contact_forbidden: 400, need_photo: 403, bad_input2: 400,
 };
 
 function readBody(req: VercelRequest): Record<string, unknown> {
@@ -183,7 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Owner / admins get the monitoring panel instead of the social app (unless they ask for user mode).
     const wantsActAs = typeof body.actAs === "string" && body.actAs.length > 0;
-    const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" ? await authenticateStaff(body.initData) : null;
+    const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" || action === "mod" ? await authenticateStaff(body.initData) : null;
     if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
 
     // Guest preview: somebody who opened the mini-app WITHOUT finishing registration in the bot sees 5 fictional
@@ -247,7 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       acting = true;
     }
     // A default member has no Relic: nothing that spends, earns or goes through moderation / Telegram as a real person.
-    if (acting && ["gift_send", "gift_regift", "request", "upload_photo", "request_change"].includes(action)) return void res.status(403).json({ error: "forbidden" });
+    if (acting && ["gift_send", "gift_regift", "request", "upload_photo", "request_change", "dm_send", "dm_photo", "dm_end", "dm_respond", "dm_cancel", "block", "unblock", "report", "mod", "game_create", "game_join", "game_roll", "game_move", "game_resign"].includes(action)) return void res.status(403).json({ error: "forbidden" });
     // Abuse protection (v1.16.3): per-person budget, counted in MongoDB so it holds across serverless instances.
     // Generous (a person scrolling the app makes a few calls per second at most); fails OPEN if the limiter
     // itself is unavailable so a limiter outage never locks everybody out.
@@ -289,7 +301,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return p ? send({ profile: p }) : void res.status(404).json({ error: "not_found" });
         }
         case "match_cards": {
-          const r = await pickMemberCards(me, sanitizeExclude(body.exclude));
+          const r = await pickMemberCards(me, sanitizeMatchExclude(body.exclude));
           if (r === "need_photo") throw new SocialError("need_photo");
           return send({ cards: r });
         }
@@ -378,13 +390,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const u = await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1, isPrivate: 1, miniUsername: 1, nickname: 1, age: 1, bio: 1, profilePhotoAt: 1, profilePhotoFileId: 1, profileHide: 1 } });
           // a tiny fingerprint of everything shown on the profile: when it changes (username / name / bio / photo edited from
           // the bot, an admin, or another device) the app refreshes the page at once instead of waiting for a reopen
-          const sig = [u?.miniUsername ?? "", u?.nickname ?? "", u?.age ?? "", u?.bio ?? "", u?.profilePhotoAt ? new Date(u.profilePhotoAt).getTime() : "", u?.profilePhotoFileId ? 1 : 0, JSON.stringify(u?.profileHide ?? {})].join("|");
+          const sig = [u?.miniUsername ?? "", u?.nickname ?? "", u?.age ?? "", u?.bio ?? "", u?.profilePhotoAt ? new Date(u.profilePhotoAt).getTime() : "", u?.profilePhotoFileId ? 1 : 0, JSON.stringify(u ? effectiveHide({ ...u, _id: me._id }) : {}), (await hasPendingProfilePhoto(me._id)) ? "P" : ""].join("|");
           return void res.status(200).json({
             sig,
             relic: u?.relicBalance ?? 0,
             isPrivate: !!u?.isPrivate,
             requests: u?.isPrivate ? await countFollowRequests(me._id) : 0,
             unread: await unreadCounts(me._id),
+            dm: await dmPulse(me),
           });
         }
         case "comment_delete":
@@ -422,6 +435,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return send({ story: await createStory(me, body.image, body.caption) });
         case "story_view":
           return void res.status(200).json({ ok: await markStoryViewed(me, body.storyId) });
+        case "story_like":
+          return void res.status(200).json(await setStoryLike(me, body.storyId, body.like !== false));
+        case "story_reply":
+          await replyToStory(me, body.storyId, body.text);
+          return void res.status(200).json({ ok: true });
         case "story_viewers":
           return send(await storyViewers(me, body.storyId));
         case "story_delete":
@@ -470,11 +488,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!hasUnlimitedXp(me._id) && (me.relicBalance ?? 0) < 1) return void res.status(200).json({ status: "no_balance" });
           const target = await findRequestTarget(me._id, body.id);
           if (!target) return void res.status(200).json({ status: "unavailable" });
-          const created = await createChatRequest(me._id, target._id);
+          const created = await createChatRequest(me._id, target._id, new Date(), "miniapp");
           if (created.status !== "created") return void res.status(200).json({ status: created.status });
           const delivered = await sendChatRequestToTarget(created.request, me, target);
           return void res.status(200).json({ status: delivered ? "sent" : "unavailable" });
         }
+
+        /* ------------------------------------------------- direct messages */
+        case "dm_overview":
+          return send(await dmOverview(me));
+        case "dm_open": {
+          const t = await openThread(me, body.sid, body.since);
+          return t ? send(t) : void res.status(404).json({ error: "not_found" });
+        }
+        case "dm_send":
+          return send({ message: await dmSendText(me, body.sid, body.text, body.cid, botApi()) });
+        case "dm_photo": {
+          const r = await dmSendPhoto(me, body.sid, body.image, botApi() as any, body.cid);
+          waitUntil(r.after);
+          return send({ message: r.message });
+        }
+        case "dm_end":
+          return void res.status(200).json(await endThread(me, body.sid, botApi()));
+        case "dm_requests":
+          return send(await listRequests(me));
+        case "dm_respond":
+          return void res.status(200).json(await respondRequest(me, body.id, body.accept !== false, botApi()));
+        case "dm_cancel":
+          return void res.status(200).json({ ok: await cancelRequest(me, body.id) });
+
+        /* ------------------------------------------------- block / report / staff */
+        case "block":
+          await blockInApp(me, body.id, botApi());
+          return void res.status(200).json({ ok: true });
+        case "unblock":
+          await unblockInApp(me, body.id);
+          return void res.status(200).json({ ok: true });
+        case "blocked_list":
+          return send({ items: await listBlocked(me) });
+        case "report":
+          await reportInApp(me, body.id, { reason: body.reason, text: body.text, image: body.image }, botApi());
+          return void res.status(200).json({ ok: true });
+        case "mod": {
+          if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
+          const ops: StaffOp[] = ["ban", "unban", "verify", "unverify", "photo_remove", "badges"];
+          if (!ops.includes(body.op as StaffOp)) return void res.status(400).json({ error: "bad_input" });
+          return void res.status(200).json(await staffModerate(staff.id, body.id, body.op as StaffOp, botApi(), { badges: body.badges, reason: body.reason }));
+        }
+
+        /* ----------------------------------------------------------- games */
+        case "game_lobby":
+          return send(await bg.lobby(me));
+        case "game_create":
+          return send(await bg.create(me));
+        case "game_join":
+          return send(await bg.join(me, body.gid));
+        case "game_state":
+          return send(await bg.getState(me, body.gid, body.since));
+        case "game_roll":
+          return send(await bg.roll(me, body.gid));
+        case "game_move":
+          return send(await bg.move(me, body.gid, { from: body.from, to: body.to, die: body.die }));
+        case "game_resign":
+          return send(await bg.resign(me, body.gid));
 
         /* ---------------------------------------------------------- legacy */
         case "feed": {

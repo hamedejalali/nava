@@ -9,7 +9,7 @@ import { C, col, isId, toBriefs, usersCol, type Brief } from "./common.js";
  * removes it again. Writing a notification is best-effort and never breaks the action that caused it.
  */
 
-export type NotifType = "like_post" | "like_profile" | "follow" | "follow_request" | "accepted" | "comment" | "reply" | "like_comment";
+export type NotifType = "like_post" | "like_profile" | "follow" | "follow_request" | "accepted" | "comment" | "reply" | "like_comment" | "story_like" | "story_reply";
 
 export interface NotifDoc {
   _id: string;
@@ -18,6 +18,9 @@ export interface NotifDoc {
   type: NotifType;
   postId?: string; // post id or "pp:<anonId>"
   commentId?: string;
+  /** story notifications: the story and its picture */
+  storyId?: string;
+  mediaId?: string;
   text?: string;
   at: Date;
   seen: boolean;
@@ -35,6 +38,8 @@ export const notifKey = {
   comment: (commentId: string) => `c:${commentId}`,
   reply: (commentId: string) => `r:${commentId}`,
   likeComment: (commentId: string, actor: number) => `lc:${commentId}:${actor}`,
+  storyLike: (storyId: string, actor: number) => `sl:${storyId}:${actor}`,
+  storyReply: (id: string) => `sr:${id}`,
 };
 
 export async function ensureNotifIndexes(db: { collection: (n: string) => { createIndexes: (i: any[]) => Promise<unknown> } }): Promise<void> {
@@ -43,6 +48,7 @@ export async function ensureNotifIndexes(db: { collection: (n: string) => { crea
     { key: { userId: 1, seen: 1 }, name: "user_seen" },
     { key: { postId: 1 }, name: "post", partialFilterExpression: { postId: { $type: "string" } } },
     { key: { commentId: 1 }, name: "comment", partialFilterExpression: { commentId: { $type: "string" } } },
+    { key: { storyId: 1 }, name: "story", partialFilterExpression: { storyId: { $type: "string" } } },
     { key: { at: 1 }, name: "ttl", expireAfterSeconds: Math.floor(KEEP_MS / 1000) },
   ]);
   await db.collection(C.commentLikes).createIndexes([{ key: { commentId: 1 }, name: "comment" }]);
@@ -78,7 +84,7 @@ export async function unreadCounts(userId: number): Promise<Pulse> {
   const rows = await (await col<NotifDoc>(C.notifs)).find({ userId, seen: false }, { projection: { type: 1 } }).limit(200).toArray();
   const p: Pulse = { total: rows.length, likes: 0, follows: 0, comments: 0 };
   for (const r of rows) {
-    if (r.type === "like_post" || r.type === "like_profile" || r.type === "like_comment") p.likes++;
+    if (r.type === "like_post" || r.type === "like_profile" || r.type === "like_comment" || r.type === "story_like") p.likes++;
     else if (r.type === "follow" || r.type === "follow_request" || r.type === "accepted") p.follows++;
     else p.comments++;
   }
@@ -100,6 +106,8 @@ export interface NotifItem {
   mediaId?: string | null;
   text?: string;
   commentId?: string;
+  /** story rows: which story (it may already be gone — then there is no picture) */
+  sid?: string;
   /** follow-type rows: my relation to the actor */
   iFollow?: boolean;
   requested?: boolean; // I asked them (private page) and wait
@@ -149,6 +157,10 @@ export async function listNotifs(viewerId: number, before?: unknown): Promise<{ 
       if (!d.postId.startsWith("pp:")) it.mediaId = postMedia.get(d.postId) ?? null;
     }
     if (d.text) it.text = d.text;
+    if (d.storyId) {
+      it.sid = d.storyId;
+      it.mediaId = d.mediaId ?? null;
+    }
     if (d.commentId) it.commentId = d.commentId;
     if (d.type === "follow" || d.type === "follow_request" || d.type === "accepted") {
       it.iFollow = iFollow.has(d.actorId);

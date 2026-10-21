@@ -40,6 +40,7 @@ export async function clearAllUserFlows(userId: number): Promise<void> {
     db.collection("report_flow").deleteOne({ _id: userId as never }),
     db.collection("anon_msg_flow").deleteOne({ _id: userId as never }),
     db.collection("feedback_flow").deleteOne({ _id: userId as never }),
+    db.collection("wallet_deposit_flow").deleteOne({ _id: userId as never }),
     // admin-panel steps (search / ban / broadcast / relic ...) use these:
     db.collection("admin_flow_state").deleteOne({ _id: userId as never }),
     db.collection("admin_relic_flow").deleteOne({ _id: userId as never }),

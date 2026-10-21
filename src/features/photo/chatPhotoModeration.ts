@@ -10,6 +10,7 @@ import {
   getPhotoModerationLog,
   markPhotoModerationDecided,
 } from "../../db/models/photoModerationLog.js";
+import { removeDmMessage } from "../../services/nava/dm.js";
 import { banUser } from "../../services/banCleanup.js";
 import { checkImage } from "../../services/sightengine.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
@@ -138,7 +139,11 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
     // message, and we don't re-warn the sender twice.
     const doc = result.doc;
 
-    if (result.status === "decided") {
+    if (result.status === "decided" && doc.dmMessageId) {
+      // a Navagram direct-message photo: there is no Telegram copy, the message itself is removed in the app
+      await removeDmMessage(doc.dmMessageId).catch(() => {});
+      await ctx.api.sendMessage(doc.senderTelegramId, "🚫 عکسی که فرستادی به دلیل نقض قوانین ربات حذف شد.").catch(() => {});
+    } else if (result.status === "decided") {
       await ctx.api.deleteMessage(doc.receiverTelegramId, doc.receiverMessageId).catch(() => {});
       await ctx.api
         .sendMessage(doc.senderTelegramId, "🚫 عکسی که فرستادی به دلیل نقض قوانین ربات حذف شد.")

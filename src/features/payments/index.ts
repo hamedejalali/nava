@@ -5,7 +5,7 @@ import { buttonIcon, textEmoji } from "../../config/emojis.js";
 import { creditPurchaseOnce } from "../../db/models/relic.js";
 import { getPackages } from "../../db/models/pricing.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
-import { XP_CB } from "../wallet/xpTransfer.js";
+import { XP_CB } from "../wallet/xpDeposit.js";
 import { env } from "../../config/env.js";
 import { getOrCreateStarsOrder, getStarsOrder, markStarsOrderFulfilled, recordStarsPaymentException, type StarsOrderDoc } from "../../db/models/starsOrder.js";
 
@@ -54,7 +54,7 @@ export async function showRelicScreen(ctx: NavaContext): Promise<void> {
     reply_markup: inlineKeyboard([
       [glassButton("⭐ خرید XP با Telegram Stars", OPEN_CB.stars, "primary", buttonIcon("CROWN"))],
       [glassButton("💳 خرید XP از طریق درگاه", OPEN_CB.gateway, "primary", buttonIcon("CROWN"))],
-      [glassButton("📥 دریافت XP از ولت", XP_CB.open, "success")],
+      [glassButton("📥 واریز XP از ولت", XP_CB.open, "success")],
     ]),
   });
 }

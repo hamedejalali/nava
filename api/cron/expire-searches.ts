@@ -10,6 +10,7 @@ import { processSearchNotices } from "../../src/features/matching/searchNotices.
 import { noticeExistsFor } from "../../src/db/models/searchNotice.js";
 import { processDueDeliveries } from "../../src/features/matching/matchDelivery.js";
 import { cleanupStories } from "../../src/services/nava/stories.js";
+import { purgeOldDmMedia } from "../../src/services/nava/dm.js";
 import { processDueSeedJobs } from "../../src/features/matching/seedMatch.js";
 import { seedGuardTransformer } from "../../src/services/seeds/guard.js";
 import { processDueGiftEvents } from "../../src/services/nava/giftEvents.js";
@@ -54,6 +55,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("[cron] story cleanup failed:", err instanceof Error ? err.name : "unknown");
   }
 
+  // Direct-message photos older than the 14-day keep window (never throws).
+  let dmMediaDropped = 0;
+  try {
+    dmMediaDropped = await purgeOldDmMedia();
+  } catch (err) {
+    console.error("[cron] dm media purge failed:", err instanceof Error ? err.name : "unknown");
+  }
+
   // Retry match notices that failed transiently (durable records in match_deliveries; never throws).
   const deliveries = await processDueDeliveries(api, 25);
 
@@ -63,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Finish default-member chats whose invocation was cut off (never throws).
   const seedChats = await processDueSeedJobs(api, 25, 0);
 
-  res.status(200).json({ ...result, seedChatsFinished: seedChats, searchNotices: notices, storiesDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed });
+  res.status(200).json({ ...result, seedChatsFinished: seedChats, searchNotices: notices, storiesDropped, dmMediaDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed });
 }
 
 /** A Telegram error that retrying can never fix (user blocked the bot, chat gone, bad request). */

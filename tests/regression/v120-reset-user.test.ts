@@ -53,7 +53,7 @@ test("P1. admin panel: the «تنظیمات و ابزار» group is gone; its b
   await h.text(OWNER_ID, "🔌 اتصال ولت");
   assert.match(String(h.last("sendMessage", OWNER_ID)?.payload.text), /اتصال ولت/);
   await h.callback(OWNER_ID, "admin:wallet:toggle");
-  const { isWalletIntegrationEnabled } = await import("../../src/services/wallet/walletAuth.js");
+  const { isWalletIntegrationEnabled } = await import("../../src/services/wallet/walletSettings.js");
   assert.equal(await isWalletIntegrationEnabled(), false);
   await h.callback(3, "admin:wallet:toggle");
   assert.equal(await isWalletIntegrationEnabled(), false, "a normal user cannot flip it");

@@ -25,7 +25,7 @@ export function sniff(buf: Buffer): "image/jpeg" | "image/png" | "image/webp" | 
   return null;
 }
 
-export async function storeMedia(ownerId: number, kind: "post" | "story" | "cover", buf: Buffer): Promise<string> {
+export async function storeMedia(ownerId: number, kind: "post" | "story" | "cover" | "dm", buf: Buffer): Promise<string> {
   const id = newId();
   const media = await col(C.media);
   await media.insertOne({ _id: id, ownerId, kind, contentType: sniff(buf) ?? "image/jpeg", size: buf.length, data: new Binary(buf), createdAt: new Date() });

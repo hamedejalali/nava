@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../connect.js";
 
 export type ModerationType = "profile_photo" | "chat_image";
-export type ModerationStatus = "pending" | "approved" | "rejected";
+export type ModerationStatus = "pending" | "approved" | "rejected" | "superseded";
 
 export interface ImageModerationDoc {
   _id: string;
@@ -36,7 +36,16 @@ async function col(): Promise<Collection<ImageModerationDoc>> {
 // benefit. If an admin "list all pending moderation items" screen is ever
 // built, add `{ status: 1, createdAt: 1 }` back alongside it.
 export async function ensureImageModerationIndexes(): Promise<void> {
-  // Intentionally empty for now — see the comment above.
+  // v1.22: the Mini App asks "is my newest profile photo still waiting?" on every pulse
+  await (await col()).createIndexes([{ key: { senderId: 1, type: 1, createdAt: -1 }, name: "sender_type_created" }]);
+}
+
+/** True only while the user's NEWEST profile-photo record is still pending (an old, forgotten pending record can never
+ *  keep showing «در انتظار تأیید» after a later photo was approved). */
+export async function hasPendingProfilePhoto(userId: number): Promise<boolean> {
+  const c = await col();
+  const [latest] = await c.find({ senderId: userId, type: "profile_photo" }).sort({ createdAt: -1 }).limit(1).toArray();
+  return latest?.status === "pending";
 }
 
 export async function createModerationRecord(input: {
@@ -50,7 +59,10 @@ export async function createModerationRecord(input: {
   aiClassification?: string;
 }): Promise<ImageModerationDoc> {
   const doc: ImageModerationDoc = { _id: randomUUID(), createdAt: new Date(), ...input };
-  await (await col()).insertOne(doc);
+  const c = await col();
+  // a newer profile photo replaces every older request that is still waiting (nobody needs to decide on it any more)
+  if (input.type === "profile_photo") await c.updateMany({ senderId: input.senderId, type: "profile_photo", status: "pending" }, { $set: { status: "superseded", reviewedAt: new Date() } });
+  await c.insertOne(doc);
   return doc;
 }
 

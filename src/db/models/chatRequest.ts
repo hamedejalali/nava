@@ -22,6 +22,8 @@ export interface ChatRequestDoc {
   expiresAt: Date;
   respondedAt?: Date;
   sessionId?: string;
+  /** where the conversation will happen: "miniapp" = inside Navagram (direct messages), absent/"bot" = the bot chat */
+  origin?: "bot" | "miniapp";
 }
 
 export const CHAT_REQUEST_TTL_MS = 10 * 60 * 1000;
@@ -48,7 +50,7 @@ export type CreateChatRequestResult =
   | { status: "already_pending" }
   | { status: "rate_limited" };
 
-export async function createChatRequest(fromId: number, toId: number, now = new Date()): Promise<CreateChatRequestResult> {
+export async function createChatRequest(fromId: number, toId: number, now = new Date(), origin: "bot" | "miniapp" = "bot"): Promise<CreateChatRequestResult> {
   const col = await chatRequestCollection();
 
   // An old pending request that already ran out is closed first so the
@@ -65,6 +67,7 @@ export async function createChatRequest(fromId: number, toId: number, now = new 
     status: "pending",
     createdAt: now,
     expiresAt: new Date(now.getTime() + CHAT_REQUEST_TTL_MS),
+    origin,
   };
   try {
     await col.insertOne(request);

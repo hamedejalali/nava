@@ -4,10 +4,6 @@
     "api/webhook.ts": {
       "memory": 512,
       "maxDuration": 60
-    },
-    "api/wallet.ts": {
-      "memory": 256,
-      "maxDuration": 15
     }
   },
   "crons": [
@@ -18,12 +14,6 @@
     {
       "path": "/api/cron/process-broadcasts",
       "schedule": "0 1 * * *"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/wallet/v1/:op",
-      "destination": "/api/wallet?op=:op"
     }
   ]
 }

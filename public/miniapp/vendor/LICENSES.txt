@@ -3,3 +3,4 @@ Third-party files shipped with the Mini App (served from our own domain — no e
 * Vazirmatn (Vazirmatn-var.woff2) — © 2015 The Vazirmatn Project Authors (https://github.com/rastikerdar/vazirmatn), SIL Open Font License 1.1.
 * Aref Ruqaa (ArefRuqaa-700.woff2) — © The Aref Ruqaa Project Authors, SIL Open Font License 1.1 (via @fontsource/aref-ruqaa).
 * lottie-web 5.12.2 (lottie_light.min.js) — © Airbnb, MIT License (https://github.com/airbnb/lottie-web).
+* Grand Hotel (GrandHotel-400.woff2) — © 2012 Brian J. Bonislawsky DBA Astigmatic, SIL Open Font License 1.1 (via @fontsource/grand-hotel).

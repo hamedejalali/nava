@@ -26,8 +26,31 @@ export async function getActiveSessionAndPartner(
     return null;
   }
 
+  // A Navagram (Mini App) direct-message chat is NOT relayed through the bot: its messages live in the app.
+  if (session.origin === "miniapp") return null;
+
   const partnerId = otherParticipant(session, ctx.from!.id);
   if (!partnerId) return null;
 
   return { session, partnerId };
+}
+
+export const MINIAPP_CHAT_HINT = "💬 چتت داخل نوا گرام (بخش «پیام‌ها» توی مینی‌اپ) جریان داره؛ پیام‌ها رو از اونجا بفرست.\nبرای پایان دادن به چت هم /end رو بفرست.";
+
+/** True when this person is in a Navagram direct-message chat (so a bot message must not be treated as chat text). */
+export async function inMiniappChat(ctx: NavaContext): Promise<boolean> {
+  const sessionId = ctx.dbUser?.activeChatSessionId;
+  if (!sessionId) return false;
+  const session = await getSession(sessionId);
+  return !!session && session.active && session.origin === "miniapp";
+}
+
+/** Install BEFORE the photo / media relays: a photo or sticker sent to the bot during an in-app chat is not a profile
+ *  upload and not a relay — the person is pointed back to the app. */
+export function registerMiniappChatGuard(composer: import("grammy").Composer<NavaContext>, hasPendingPhotoFlow: (id: number) => Promise<boolean>) {
+  composer.on(["message:photo", "message:sticker", "message:animation", "message:voice", "message:video", "message:video_note", "message:audio"], async (ctx, next) => {
+    if (!(await inMiniappChat(ctx))) return next();
+    if (await hasPendingPhotoFlow(ctx.from!.id)) return next();
+    await ctx.reply(MINIAPP_CHAT_HINT).catch(() => {});
+  });
 }

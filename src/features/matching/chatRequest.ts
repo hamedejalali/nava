@@ -9,6 +9,7 @@ import { botApi } from "../../services/miniapp.js";
 import { escapeHtml } from "../../utils/html.js";
 import { MENU_CALLBACKS } from "../menu/mainMenu.js";
 import { deliverSession } from "./matchDelivery.js";
+import { announceDmStarted } from "../../services/nava/dm.js";
 
 const ACCEPT_PREFIX = "crq:a:";
 const DECLINE_PREFIX = "crq:d:";
@@ -20,7 +21,7 @@ function requestCaption(from: UserDoc): string {
   return (
     `💬 <b>درخواست چت</b>\n\n` +
     `${name}${age} از نوا گرام می‌خواد باهات چت کنه.\n` +
-    `<blockquote>با قبول کردن، از هر دو نفر ۱ XP کم میشه و چت ناشناس شروع میشه.</blockquote>`
+    `<blockquote>با قبول کردن، از هر دو نفر ۱ XP کم میشه و چت داخل نوا گرام شروع میشه (می‌تونی از بخش «پیام‌ها» توی مینی‌اپ هم جواب بدی).</blockquote>`
   );
 }
 
@@ -92,6 +93,11 @@ export function registerChatRequest(composer: Composer<NavaContext>) {
 
     await ctx.answerCallbackQuery({ text: "✅ چت شروع شد" });
     await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+
+    if (result.origin === "miniapp") {
+      await announceDmStarted(ctx.api, result.sessionId, result.fromId, result.toId);
+      return;
+    }
 
     // Durable delivery (never throws): a transient Telegram failure is retried from the stored record, a
     // person who blocked the bot gets the chat undone and both Relic refunded (see matchDelivery.ts).

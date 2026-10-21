@@ -315,8 +315,10 @@
     mine.querySelector(".plus").onclick = function (e) { e.stopPropagation(); NG.createStory(); };
     mine.onclick = function () { if (hasMine) NG.openStories([m.id], 0); else NG.createStory(); };
     st.appendChild(mine);
-    var ids = tray.filter(function (b) { return b.id !== m.id; }).map(function (b) { return b.id; });
-    tray.forEach(function (b) {
+    // like Instagram: people you have fully watched (grey ring) move to the end; unseen ones stay first (stable order otherwise)
+    var ordered = tray.map(function (b, i) { return { b: b, i: i }; }).sort(function (x, y) { var xs = x.b.story === 1 ? 1 : 0, ys = y.b.story === 1 ? 1 : 0; return xs - ys || x.i - y.i; }).map(function (x) { return x.b; });
+    var ids = ordered.filter(function (b) { return b.id !== m.id; }).map(function (b) { return b.id; });
+    ordered.forEach(function (b) {
       if (b.id === m.id) return;
       var s = el('<button class="story"><div class="nm' + (b.story === 1 ? " old" : "") + '">' + esc(NG.nameOf(b)) + "</div></button>");
       var r = NG.ring(b); s.insertBefore(r, s.firstChild);
@@ -330,8 +332,7 @@
   NG.on("story:seen", function (d) {
     tray.forEach(function (b) { if (b.id === d.uid) b.story = d.state; });
     NG.setUserStory(d.uid, d.state);
-    var n = document.querySelector('#tray .story .ring[data-uid="' + d.uid + '"]');
-    if (n && n.parentNode) { var nm = n.parentNode.querySelector(".nm"); if (nm) nm.classList.toggle("old", d.state === 1); }
+    if (d.state === 1) setTimeout(renderTray, 320); // re-sort once the viewer slid away
   });
   NG.on("story:posted", function () { NG.refresh(); NG.refreshTray(); });
 
@@ -380,7 +381,7 @@
 
   NG.renderHome = function (page) {
     pgHome = page; page.innerHTML = "";
-    var top = el('<div class="topbar"><div class="wordmark">نوا گرام</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
+    var top = el('<div class="topbar"><div class="wordmark en">Navagram</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
     top.querySelector("#addp").onclick = function () { NG.composeMenu(); };
     if (NG.bindHeart) NG.bindHeart(top);
     page.appendChild(top);

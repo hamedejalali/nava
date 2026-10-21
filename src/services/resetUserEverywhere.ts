@@ -1,6 +1,5 @@
 import { getDb } from "../db/connect.js";
 import { resetUserToZero } from "../db/models/user.js";
-import { revokeTransferToken } from "./wallet/transferToken.js";
 import type { UserDoc } from "../db/models/user.js";
 
 /**
@@ -52,6 +51,6 @@ export async function resetUserEverywhere(telegramId: number): Promise<ResetRepo
   await step("chat_requests", del("chat_requests", { $or: [{ fromId: telegramId }, { toId: telegramId }] }));
   await step("edit_requests", del("edit_requests", { telegramId, status: "pending" }));
   await step("image_moderation", del("image_moderation", { senderId: telegramId, status: "pending" }));
-  await step("xp_transfer_token", async () => ((await revokeTransferToken(telegramId, "admin")) ? 1 : 0));
+  await step("wallet_deposit_flow", del("wallet_deposit_flow", { _id: telegramId as never }));
   return report;
 }

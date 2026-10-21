@@ -45,20 +45,48 @@
     accepted: "درخواست دنبال کردنت را پذیرفت.",
     like_post: "پست شما را پسندید.",
     like_profile: "عکس پروفایل شما را پسندید.",
+    story_like: "استوری شما را پسندید.",
+    story_reply: "به استوری شما پاسخ داد:",
     comment: "برای پست شما نظر گذاشت:",
     reply: "به نظر شما پاسخ داد:",
-    like_comment: "نظر شما را پسندید:",
+    like_comment: "نظر شما را پسندید:"
   };
+  /* Instagram-style stacked sections, in this order */
+  var SECTIONS = [
+    { id: "req", title: "درخواست‌های دنبال کردن", types: ["follow_request"], pendingOnly: true },
+    { id: "fol", title: "دنبال‌کننده‌ها", types: ["follow", "accepted", "follow_request"] },
+    { id: "lik", title: "پسندها", types: ["like_post", "like_profile", "story_like", "like_comment"] },
+    { id: "com", title: "نظرها و پاسخ‌ها", types: ["comment", "reply", "story_reply"] }
+  ];
+  function sectionOf(it) {
+    if (it.type === "follow_request" && it.pending) return "req";
+    for (var i = 1; i < SECTIONS.length; i++) if (SECTIONS[i].types.indexOf(it.type) >= 0) return SECTIONS[i].id;
+    return "fol";
+  }
 
   NG.openActivity = function () {
     var w = el('<div style="min-height:100%"></div>');
     var top = NG.topbar("فعالیت");
-    var body = el('<div class="acts"></div>');
+    var body = el('<div class="nlist"></div>');
     w.appendChild(top); w.appendChild(body);
     var scr = NG.push(w); top.querySelector(".bk").onclick = scr.close;
-    var cursor = null, loading = false, marked = false;
+    var cursor = null, loading = false, marked = false, secs = {}, more = null;
 
-    function followBtn(it, r) {
+    function section(id) {
+      if (secs[id]) return secs[id];
+      var def = SECTIONS.filter(function (s) { return s.id === id; })[0];
+      var box = el('<section class="nsec hide"><h4><span>' + esc(def.title) + '</span><i class="cnt"></i></h4><div class="nbody"></div></section>');
+      secs[id] = { box: box, body: box.querySelector(".nbody"), cnt: box.querySelector(".cnt"), n: 0 };
+      // keep the fixed order even when a later page brings a section that was empty before
+      var idx = SECTIONS.indexOf(def), placed = false;
+      for (var k = idx + 1; k < SECTIONS.length && !placed; k++) if (secs[SECTIONS[k].id]) { body.insertBefore(box, secs[SECTIONS[k].id].box); placed = true; }
+      if (!placed) { if (more) body.insertBefore(box, more); else body.appendChild(box); }
+      return secs[id];
+    }
+    function paintCount(s) { s.cnt.textContent = num(s.n); s.box.classList.toggle("hide", s.n === 0); }
+    function drop(node, id) { var s = secs[id]; node.remove(); if (s) { s.n = Math.max(0, s.n - 1); paintCount(s); } }
+
+    function followBtn(it) {
       var b = el('<button class="fbtn"></button>');
       function paint() {
         b.className = "fbtn" + (it.iFollow || it.requested ? " gray" : "");
@@ -81,12 +109,12 @@
       var verb = VERB[it.type] || "";
       var tail = it.text ? ' <span class="q">«' + esc(it.text) + "»</span>" : "";
       var r = el('<div class="nrow' + (it.seen ? "" : " new") + '"><div class="nl"></div><div class="nt"><div><b>' + esc(NG.nameOf(it.actor)) + NG.vb(it.actor) + "</b> " + esc(verb) + tail + ' <span class="ago">' + NG.ago(it.at) + '</span></div><div class="nact"></div></div><div class="nr"></div></div>');
-      var ring = NG.ring(it.actor, { noStory: true }); ring.style.width = "44px"; ring.style.height = "44px";
+      var ring = NG.ring(it.actor, { noStory: true });
       r.querySelector(".nl").appendChild(ring);
       ring.onclick = function (e) { e.stopPropagation(); NG.openProfile(it.actor.id); };
       var nr = r.querySelector(".nr"), act = r.querySelector(".nact");
 
-      if (it.type === "follow" || it.type === "accepted") nr.appendChild(followBtn(it, r));
+      if (it.type === "follow" || it.type === "accepted") nr.appendChild(followBtn(it));
       if (it.type === "follow_request") {
         if (it.pending) {
           var ok = el('<button class="fbtn">تأیید</button>'), no = el('<button class="fbtn gray">حذف</button>');
@@ -95,13 +123,14 @@
             NG.api("follow_respond", { id: it.actor.id, accept: accept }).then(function (rr) {
               if (!rr.ok) { ok.disabled = no.disabled = false; return NG.toast(NG.errText(rr)); }
               NG.haptic("ok");
-              if (accept) { it.type = "follow"; it.pending = false; it.iFollow = false; r.replaceWith(row(it)); } else r.remove();
+              drop(r, "req");
+              if (accept) { it.type = "follow"; it.pending = false; it.iFollow = false; var s2 = section("fol"); s2.body.insertBefore(row(it), s2.body.firstChild); s2.n++; paintCount(s2); }
               NG.emit("follow", { id: it.actor.id });
             }).catch(function () { ok.disabled = no.disabled = false; NG.netErr(); });
           };
           ok.onclick = function (e) { answer(true, e); }; no.onclick = function (e) { answer(false, e); };
           nr.appendChild(ok); nr.appendChild(no);
-        } else nr.appendChild(followBtn(it, r));
+        } else nr.appendChild(followBtn(it));
       }
       if (it.src) { var th = el('<div class="thumb sk"></div>'); th.appendChild(NG.img(it.src)); nr.appendChild(th); }
       else if (it.type === "like_profile" && NG.me && NG.me.av) { var th2 = el('<div class="thumb sk"></div>'); th2.appendChild(NG.img(NG.me.av)); nr.appendChild(th2); }
@@ -128,6 +157,7 @@
         act.appendChild(rp); act.appendChild(lk);
       }
       r.onclick = function () {
+        if (it.type === "story_like" || it.type === "story_reply") { if (NG.me) NG.openStories([NG.me.id], 0); return; }
         if (it.pid) NG.openPost(it.pid); else NG.openProfile(it.actor.id);
       };
       return r;
@@ -135,16 +165,17 @@
 
     function load(reset) {
       if (loading) return; loading = true;
-      if (reset) { body.innerHTML = '<div class="more-spin"><div class="spin"></div></div>'; cursor = null; }
+      if (reset) { body.innerHTML = '<div class="more-spin"><div class="spin"></div></div>'; cursor = null; secs = {}; more = null; }
       NG.api("notifs", { before: cursor || undefined }).then(function (r) {
         loading = false;
         if (reset) body.innerHTML = "";
-        var mb = body.querySelector(".moreb"); if (mb) mb.remove();
+        if (more) { more.remove(); more = null; }
         if (!r.ok) return NG.toast(NG.errText(r));
-        r.data.items.forEach(function (it) { body.appendChild(row(it)); });
+        r.data.items.forEach(function (it) { var s = section(sectionOf(it)); s.body.appendChild(row(it)); s.n++; });
+        Object.keys(secs).forEach(function (k) { paintCount(secs[k]); });
         cursor = r.data.next;
-        if (!body.children.length) body.innerHTML = NG.emptyHtml("heartO", "هنوز فعالیتی نیست", "وقتی کسی پستت رو بپسنده، دنبالت کنه یا نظر بذاره اینجا می‌بینی.");
-        if (r.data.hasMore) { var b = el('<button class="moreb" style="width:100%;padding:14px;color:var(--blue);font-weight:600">بیشتر</button>'); b.onclick = function () { load(false); }; body.appendChild(b); }
+        if (!Object.keys(secs).length) body.innerHTML = NG.emptyHtml("heartO", "هنوز فعالیتی نیست", "وقتی کسی پستت رو بپسنده، دنبالت کنه یا نظر بذاره اینجا می‌بینی.");
+        if (r.data.hasMore) { more = el('<button class="moreb">بیشتر</button>'); more.onclick = function () { load(false); }; body.appendChild(more); }
         if (!marked) { marked = true; NG.api("notifs_seen").then(function () { NG.setPulse({ total: 0, likes: 0, follows: 0, comments: 0 }); }); } // the rows keep their "new" highlight until this screen is closed
       }).catch(function () { loading = false; NG.netErr(); });
     }

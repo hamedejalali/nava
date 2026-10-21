@@ -88,8 +88,15 @@ test("M3. guest endpoint needs valid signed initData; a hidden or banned fiction
 test("M4. a registered member without an approved photo gets need_photo; with one he gets real eligible people (never himself)", async () => {
   col("users").updateOne({ _id: 50 }, { $unset: { profilePhotoFileId: "" } });
   seedUser({ id: 51, anonId: "user_R2", nickname: "دو", profilePhotoFileId: "F51", onboardingStep: "COMPLETED", relicBalance: 0 } as any);
+  for (let i = 70; i <= 75; i++) seedUser({ id: i, anonId: `user_P${i}`, nickname: `ک${i}`, profilePhotoFileId: `F${i}`, onboardingStep: "COMPLETED", relicBalance: 0 } as any);
+  for (let i = 1; i <= 8; i++) await col("users").updateOne({ anonId: `seed_${i}` }, { $set: { seedHidden: true } }); // keep the pool under one batch: deterministic
+  // v1.22: a member WITHOUT a photo still gets 6 cards in total, then the «put your photo first» answer
   const no = await call(50, { action: "match_cards" });
-  assert.notEqual(no.status, 200);
+  assert.equal(no.status, 200);
+  assert.equal(no.payload.cards.length, 6);
+  const more = await call(50, { action: "match_cards" });
+  assert.notEqual(more.status, 200);
+  assert.equal(more.payload.error, "need_photo");
   col("users").updateOne({ _id: 50 }, { $set: { profilePhotoFileId: "FR" } });
   const ok = await call(50, { action: "match_cards" });
   assert.equal(ok.status, 200);
