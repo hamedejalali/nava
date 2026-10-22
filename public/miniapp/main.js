@@ -62,10 +62,17 @@
     TABS.forEach(function (k) { pages[k].classList.toggle("on", k === t); });
     pg.scrollTop = scrollAt[t] || 0;
     movePill();
-    if (t === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
-    if (t === "match") { if (!matchV) matchV = NG.matchView(pages.match); else matchV.reload(); }
-    if (t === "dm") { if (!dmV) dmV = NG.dmView(pages.dm); else dmV.reload(); }
-    if (t === "profile") { renderProfileTab(); }
+    // paint the tab first, then do the (possibly heavy) loading — switching must never wait for the network or a big render
+    var tt = t;
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        if (current !== tt) return;
+        if (tt === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
+        if (tt === "match") { if (!matchV) matchV = NG.matchView(pages.match); else matchV.reload(); }
+        if (tt === "dm") { if (!dmV) dmV = NG.dmView(pages.dm); else dmV.reload(); }
+        if (tt === "profile") { renderProfileTab(); }
+      }, 0);
+    });
   };
 
   /* ------------------------------------------------------------ own profile */
@@ -231,13 +238,6 @@
     }, 350);
   }
 
-  function actBanner() {
-    var b = document.createElement("div"); b.className = "actasbar";
-    b.innerHTML = '<span>🎭 داری به‌جای «' + NG.esc(NG.me.name || NG.me.id) + '» کار می‌کنی</span><button type="button">بازگشت به اکانت خودم</button>';
-    b.querySelector("button").onclick = function () { NG.setActAs(null); location.reload(); };
-    document.body.appendChild(b);
-  }
-
   /** warms the other tabs while the user looks at Home, so switching tabs is instant */
   function prefetch() {
     if (NG.guest || document.hidden) return;
@@ -269,7 +269,7 @@
       if (r.data.role === "staff") { location.replace("/monitor/"); return; }
       NG.me = r.data.me; NG.bot = r.data.bot || null; NG.staff = !!r.data.staff; // owner / admins may remove any post, story or comment
       buildShell(); renderExploreShell();
-      if (r.data.acting) actBanner();
+      if (NG.needsSetup && NG.needsSetup(NG.me) && !r.data.acting) NG.setupGate();
       pages.home.classList.add("on"); movePill();
       NG.splashProgress(80);
       var done = NG.renderHome(pages.home);

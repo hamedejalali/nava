@@ -10,7 +10,7 @@ import { getRequestRecipientIds } from "../features/admin/constants.js";
 import { adminCaption } from "../features/photo/moderation.js";
 import { checkImage, type ModerationCheckResult } from "./sightengine.js";
 import { botApi } from "./miniapp.js";
-import { SocialError, findVisibleUser } from "./nava/common.js";
+import { SocialError, findVisibleUser, isOfficial } from "./nava/common.js";
 import { dropNotifs, ensureNotifIndexes, notifKey, pushNotif } from "./nava/notifs.js";
 import { decodeImage } from "./nava/media.js";
 import { runInTransaction, TxAbort } from "../db/tx.js";
@@ -210,6 +210,27 @@ export async function setBio(user: UserDoc, raw: unknown): Promise<string> {
   return bio;
 }
 
+/** The owner's page and legal accounts only: free-text place, or none at all (empty = removed). */
+export async function setLocation(user: UserDoc, provinceRaw: unknown, cityRaw: unknown): Promise<{ province: string | null; city: string | null }> {
+  if (!isOfficial(user)) throw new SocialError("forbidden");
+  const clean = (v: unknown) => (typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40) : "");
+  const province = clean(provinceRaw), city = clean(cityRaw);
+  const db = await getDb();
+  const u = db.collection<UserDoc>("users");
+  await u.updateOne({ _id: user._id }, province || city ? { $set: { province: province || undefined, city: city || undefined } as any } : { $unset: { province: "", city: "" } });
+  if (!province && city) await u.updateOne({ _id: user._id }, { $unset: { province: "" } });
+  if (province && !city) await u.updateOne({ _id: user._id }, { $unset: { city: "" } });
+  return { province: province || null, city: city || null };
+}
+
+/** A legal account's switch: may people send it chat requests? (The owner's «Nava» page never takes any.) */
+export async function setOfficialChatOpen(user: UserDoc, open: boolean): Promise<boolean> {
+  if (!isOfficial(user) || (env.OWNER_ID !== undefined && user._id === env.OWNER_ID)) throw new SocialError("forbidden");
+  const db = await getDb();
+  await db.collection<any>("users").updateOne({ _id: user._id }, { $set: { officialChatOpen: open } });
+  return open;
+}
+
 /* ----------------------------------------------------------- photo upload */
 
 export interface UploadDeps {
@@ -229,6 +250,13 @@ export async function uploadProfilePhoto(user: UserDoc, raw: unknown, deps?: Par
     check: deps?.check ?? checkImage,
     recipients: deps?.recipients ?? getRequestRecipientIds,
   };
+  // A legal account (a default member the owner runs): the photo goes to the OWNER's chat just to obtain a file_id, no approval.
+  if (isOfficial(user) && !(env.OWNER_ID !== undefined && user._id === env.OWNER_ID) && env.OWNER_ID !== undefined) {
+    const sent = await d.api.sendPhoto(env.OWNER_ID, new InputFile(buf, "profile.jpg"));
+    await createModerationRecord({ type: "profile_photo", senderId: user._id, fileId: sent.photo[sent.photo.length - 1]!.file_id, status: "approved", aiScore: 0, aiClassification: "official" });
+    await setProfilePhoto(user._id, sent.photo[sent.photo.length - 1]!.file_id);
+    return "approved";
+  }
   // The owner's own photo needs no approval: he is the approver.
   if (env.OWNER_ID !== undefined && user._id === env.OWNER_ID) {
     const sent = await d.api.sendPhoto(user._id, new InputFile(buf, "profile.jpg"));

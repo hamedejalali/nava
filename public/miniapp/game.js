@@ -81,7 +81,7 @@
       if (v.status === "waiting") return "منتظر حریف…";
       if (v.status === "finished" || v.winner !== null) {
         var meWon = v.winner === v.me;
-        return v.endedBy === "cancel" ? "میز بسته شد" : (meWon ? "🏆 تو بردی!" : "باختی") + (v.endedBy === "resign" ? " (انصراف)" : v.endedBy === "timeout" ? " (وقت تموم شد)" : "");
+        return v.endedBy === "cancel" ? "میز بسته شد" + (v.stake > 0 ? " — XP‌ت برگشت" : "") : (meWon ? "🏆 تو بردی!" + (v.stake > 0 ? " " + num(v.stake * 2) + " XP به حسابت اومد" : "") : "باختی" + (v.stake > 0 ? " (" + num(v.stake) + " XP)" : "")) + (v.endedBy === "resign" ? " (انصراف)" : v.endedBy === "timeout" ? " (وقت تموم شد)" : "");
       }
       if (v.canRoll) return "نوبت توئه — تاس بنداز";
       if (v.state.turn === v.me) return v.legal.length ? "نوبت توئه — مهره رو انتخاب کن" : "حرکتی نمونده…";
@@ -95,8 +95,9 @@
       var st = v.state, opp = v.me === 0 ? v.black : v.white, me = v.me === 0 ? v.white : v.black;
       var myTurn = v.status === "active" && st && st.turn === v.me && st.winner === null;
       var h = "";
+      if (v.stake > 0) h += '<div class="bgpot">🪙 روی میز: <b>' + num(v.stake) + "</b> XP از هر نفر — برنده <b>" + num(v.stake * 2) + "</b> XP می‌گیره</div>";
       h += playerBar(opp, 1 - v.me, v.status === "active" && st && st.turn !== v.me && st.winner === null, st ? st.off[1 - v.me] : 0);
-      if (!st) h += '<div class="bgwait"><div class="spin"></div><p>منتظر یه حریف…<br><small>میز تا ۱۵ دقیقه باز می‌مونه</small></p><button class="btn" id="cn">لغو میز</button></div>';
+      if (!st) h += '<div class="bgwait"><div class="spin"></div><p>منتظر یه حریف…<br><small>میز تا ۱۵ دقیقه باز می‌مونه' + (v.stake > 0 ? "<br>XP روی میز نگه داشته می‌شه و اگه کسی نیومد برمی‌گرده." : "") + '</small></p><button class="btn" id="cn">لغو میز</button></div>';
       else {
         h += '<div class="bgboard">' + boardSvg(v, sel, targets(), v.last && v.last.move) + "</div>";
         var dice = (st.remaining || []).slice(), shownDice = dice;
@@ -164,6 +165,7 @@
   }
 
   /** lobby: continue my game / create a table / join an open one */
+  var stakeSel = 0;
   NG.openGame = function () {
     var w = el('<div style="min-height:100%"></div>');
     var top = NG.topbar("تخته‌نرد 🎲"); w.appendChild(top);
@@ -183,15 +185,26 @@
           c.onclick = function () { alive = false; scr.close(); setTimeout(function () { openBoard(d.mine.gid, null); }, 60); };
           body.appendChild(c);
         } else {
-          var n = el('<button class="btn blue tall" style="width:calc(100% - 28px);margin:6px 14px">ساخت میز جدید</button>');
-          n.onclick = function () { n.disabled = true; NG.api("game_create").then(enter).catch(function () { n.disabled = false; NG.netErr(); }); };
+          var stakes = d.stakes || [0, 1, 2, 5, 10, 20, 50, 100];
+          var chips = el('<div class="bgstakes"><div class="bgsl">XP روی میز (هر نفر؛ برنده همه‌ی جایزه رو می‌بره)</div><div class="bgsr"></div></div>');
+          stakeSel = stakes.indexOf(stakeSel) >= 0 ? stakeSel : 0;
+          var n = el('<button class="btn blue tall" style="width:calc(100% - 28px);margin:6px 14px"></button>');
+          function lab() { n.textContent = stakeSel ? "ساخت میز با " + num(stakeSel) + " XP" : "ساخت میز دوستانه (بدون XP)"; }
+          stakes.forEach(function (s) {
+            var c = el('<button class="bgchip' + (s === stakeSel ? " on" : "") + '">' + (s ? "🪙 " + num(s) : "دوستانه") + "</button>");
+            c.onclick = function () { stakeSel = s; Array.prototype.forEach.call(chips.querySelectorAll(".bgchip"), function (x) { x.classList.remove("on"); }); c.classList.add("on"); lab(); };
+            chips.querySelector(".bgsr").appendChild(c);
+          });
+          lab();
+          body.appendChild(chips);
+          n.onclick = function () { n.disabled = true; NG.api("game_create", { stake: stakeSel || 0 }).then(function (rr) { if (!rr.ok) { n.disabled = false; return NG.toast(rr.data && rr.data.error === "insufficient" ? "XP کافی برای این مبلغ نداری." : NG.errText(rr)); } enter(rr); }).catch(function () { n.disabled = false; NG.netErr(); }); };
           body.appendChild(n);
           body.appendChild(el('<div class="hint"><span>میزهای باز</span></div>'));
           if (!d.open.length) body.appendChild(el('<div class="empty" style="padding:26px">الان میز بازی نیست؛ خودت یکی بساز.</div>'));
           d.open.forEach(function (t) {
-            var r2 = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(t.host)) + NG.vb(t.host) + "</b><span>" + NG.ago(t.at) + '</span></div><button class="fbtn">بپیوند</button></div>');
+            var r2 = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(t.host)) + NG.vb(t.host) + "</b><span>" + NG.ago(t.at) + (t.stake ? " · 🪙 " + num(t.stake) + " XP" : " · دوستانه") + '</span></div><button class="fbtn">بپیوند' + (t.stake ? " (" + num(t.stake) + " XP)" : "") + "</button></div>");
             var rg = NG.ring(t.host, { noStory: true }); rg.className = "ring none"; r2.insertBefore(rg, r2.firstChild);
-            r2.querySelector("button").onclick = function (e) { e.stopPropagation(); NG.api("game_join", { gid: t.gid }).then(function (rr) { if (!rr.ok) { NG.toast(rr.data && rr.data.error === "not_found" ? "این میز دیگه نیست." : NG.errText(rr)); return load(); } enter(rr); }).catch(NG.netErr); };
+            r2.querySelector("button").onclick = function (e) { e.stopPropagation(); NG.api("game_join", { gid: t.gid }).then(function (rr) { if (!rr.ok) { NG.toast(rr.data && rr.data.error === "not_found" ? "این میز دیگه نیست." : rr.data && rr.data.error === "insufficient" ? "XP کافی برای هم‌اندازه کردن مبلغ میز نداری." : NG.errText(rr)); return load(); } enter(rr); }).catch(NG.netErr); };
             body.appendChild(r2);
           });
         }

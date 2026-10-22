@@ -1,3 +1,4 @@
+import { isOfficial } from "../../services/nava/common.js";
 import type { Composer } from "grammy";
 import { hasUnlimitedXp } from "../../db/models/relic.js";
 import type { NavaContext } from "../../bot-context.js";
@@ -63,6 +64,7 @@ export function registerGiftReply(composer: Composer<NavaContext>) {
     if (!gift) return void (await ctx.answerCallbackQuery({ text: "این هدیه دیگه معتبر نیست.", show_alert: true }));
     const [from, target] = await Promise.all([getUser(me), getUser(gift.senderId)]);
     if (!from || !target || target.banned) return void (await ctx.answerCallbackQuery({ text: "الان نمیشه به این کاربر پیام داد.", show_alert: true }));
+    if (isOfficial(target) && (target as any).officialChatOpen !== true) return void (await ctx.answerCallbackQuery({ text: "این اکانت پشتیبانی/حقوقیه و درخواست چت نمی‌گیره.", show_alert: true }));
     if (from.activeChatSessionId) return void (await ctx.answerCallbackQuery({ text: "الان توی یه چت هستی.", show_alert: true }));
     if (!hasUnlimitedXp(from._id) && (from.relicBalance ?? 0) < 1) {
       await ctx.answerCallbackQuery();

@@ -163,8 +163,13 @@ export async function activeStoryOwners(viewerId: number, ownerIds: number[], no
   return out;
 }
 
-export function isOfficial(id: number): boolean {
-  return env.OWNER_ID !== undefined && id === env.OWNER_ID;
+/** The official «Nava» account (the owner's page) and every legal-entity ("حقوقی") account created in the admin panel.
+ *  Pass the user document when you have it (needed for the legal accounts); a bare id only recognises the owner's page. */
+export function isOfficial(x: number | { _id: number; official?: boolean } | null | undefined): boolean {
+  if (x == null) return false;
+  const id = typeof x === "number" ? x : x._id;
+  if (env.OWNER_ID !== undefined && id === env.OWNER_ID) return true;
+  return typeof x === "object" && x.official === true;
 }
 
 export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> {
@@ -176,8 +181,8 @@ export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> 
     id: u.anonId,
     username: u.miniUsername ?? null,
     name: u.nickname ?? "-",
-    verified: !!u.verified || isOfficial(u._id),
-    ...(isOfficial(u._id) ? { gold: true as const } : {}),
+    verified: !!u.verified || isOfficial(u),
+    ...(isOfficial(u) ? { gold: true as const } : {}),
     ...(Array.isArray(u.badges) && u.badges.length ? { bd: cleanBadges(u.badges) } : {}),
     pv: photoVer(u.profilePhotoFileId),
     story: (st.get(u._id) ?? 0) as 0 | 1 | 2,
@@ -194,4 +199,19 @@ export async function findVisibleUser(viewerId: number, anonId: unknown, opts: {
 
 export function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The owner's page is the official «Nava» account: if the nickname / first name still carries the owner's real registered name
+ *  (or is empty), it is replaced by «Nava». A deliberately chosen different nickname is left alone. */
+export async function healOwnerIdentity(user: any, realFirstName?: string): Promise<void> {
+  if (!user || (env.OWNER_ID !== undefined && user._id !== env.OWNER_ID)) return;
+  const real = (realFirstName ?? "").trim();
+  const nick = typeof user.nickname === "string" ? user.nickname.trim() : "";
+  const first = typeof user.firstName === "string" ? user.firstName.trim() : "";
+  const set: Record<string, unknown> = {};
+  if (!nick || (real && nick === real) || (first && nick === first && first !== "Nava")) set.nickname = "Nava";
+  if (first !== "Nava") set.firstName = "Nava";
+  if (!Object.keys(set).length) return;
+  await (await usersCol()).updateOne({ _id: user._id }, { $set: set });
+  Object.assign(user, set);
 }

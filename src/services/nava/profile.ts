@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import { levelDisplay } from "../../config/levels.js";
 import { createEditRequest } from "../../db/models/editRequests.js";
 import { getRequestRecipientIds } from "../../features/admin/constants.js";
@@ -51,6 +52,8 @@ export interface ProfileView extends Brief {
   unlimited?: boolean;
   /** this page belongs to the owner: he edits name / age / bio / photo directly, without approval */
   isOwnerPage?: boolean;
+  /** legal accounts only (own view): are chat requests to this account switched on? */
+  officialChat?: boolean;
   /** staff viewers only: the moderation state of this person */
   mod?: { banned: boolean; hasPhoto: boolean; badges: string[] };
   /** I blocked this person */
@@ -65,7 +68,7 @@ export type ProfileHide = Partial<Record<HideKey, boolean>>;
  *  (it is a brand page, not a person); the owner can still switch them on with an explicit `false`. */
 export function effectiveHide(owner: any): ProfileHide {
   const stored: ProfileHide = (owner.profileHide ?? {}) as ProfileHide;
-  return isOfficial(owner._id) ? { age: true, location: true, ...stored } : stored;
+  return isOfficial(owner) ? { age: true, location: true, ...stored } : stored;
 }
 
 export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileView | null> {
@@ -111,7 +114,8 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
     view.chat = "me";
     view.hide = hide;
     view.unlimited = hasUnlimitedXp(owner._id);
-    view.isOwnerPage = isOfficial(owner._id);
+    view.isOwnerPage = isOfficial(owner);
+    if (owner.official === true && !(env.OWNER_ID !== undefined && owner._id === env.OWNER_ID)) view.officialChat = owner.officialChatOpen === true;
     const db = await usersCol();
     const fresh = (await db.findOne({ _id: owner._id })) ?? owner;
     const pendingPhoto = await hasPendingProfilePhoto(owner._id);
@@ -128,7 +132,7 @@ export async function getProfile(viewer: any, anonId: unknown): Promise<ProfileV
   } else {
     if (isStaffId(viewer._id)) view.mod = { banned: !!owner.banned, hasPhoto: !!owner.profilePhotoFileId, badges: cleanBadges(owner.badges) };
     // they are chatting RIGHT NOW with the person who opened the profile: «در حال چت با شما هست»
-    if (isOfficial(owner._id)) view.chat = "official";
+    if (isOfficial(owner) && !(owner.official === true && owner.officialChatOpen === true)) view.chat = "official";
     else if (owner.activeChatSessionId && owner.activeChatSessionId === viewer.activeChatSessionId) view.chat = "with_you";
     else if (owner.activeChatSessionId) view.chat = "busy";
     else {
@@ -145,7 +149,7 @@ export async function findRequestTarget(viewerId: number, anonId: unknown): Prom
   const users = await usersCol();
   const hidden = await hiddenOwnerIds(viewerId);
   const t = await users.findOne({ _id: { $nin: [viewerId, ...hidden] }, onboardingStep: "COMPLETED", banned: { $ne: true }, activeChatSessionId: null, anonId });
-  return t && !isOfficial(t._id) ? t : null; // the official «Nava» account never takes chat requests
+  return t && (!isOfficial(t) || (t as any).officialChatOpen === true) ? t : null; // «Nava» never takes chat requests; a legal account only while its switch is on
 }
 
 /* ------------------------------------------------- name / age (owner-approved, like the bot) */
@@ -158,7 +162,7 @@ export async function requestProfileChange(
 ): Promise<{ status: "pending" } | { status: "applied"; value: string | null }> {
   // The owner's own page needs nobody's approval (he IS the approver): name and age are applied at once,
   // and the age is optional (an empty value removes it).
-  if (isOfficial(user._id)) {
+  if (isOfficial(user)) {
     const db = await usersCol();
     if (field === "nickname") {
       const v = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "";
@@ -199,7 +203,7 @@ export async function requestProfileChange(
 
 /** Owner only: choose what the rest of the world sees on his page. Unknown keys are ignored. */
 export async function setProfileVisibility(user: any, input: unknown): Promise<ProfileHide> {
-  if (!isOfficial(user._id)) throw new SocialError("forbidden");
+  if (!isOfficial(user)) throw new SocialError("forbidden");
   const cur: ProfileHide = { ...((user.profileHide ?? {}) as ProfileHide) };
   const src = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   for (const k of HIDE_KEYS) if (typeof src[k] === "boolean") cur[k] = src[k] as boolean;

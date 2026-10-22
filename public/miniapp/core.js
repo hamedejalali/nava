@@ -168,7 +168,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.22.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.23.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -280,7 +280,7 @@
     var closed = false, rm;
     function close() {
       if (closed) return; closed = true; rm();
-      s.classList.add("out"); setTimeout(function () { s.remove(); }, 260);
+      s.classList.add("out"); setTimeout(function () { s.remove(); }, 210);
       screens--; if (NG.onScreens) NG.onScreens(screens);
       if (o.onClose) o.onClose();
     }
@@ -341,17 +341,37 @@
   NG.share = function (kind, id) {
     var key = kind === "uid" ? "uid" : "pid";
     var body = {}; body[key] = id;
+    var code = (kind === "uid" ? "u_" : (String(id).indexOf("pp:") === 0 ? "q_" : "p_")) + String(id).replace(/^pp:/, "");
+    var link = NG.bot ? "https://t.me/" + NG.bot + "?startapp=" + code : "";
+    var tg = NG.tg;
+    /* the fallbacks, in order: Telegram's share sheet with the link → the phone's own share sheet → copy the link */
+    function viaLink() {
+      if (!link) return NG.toast("لینک اشتراک‌گذاری آماده نیست؛ چند لحظه بعد دوباره امتحان کن.");
+      try {
+        if (tg && tg.openTelegramLink) { tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("نوا گرام")); return; }
+      } catch (e) {}
+      try { if (navigator.share) { navigator.share({ url: link }).catch(function () {}); return; } } catch (e) {}
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(link).then(function () { NG.toast("لینک کپی شد ✓"); }, function () { NG.toast(link); }); return; }
+      } catch (e) {}
+      NG.toast(link);
+    }
     NG.haptic();
     NG.api("share", body).then(function (r) {
-      if (!r.ok) return NG.toast(NG.errText(r));
-      if (NG.tg && NG.tg.shareMessage) {
-        try { NG.tg.shareMessage(r.data.id, function (sent) { if (sent) { NG.haptic("ok"); NG.toast("ارسال شد ✓"); } }); return; } catch (e) {}
+      if (!r.ok || !r.data || !r.data.id) return viaLink();
+      if (tg && tg.shareMessage) {
+        var settled = false, off = function () { try { tg.offEvent("shareMessageFailed", failed); tg.offEvent("shareMessageSent", sent); } catch (e) {} };
+        var failed = function () { if (settled) return; settled = true; off(); viaLink(); };
+        var sent = function () { if (settled) return; settled = true; off(); NG.haptic("ok"); NG.toast("ارسال شد ✓"); };
+        try {
+          tg.onEvent("shareMessageFailed", failed); tg.onEvent("shareMessageSent", sent);
+          tg.shareMessage(r.data.id, function (ok) { if (ok) sent(); });
+          setTimeout(off, 120000);
+          return;
+        } catch (e) { off(); }
       }
-      var code = (kind === "uid" ? "u_" : (String(id).indexOf("pp:") === 0 ? "q_" : "p_")) + String(id).replace(/^pp:/, "");
-      var link = NG.bot ? "https://t.me/" + NG.bot + "?startapp=" + code : "";
-      if (link && NG.tg && NG.tg.openTelegramLink) NG.tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link));
-      else NG.toast("نسخه‌ی تلگرامت از ارسال مستقیم پشتیبانی نمی‌کنه؛ تلگرام رو آپدیت کن.");
-    }).catch(NG.netErr);
+      viaLink();
+    }).catch(function () { viaLink(); });
   };
   NG.confetti = function () {
     var cols = ["#feda75", "#fa7e1e", "#d62976", "#962fbf", "#4f5bd5", "#2ecc71", "#fff"];

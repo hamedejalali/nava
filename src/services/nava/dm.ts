@@ -90,6 +90,7 @@ export interface ThreadItem {
   partnerGone: boolean;
   active: boolean;
   last: { kind: DmMessage["kind"]; text?: string; mine: boolean; at: number } | null;
+  readonly?: boolean;
   unread: number;
   at: number;
 }
@@ -105,7 +106,7 @@ export async function overview(me: any): Promise<DmOverview> {
   await ensureDmIndexes();
   const since = new Date(Date.now() - DM_KEEP_MS);
   const sessions = await (await sessionsCol())
-    .find({ origin: "miniapp", createdAt: { $gt: since }, $or: [{ userA: me._id }, { userB: me._id }] } as any)
+    .find({ origin: "miniapp", $and: [{ $or: [{ createdAt: { $gt: since } }, { readonly: true }] }, { $or: [{ userA: me._id }, { userB: me._id }] }] } as any)
     .sort({ createdAt: -1 })
     .limit(40)
     .toArray();
@@ -127,6 +128,7 @@ export async function overview(me: any): Promise<DmOverview> {
       partner: byId.get(pid) ?? null,
       partnerGone: !byId.has(pid),
       active: s.active,
+      ...((s as any).readonly ? { readonly: true } : {}),
       last: last ? { kind: last.kind, text: last.deleted ? undefined : last.text, mine: last.senderId === me._id, at: last.at.getTime() } : null,
       unread,
       at: (last?.at ?? s.createdAt).getTime(),
@@ -166,6 +168,9 @@ export async function dmPulse(me: any): Promise<{ unread: number; requests: numb
       if ((s.dmSeq ?? 0) > myRead) unread = await (await msgs()).countDocuments({ sessionId: sid, senderId: otherParticipant(s, me._id)!, seq: { $gt: myRead }, kind: { $ne: "system" } } as any);
     }
   }
+  // read-only threads from official accounts (warnings / notices) count as unread too
+  const ro = await (await sessionsCol()).find({ origin: "miniapp", readonly: true, active: true, userB: me._id } as any).limit(50).toArray();
+  for (const s of ro) if ((s.dmSeq ?? 0) > (s.readB ?? 0)) unread += 1;
   return { unread, requests: reqs.incoming, sid: live };
 }
 
@@ -191,6 +196,8 @@ export interface ThreadView {
   theirRead: number;
   last: number;
   endedAt: number | null;
+  /** an official account's notice thread: the user can read it but never answer */
+  readonly: boolean;
 }
 
 /** Opens / polls a thread. `since` = highest number the client already has (0 = first load → the latest page). */
@@ -219,7 +226,7 @@ export async function openThread(me: any, sid: unknown, since: unknown): Promise
   if (nowMs - (((s as any)[liveField] as number) ?? 0) > 10_000) set[liveField] = nowMs;
   if (Object.keys(set).length) await (await sessionsCol()).updateOne({ _id: s._id }, { $set: set });
   const theirRead = (mine === "A" ? s.readB : s.readA) ?? 0;
-  return { sid: s._id, active: s.active, partner: brief ?? null, partnerGone: gone, messages: rows.map((r) => toMsg(r, me._id)), theirRead, last, endedAt: s.endedAt ? s.endedAt.getTime() : null };
+  return { sid: s._id, active: s.active, partner: brief ?? null, partnerGone: gone, messages: rows.map((r) => toMsg(r, me._id)), theirRead, last, endedAt: s.endedAt ? s.endedAt.getTime() : null, readonly: !!(s as any).readonly };
 }
 
 async function nextSeq(sid: string): Promise<number> {
@@ -243,6 +250,7 @@ async function usable(me: any, sid: unknown): Promise<{ s: ChatSessionDoc; pid: 
   const s = await mySession(me, sid);
   if (!s) throw new SocialError("not_found");
   if (!s.active) throw new SocialError("chat_ended");
+  if ((s as any).readonly) throw new SocialError("read_only");
   const pid = otherParticipant(s, me._id)!;
   if (await isBlockedEitherWay(me._id, pid)) throw new SocialError("chat_ended");
   return { s, pid };
@@ -366,6 +374,30 @@ async function pushIfAway(api: Pick<Api, "sendMessage">, s: ChatSessionDoc, part
   } catch {
     /* best effort */
   }
+}
+
+/* ------------------------------------------------------------ official notices */
+
+/** A message FROM an official ("حقوقی") account — Nava itself or a legal account — to one user. It appears in the user's Directs as an
+ *  ordinary thread (tick, profile, everything) but is read-only: the user cannot answer. Never touches `activeChatSessionId`,
+ *  never costs XP and never blocks another chat. */
+export async function sendOfficialMessage(api: Pick<Api, "sendMessage">, officialId: number, toId: number, rawText: string): Promise<void> {
+  await ensureDmIndexes();
+  const text = String(rawText ?? "").replace(/\r\n?/g, "\n").trim().slice(0, DM_MAX_TEXT * 2);
+  if (!text) throw new SocialError("bad_text");
+  const col = await sessionsCol();
+  let s = await col.findOne({ origin: "miniapp", readonly: true, userA: officialId, userB: toId } as any);
+  if (!s) {
+    const id = `of${officialId.toString(36)}_${toId.toString(36)}`.slice(0, 60);
+    await col.updateOne({ _id: id } as any, { $setOnInsert: { _id: id, userA: officialId, userB: toId, active: true, createdAt: new Date(), origin: "miniapp", readonly: true, dmSeq: 0, readA: 0, readB: 0, messageCount: 0 } }, { upsert: true });
+    s = await col.findOne({ _id: id } as any);
+  }
+  if (!s) throw new SocialError("not_found");
+  await insertMsg(s, officialId, "text", { text });
+  await col.updateOne({ _id: s._id }, { $set: { readA: s.dmSeq ?? 0 } });
+  const o: any = await (await usersCol()).findOne({ _id: officialId });
+  // notices are important: the text itself also goes to the user's bot chat (with a button into the thread)
+  await api.sendMessage(toId, `📩 ${String(o?.nickname ?? "Nava").slice(0, 32)}:\n\n${text}`, { reply_markup: appKeyboard() }).catch(() => {});
 }
 
 /* ------------------------------------------------------------ lifecycle */

@@ -9,24 +9,26 @@
     return '<svg class="verified" viewBox="0 0 40 40" aria-label="verified"><path d="' + SCALLOP + '" fill="' + fill + '"' + (stroke ? ' stroke="' + stroke + '" stroke-width="1.6"' : "") + '/><path d="' + CHECK + '" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
   function ic(inner) { return '<svg class="bdg" viewBox="0 0 24 24" aria-hidden="true">' + inner + "</svg>"; }
+  function gloss() { return ""; }
+  function star(fill, edge) { return '<path d="m12 1.8 3 6.100 6.700.9-4.900 4.700 1.200 6.700-6-3.200-6 3.200 1.200-6.700L2.300 8.800l6.700-.9Z" fill="' + fill + '" stroke="' + edge + '" stroke-width=".8" stroke-linejoin="round"/><path d="m12 4.600 1.600 3.500-.9.2c-1.600.2-2.800.9-3.700 2.100L7 9.900Z" fill="#fff" fill-opacity=".55"/>'; }
   var ART = {
     "tick-gold": tick("url(#nbGold)"),
     "tick-green": tick("#1fbf5b"),
     "tick-purple": tick("url(#nbPurple)"),
     "tick-red": tick("#ff3040"),
     "tick-black": tick("#161616", "#9a9a9a"),
-    "star-gold": ic('<path d="m12 2.2 2.9 6 6.6.9-4.8 4.6 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.1l6.6-.9Z" fill="url(#nbGold)"/>'),
-    "star-blue": ic('<path d="m12 2.2 2.9 6 6.6.9-4.8 4.6 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.1l6.6-.9Z" fill="url(#nbBlue)"/>'),
-    "star-rose": ic('<path d="m12 2.2 2.9 6 6.6.9-4.8 4.6 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.1l6.6-.9Z" fill="url(#nbRose)"/>'),
-    "tg-crown": ic('<path d="M3 8.5 7.6 12 12 5l4.4 7L21 8.5 19.2 19H4.8Z" fill="url(#nbGold)"/><rect x="5" y="19.6" width="14" height="1.8" rx=".9" fill="#c98a00"/>'),
-    "tg-diamond": ic('<path d="M6.5 3.5h11L22 9.6 12 21 2 9.6Z" fill="url(#nbCyan)"/><path d="M2 9.6h20M9 3.5 7.4 9.6 12 21l4.6-11.4L15 3.5" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.1" stroke-linejoin="round"/>'),
-    "tg-flame": ic('<path d="M12.4 2c.5 3-1.2 4.6-2.6 6.3C8.4 10 7 11.6 7 14.2A5 5 0 0 0 12 19.5a5 5 0 0 0 5-5.3c0-2-1-3.4-1.9-4.6.1 1.4-.4 2.3-1.2 2.9.5-3.1-.2-7.4-1.5-10.5Z" fill="url(#nbFlame)"/><path d="M12 22a3.4 3.4 0 0 0 3.4-3.5c0-1.5-1.6-2.7-3.4-4.5-1.8 1.8-3.4 3-3.4 4.5A3.4 3.4 0 0 0 12 22Z" fill="#ffd45a"/>'),
-    "tg-bolt": ic('<path d="M13.6 1.8 4.4 13.4h6l-1.2 8.8 10.4-12.4h-6.3Z" fill="url(#nbGold)"/>'),
-    "tg-rocket": ic('<path d="M12 2c3.6 2.2 5.6 6 5 11l-2.2 2.2H9.2L7 13c-.6-5 1.4-8.8 5-11Z" fill="#e9eef5"/><circle cx="12" cy="9.4" r="2.2" fill="#2e8bff"/><path d="m7.4 12.4-3 3.4 3.6-.4ZM16.6 12.4l3 3.4-3.6-.4Z" fill="#ff4d5e"/><path d="M10 16.4h4L12 21.6Z" fill="url(#nbFlame)"/>'),
-    "ig-heart": ic('<path d="M12 21s-8.5-5.2-8.5-11.2A4.9 4.9 0 0 1 12 7.2a4.9 4.9 0 0 1 8.5 2.6C20.5 15.8 12 21 12 21Z" fill="url(#nbIg)"/>'),
-    "ig-spark": ic('<path d="M12 1.8c.7 5.2 2.6 7.5 8.2 10.2-5.6 2.7-7.5 5-8.2 10.2-.7-5.2-2.6-7.5-8.2-10.2C9.4 9.3 11.3 7 12 1.8Z" fill="url(#nbIg)"/>'),
-    "ig-ring": ic('<circle cx="12" cy="12" r="8.6" fill="none" stroke="url(#nbIg)" stroke-width="3"/><circle cx="12" cy="12" r="3.2" fill="url(#nbIg)"/>'),
-    "ig-camera": ic('<rect x="2.6" y="5.6" width="18.8" height="14.6" rx="4.4" fill="none" stroke="url(#nbIg)" stroke-width="2.2"/><circle cx="12" cy="12.9" r="3.7" fill="none" stroke="url(#nbIg)" stroke-width="2.2"/><circle cx="17.4" cy="9.3" r="1.2" fill="url(#nbIg)"/>')
+    "star-gold": ic(star("url(#nbGold)", "#b9780a")),
+    "star-blue": ic(star("url(#nbBlue)", "#1559b3")),
+    "star-rose": ic(star("url(#nbRose)", "#a8195f")),
+    "tg-crown": ic('<path d="M2.8 7.6 7.7 11.6 12 4.2l4.3 7.4 4.9-4L19.4 19H4.6Z" fill="url(#nbGold)" stroke="#b9780a" stroke-width=".8" stroke-linejoin="round"/><path d="M4.4 19.2h15.2v2.3H4.4Z" fill="url(#nbGoldD)" stroke="#b9780a" stroke-width=".6"/><circle cx="12" cy="4" r="1.5" fill="#ff5a6e" stroke="#b9780a" stroke-width=".5"/><circle cx="2.8" cy="7.4" r="1.3" fill="#3ec6ff"/><circle cx="21.2" cy="7.4" r="1.3" fill="#3ec6ff"/><circle cx="12" cy="14.2" r="1.7" fill="#ff5a6e" stroke="#fff" stroke-opacity=".6" stroke-width=".5"/><path d="M5.6 17.6 4.9 10.6 7.8 13Z" fill="#fff" fill-opacity=".5"/>' + gloss()),
+    "tg-diamond": ic('<path d="M6.6 3.4h10.8L22 9.4 12 21.4 2 9.4Z" fill="url(#nbCyan)" stroke="#1473c9" stroke-width=".8" stroke-linejoin="round"/><path d="M2 9.4h20M9.2 3.4 7.2 9.4 12 21.4M14.8 3.4l2 6L12 21.4" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1" stroke-linejoin="round"/><path d="M7.4 4.6h4l-1.6 4.2H5Z" fill="#fff" fill-opacity=".55"/>'),
+    "tg-flame": ic('<path d="M12.6 1.6c.8 3.4-.9 5.2-2.7 7.1C8.3 10.4 6.6 12.2 6.6 15a5.5 5.5 0 0 0 5.4 5.9 5.5 5.5 0 0 0 5.5-5.8c0-2.3-1.1-3.9-2.2-5.2 0 1.5-.5 2.6-1.4 3.2.6-3.5-.1-8-1.3-11.5Z" fill="url(#nbFlame)" stroke="#c8260f" stroke-width=".7" stroke-linejoin="round"/><path d="M12 22.4a3.7 3.7 0 0 0 3.7-3.8c0-1.7-1.7-3-3.7-5-2 2-3.7 3.3-3.7 5A3.7 3.7 0 0 0 12 22.4Z" fill="#ffd966"/><path d="M12 21.2a2 2 0 0 0 2-2c0-.9-.9-1.6-2-2.7-1.1 1.1-2 1.8-2 2.700a2 2 0 0 0 2 2Z" fill="#fff3b0"/>' + gloss()),
+    "tg-bolt": ic('<path d="M14 1.4 4 13.6h6.2l-1.4 9 10.6-12.8h-6.6Z" fill="url(#nbGold)" stroke="#b9780a" stroke-width=".8" stroke-linejoin="round"/><path d="M13.2 3.6 6.8 12.2h4l.5-3.6Z" fill="#fff" fill-opacity=".55"/>'),
+    "tg-rocket": ic('<path d="M12 1.6c3.9 2.4 6 6.4 5.3 11.6l-2.4 2.4H9.1l-2.4-2.4C6 8 8.100 4 12 1.6Z" fill="url(#nbSilver)" stroke="#8a97a8" stroke-width=".7"/><circle cx="12" cy="9.4" r="2.4" fill="url(#nbBlue)" stroke="#fff" stroke-width=".9"/><path d="M6.8 12.2 3.6 16l4-.6ZM17.2 12.2l3.2 3.800-4-.6Z" fill="#ff4d5e" stroke="#c42237" stroke-width=".5"/><path d="M9.6 16.2h4.800L12 22.2Z" fill="url(#nbFlame)"/><path d="M9.300 4.800c.8-1.100 1.700-1.800 2.400-2.200-1.600 2.300-2.300 5-2.100 8Z" fill="#fff" fill-opacity=".7"/>'),
+    "ig-heart": ic('<path d="M12 21.4S3.2 16 3.2 9.7A5 5 0 0 1 12 7a5 5 0 0 1 8.800 2.700C20.800 16 12 21.400 12 21.400Z" fill="url(#nbIg)" stroke="#8d1f66" stroke-width=".7" stroke-linejoin="round"/><path d="M6 9.400c.2-1.800 1.600-2.700 3-2.500-1.700.5-2.700 1.600-3 2.500Z" fill="#fff" fill-opacity=".8"/>'),
+    "ig-spark": ic('<path d="M12 1.4c.8 5.400 2.800 7.800 8.600 10.600-5.800 2.800-7.800 5.200-8.600 10.600-.8-5.400-2.800-7.800-8.600-10.600C9.200 9.200 11.200 6.800 12 1.400Z" fill="url(#nbIg)" stroke="#8d1f66" stroke-width=".7" stroke-linejoin="round"/><path d="M11.200 5.200c-.4 2.600-1.300 4-3.200 5.200 1.500-.5 2.600-1.700 3.200-5.200Z" fill="#fff" fill-opacity=".75"/>'),
+    "ig-ring": ic('<circle cx="12" cy="12" r="8.600" fill="none" stroke="url(#nbIg)" stroke-width="3.200"/><circle cx="12" cy="12" r="3.400" fill="url(#nbIg)"/><path d="M5.800 8.600A7.200 7.200 0 0 1 10 5.200" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.300" stroke-linecap="round"/>'),
+    "ig-camera": ic('<rect x="2.400" y="5.400" width="19.200" height="15" rx="4.600" fill="url(#nbIg)" stroke="#8d1f66" stroke-width=".7"/><circle cx="12" cy="12.900" r="4" fill="#fff" fill-opacity=".92"/><circle cx="12" cy="12.900" r="2.400" fill="url(#nbIg)"/><circle cx="17.600" cy="9" r="1.200" fill="#fff"/><path d="M5 8.200c.8-1 1.800-1.400 3-1.400" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.100" stroke-linecap="round"/>')
   };
   NG.BADGE_ART = ART;
   var LABEL = { "tick-gold": "تیک طلایی", "tick-green": "تیک سبز", "tick-purple": "تیک بنفش", "tick-red": "تیک قرمز", "tick-black": "تیک مشکی", "star-gold": "ستاره‌ی طلایی", "star-blue": "ستاره‌ی آبی", "star-rose": "ستاره‌ی صورتی", "tg-crown": "تاج", "tg-diamond": "الماس", "tg-flame": "شعله", "tg-bolt": "صاعقه", "tg-rocket": "موشک", "ig-heart": "قلب رنگین‌کمانی", "ig-spark": "درخشش", "ig-ring": "حلقه‌ی گرادیان", "ig-camera": "دوربین" };
@@ -39,7 +41,7 @@
   defs.setAttribute("aria-hidden", "true");
   function lg(id, stops) { return '<linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' + stops.map(function (s, i) { return '<stop offset="' + (i / (stops.length - 1)) + '" stop-color="' + s + '"/>'; }).join("") + "</linearGradient>"; }
   defs.innerHTML = '<svg width="0" height="0"><defs>' +
-    lg("nbGold", ["#ffe27a", "#f5b301", "#d98a00"]) + lg("nbPurple", ["#b583ff", "#7a35e8"]) + lg("nbBlue", ["#6ec6ff", "#1f7ae0"]) +
+    lg("nbGold", ["#fff0a0", "#ffc61a", "#e08a00"]) + lg("nbGoldD", ["#ffd24a", "#c98a00"]) + lg("nbSilver", ["#ffffff", "#dfe6ef", "#a9b6c6"]) + lg("nbPurple", ["#b583ff", "#7a35e8"]) + lg("nbBlue", ["#6ec6ff", "#1f7ae0"]) +
     lg("nbRose", ["#ff9ac1", "#e8368f"]) + lg("nbCyan", ["#b6f3ff", "#32b8f0", "#1b78d6"]) + lg("nbFlame", ["#ffd45a", "#ff7a1a", "#e8341c"]) +
     '<linearGradient id="nbIg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#feda75"/><stop offset=".3" stop-color="#fa7e1e"/><stop offset=".55" stop-color="#d62976"/><stop offset=".8" stop-color="#962fbf"/><stop offset="1" stop-color="#4f5bd5"/></linearGradient>' +
     "</defs></svg>";

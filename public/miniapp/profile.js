@@ -285,9 +285,13 @@
       var d = r.data, list = [{ id: d.main.id, name: d.main.name, av: d.main.av, verified: d.main.verified, main: true }].concat(d.items);
       NG.sheet('<div class="shd">تعویض اکانت</div><div id="acc" style="max-height:60vh;overflow:auto"></div>', function (sh, close) {
         var box = sh.querySelector("#acc");
+        var mon = el('<div class="row"><div class="t"><b>مانیتورینگ</b><span>پنل نظارت و آمار</span></div></div>');
+        mon.insertBefore(el('<div class="ring" style="width:44px;height:44px;border-radius:50%;background:var(--card2,#262626);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none">📊</div>'), mon.firstChild);
+        mon.onclick = function () { NG.setActAs(null); close(function () { location.href = "/monitor/"; }); };
+        box.appendChild(mon);
         list.forEach(function (a) {
           var cur = a.id === d.current;
-          var row = el('<div class="row"><div class="t"><b>' + esc(a.name) + NG.vb(a) + "</b><span>" + (a.main ? "اکانت اصلی تو" : "ممبر پیش‌فرض") + "</span></div>" + (cur ? '<span style="color:var(--blue);font-weight:800">✓</span>' : "") + "</div>");
+          var row = el('<div class="row"><div class="t"><b>' + esc(a.name) + NG.vb(a) + "</b><span>" + (a.main ? "اکانت اصلی تو" : a.official ? "حساب حقوقی" : "ممبر پیش‌فرض") + "</span></div>" + (cur ? '<span style="color:var(--blue);font-weight:800">✓</span>' : "") + "</div>");
           row.insertBefore(NG.ring(a, { noStory: true }), row.firstChild);
           row.onclick = function () { if (cur) return close(); NG.setActAs(a.main ? null : a.id); close(function () { location.reload(); }); };
           box.appendChild(row);
@@ -355,11 +359,11 @@
       st.querySelector(".sg").onclick = function () { if (P.locked) return NG.toast("این پیج خصوصیه؛ بعد از تأیید صاحبش می‌تونی ببینی."); NG.openFollows(P, "following"); };
       h.appendChild(st); head.appendChild(h);
 
-      var info = [];
-      if (P.age != null && P.age !== "") info.push(num(P.age) + " ساله");
-      if (P.city || P.province) info.push([P.city, P.province].filter(Boolean).filter(function (x, i, a) { return a.indexOf(x) === i; }).join("، "));
+      var info = [], hh = (P.isMe && P.hide) || {};
+      if (P.age != null && P.age !== "" && !hh.age) info.push(num(P.age) + " ساله");
+      if ((P.city || P.province) && !hh.location) info.push([P.city, P.province].filter(Boolean).filter(function (x, i, a) { return a.indexOf(x) === i; }).join("، "));
       var bio = el('<div class="pbio"><div class="n">' + esc(P.name) + NG.vb(P) + "</div>" + (info.length ? '<div class="s">' + esc(info.join(" • ")) + "</div>" : "") +
-        (P.bio ? '<div class="d">' + esc(P.bio) + "</div>" : (P.isMe ? '<div class="s">بیوگرافی نداری — از «ویرایش پروفایل» اضافه کن.</div>' : "")) + "</div>");
+        (P.bio && !hh.bio ? '<div class="d">' + esc(P.bio) + "</div>" : (P.isMe && !P.isOwnerPage ? '<div class="s">بیوگرافی نداری — از «ویرایش پروفایل» اضافه کن.</div>' : "")) + "</div>");
       head.appendChild(bio);
       if (P.isMe) {
         var notes = [];
@@ -573,7 +577,7 @@
         items.push(p.blockedByMe ? { label: "رفع مسدودی", fn: function () { NG.unblockUser(p, function () { reload(); }); } } : { label: "مسدود کردن", cls: "red", fn: function () { NG.blockUser(p, function () { reload(); }); } });
         items.push({ label: "گزارش", cls: "red", fn: function () { NG.reportUser(p); } });
       }
-      if (NG.staff && p.mod) items.push({ label: "🛠 مدیریت (ادمین)", fn: function () { NG.staffMenu(p, function () { reload(); }); } });
+      if (NG.staff && p.mod) items.push({ label: "🛠 مدیریت (ادمین)", fn: function () { NG.staffMenu(p, function () { delete PCACHE[p.id]; NG.emit("badges", { id: p.id }); reload(); }); } });
       NG.actions(items);
     }
 
@@ -608,6 +612,17 @@
           if (!r.ok) { err.textContent = NG.errText(r); err.classList.add("show"); NG.haptic("err"); return; }
           NG.haptic("ok"); var applied = r.data && r.data.status === "applied"; close(function () { NG.toast(applied ? "✅ ذخیره شد" : "✅ درخواستت برای مالک ارسال شد"); NG.refreshMe(); });
         }).catch(function () { go.disabled = false; NG.netErr(); });
+      };
+    });
+  }
+
+  function locationSheet(m) {
+    NG.sheet('<div class="shd">محل</div><div class="ctx">استان و شهر دلخواه. هر دو رو خالی بذاری محل کامل پاک می‌شه.</div><div class="pad"><input class="inp" id="lp" maxlength="40" placeholder="استان" value="' + esc(m.province || "") + '"></div><div class="pad" style="margin-top:8px"><input class="inp" id="lc" maxlength="40" placeholder="شهر" value="' + esc(m.city || "") + '"></div><div class="pad" style="margin-top:10px"><button class="btn blue tall" id="ls" style="width:100%">ذخیره</button></div>', function (sh, close) {
+      sh.querySelector("#ls").onclick = function () {
+        NG.api("set_location", { province: sh.querySelector("#lp").value, city: sh.querySelector("#lc").value }).then(function (r) {
+          if (!r.ok) return NG.toast(NG.errText(r));
+          NG.haptic("ok"); close(function () { NG.toast("✅ ذخیره شد"); NG.refreshMe(); });
+        }).catch(NG.netErr);
       };
     });
   }
@@ -649,15 +664,22 @@
     var f3 = el('<div class="field-row"><label>سن</label><div class="v"><span class="ro">' + (m.age != null ? num(m.age) : "-") + '</span>' + (m.pendingAge ? '<div class="msg">در انتظار تأیید: ' + num(m.pendingAge) + "</div>" : "") + '<div class="lnk">' + (m.isOwnerPage ? "تغییر سن (اختیاری)" : "درخواست تغییر سن") + '</div></div></div>');
     f3.querySelector(".lnk").onclick = function () { requestSheet("age", m.age != null ? String(m.age) : ""); };
     var f4 = el('<div class="field-row"><label>بیوگرافی</label><div class="v"><textarea rows="4" maxlength="300" placeholder="بیوگرافی">' + esc(orig.b) + '</textarea><div class="line"></div><div class="cnt"></div></div></div>');
-    var f5 = el('<div class="field-row"><label>محل</label><div class="v"><span class="ro">' + esc([m.city, m.province].filter(Boolean).join("، ") || "-") + "</span></div></div>");
+    var f5 = el('<div class="field-row"><label>محل</label><div class="v"><span class="ro">' + esc([m.city, m.province].filter(Boolean).join("، ") || "-") + "</span>" + (m.isOwnerPage ? '<div class="lnk">تغییر / پاک کردن محل</div>' : "") + "</div></div>");
+    if (m.isOwnerPage) f5.querySelector(".lnk").onclick = function () { locationSheet(m); };
     [f1, f2, f3, f4, f5].forEach(function (f) { w.appendChild(f); });
     if (m.isOwnerPage) w.appendChild(visibilityBlock(m));
+    if (m.officialChat !== undefined) {
+      var oc = el('<label class="swrow field-row" style="display:flex;justify-content:space-between;align-items:center"><span>دریافت درخواست چت</span><input type="checkbox"></label>');
+      var oci = oc.querySelector("input"); oci.checked = !!m.officialChat;
+      oci.onchange = function () { var want = oci.checked; NG.api("official_chat", { open: want }).then(function (x) { if (!x.ok) { oci.checked = !want; return NG.toast(NG.errText(x)); } m.officialChat = !!x.data.open; NG.haptic("ok"); }).catch(function () { oci.checked = !want; NG.netErr(); }); };
+      w.appendChild(oc);
+    }
     w.appendChild(el('<div class="note">' + (m.isOwnerPage ? "اینجا همه‌چیز فوری و بدون تأیید اعمال می‌شه؛ از بخش «نمایش برای دیگران» هر چیزی رو که نمی‌خوای کسی ببینه خاموش کن." : "عکس پروفایل و تغییر نام یا سن بعد از تأیید مالک اعمال می‌شن. یوزرنیم و بیوگرافی فوری ذخیره می‌شن. یوزرنیم مخصوص نوا گرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.") + '</div>'));
     var ui = f2.querySelector("input"), um = f2.querySelector(".msg"), bi = f4.querySelector("textarea"), bc = f4.querySelector(".cnt"), dn = top.querySelector(".done");
     var okName = true, seq = 0, t;
     function cnt() { bc.textContent = [].concat(bi.value).join("").length + " / 300"; }
     function clean() { return ui.value.trim().replace(/^@/, ""); }
-    function changed() { dn.disabled = !(okName && (clean() !== orig.u || bi.value.trim() !== orig.b)); }
+    function changed() { dn.disabled = !okName; }
     function setMsg(txt, kind) { um.textContent = txt; um.className = "msg " + (kind || ""); }
     cnt(); bi.addEventListener("input", function () { cnt(); changed(); });
     ui.addEventListener("input", function () {
@@ -674,10 +696,10 @@
         });
       }, 350);
     });
-    dn.disabled = true;
     var scr = NG.push(w);
     top.querySelector(".bk").onclick = scr.close;
     dn.onclick = function () {
+      if (clean() === orig.u && bi.value.trim() === orig.b) { scr.close(); return; }
       dn.disabled = true;
       var chain = Promise.resolve(true), nu = clean();
       if (nu !== orig.u && nu) chain = chain.then(function () { return NG.api("set_username", { username: nu }).then(function (r) { if (!r.ok) { setMsg(USER_ERR[r.data.error] || "ذخیره نشد", "err"); NG.haptic("err"); return false; } return true; }); });

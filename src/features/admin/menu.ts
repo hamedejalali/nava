@@ -36,6 +36,7 @@ export const ADMIN_MENU_LABELS = {
   seedAdd: "➕ ساخت ممبر جدید",
   seedBatch: "📦 ساخت دسته‌ای ممبر",
   seedList: "📋 لیست ممبرها",
+  officialAdd: "🏛 ساخت اکانت حقوقی",
   ngSettings: "📸 کانال و تنظیمات نوا گرام",
   ngGifts: "🎁 هدیه‌ها و قیمت‌ها",
   ngGiftAdd: "➕ هدیه‌ی جدید",
@@ -72,6 +73,7 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.ngShortNames,
   ADMIN_MENU_LABELS.ownerProfile,
   ADMIN_MENU_LABELS.wallet,
+  ADMIN_MENU_LABELS.officialAdd,
 ];
 
 /** Admin panel categories (v1.17): the main keyboard shows ONE button per group instead of ~20 loose buttons.
@@ -116,7 +118,7 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.ngShortNames },
     { label: ADMIN_MENU_LABELS.ownerProfile },
   ],
-  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedBatch }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
+  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedBatch }, { label: ADMIN_MENU_LABELS.officialAdd }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
   staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
   data: [{ label: ADMIN_MENU_LABELS.exportUsers }, { label: ADMIN_MENU_LABELS.importUsers }],
 };

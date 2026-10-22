@@ -53,8 +53,8 @@ function toCard(u: any): MatchCard {
     city: hide.location ? null : (u.city ?? null),
     province: hide.location ? null : (u.province ?? null),
     bio: hide.bio ? "" : String(u.bio ?? "").slice(0, 160),
-    verified: !!u.verified || isOfficial(u._id),
-    ...(isOfficial(u._id) ? { gold: true as const } : {}),
+    verified: !!u.verified || isOfficial(u),
+    ...(isOfficial(u) ? { gold: true as const } : {}),
     av: u.profilePhotoFileId ? avatarUrl(u.anonId, version) : null,
   };
 }
@@ -63,7 +63,7 @@ export async function pickGuestCards(count = GUEST_CARD_COUNT): Promise<MatchCar
   const db = await getDb();
   const pool = await db
     .collection<any>("users")
-    .find({ isSeed: true, seedHidden: { $ne: true }, banned: { $ne: true }, onboardingStep: "COMPLETED", profilePhotoFileId: { $type: "string", $ne: "" } })
+    .find({ isSeed: true, seedHidden: { $ne: true }, official: { $ne: true }, banned: { $ne: true }, onboardingStep: "COMPLETED", profilePhotoFileId: { $type: "string", $ne: "" } })
     .limit(300)
     .toArray();
   return shuffle(pool).slice(0, count).map(toCard);
@@ -88,7 +88,7 @@ export async function pickMemberCards(me: any, excludeAnonIds: string[], count =
   const blocked = await getBlockedCounterparts(me._id);
   const nin = [me._id, ...blocked];
   if (env.OWNER_ID !== undefined) nin.push(env.OWNER_ID);
-  const base = { _id: { $nin: nin }, onboardingStep: "COMPLETED", banned: { $ne: true }, seedHidden: { $ne: true }, anonId: { $nin: excludeAnonIds } };
+  const base = { _id: { $nin: nin }, onboardingStep: "COMPLETED", banned: { $ne: true }, seedHidden: { $ne: true }, official: { $ne: true }, anonId: { $nin: excludeAnonIds } };
   const withPhoto = await users.find({ ...base, profilePhotoFileId: { $type: "string", $ne: "" } } as any).limit(400).toArray();
   let pool = shuffle(withPhoto);
   if (pool.length < allowance) {

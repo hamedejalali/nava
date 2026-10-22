@@ -1,4 +1,5 @@
 import type { ClientSession, Collection } from "mongodb";
+import { isSeedId } from "../../services/seeds/ids.js";
 import { randomUUID } from "node:crypto";
 import { getDb, getClient } from "../connect.js";
 import { env } from "../../config/env.js";
@@ -44,7 +45,10 @@ export type RelicTransactionType =
   | "BONUS"
   | "WALLET_TRANSFER"
   | "AUCTION_BID"
-  | "AUCTION_SALE";
+  | "AUCTION_SALE"
+  | "GAME_STAKE"
+  | "GAME_WIN"
+  | "GAME_REFUND";
 
 export interface RelicTransactionDoc {
   /** Deterministic per operation (e.g. `chatcost:<sessionId>:<userId>`) so
@@ -69,7 +73,8 @@ export interface RelicTransactionDoc {
 /** The OWNER has unlimited XP: nothing is ever deducted from his balance (he can spend and give XP freely).
  *  Ledger rows are still written (amount 0 for his side) so the history stays complete. */
 export function hasUnlimitedXp(userId: number): boolean {
-  return env.OWNER_ID !== undefined && userId === env.OWNER_ID;
+  // the owner, and default members (they never hold XP: an in-app chat with one must not fail on their balance)
+  return (env.OWNER_ID !== undefined && userId === env.OWNER_ID) || isSeedId(userId);
 }
 
 async function ledgerCollection(): Promise<Collection<RelicTransactionDoc>> {

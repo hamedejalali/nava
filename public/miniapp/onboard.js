@@ -103,3 +103,52 @@
     }).catch(function () { ov.remove(); NG.netErr(); });
   };
 })();
+
+/* ---- setup gate: everybody inside the app needs a profile photo and a Navagram username ---- */
+(function () {
+  "use strict";
+  var NG = window.NG, el = NG.el, esc = NG.esc;
+  var UE = { too_short: "یوزرنیم خیلی کوتاهه (حداقل ۵ حرف).", too_long: "یوزرنیم خیلی بلنده.", bad_chars: "فقط حروف انگلیسی، عدد، نقطه و _ مجازه.", taken: "این یوزرنیم قبلاً انتخاب شده.", reserved: "این یوزرنیم رزرو شده.", invalid: "یوزرنیم نامعتبره." };
+  NG.needsSetup = function (m) { return !!m && !m.isOwnerPage && (!m.username || (!m.hasPhoto && !m.photoPending)); };
+  NG.setupGate = function (done) {
+    var m = NG.me;
+    var box = el('<div class="gate" style="position:fixed;inset:0;z-index:300;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center"></div>');
+    document.body.appendChild(box);
+    function render() {
+      m = NG.me;
+      var needU = !m.username, needP = !m.hasPhoto && !m.photoPending;
+      if (!needU && !needP) { box.remove(); if (done) done(); return; }
+      box.innerHTML = '<h2 style="margin:0">تکمیل پروفایل نوا گرام</h2><div style="color:var(--muted);line-height:1.8">برای استفاده از نوا گرام، یه عکس پروفایل و یه یوزرنیم لازمه.</div>' +
+        (needP ? '<div id="gp"></div>' : "") + (needU ? '<div style="width:100%;max-width:320px"><input class="inp ltr" id="gu" dir="ltr" maxlength="25" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="@username"><div class="msg" id="gm" style="min-height:20px;margin-top:6px"></div><button class="btn blue tall" id="gs" style="width:100%" disabled>ثبت یوزرنیم</button></div>' : "");
+      if (needP) {
+        var b = el('<button class="btn blue tall">📷 انتخاب عکس پروفایل</button>');
+        b.onclick = function () { NG.changeProfilePhoto(); };
+        box.querySelector("#gp").appendChild(b);
+      }
+      if (needU) {
+        var ui = box.querySelector("#gu"), gm = box.querySelector("#gm"), gs = box.querySelector("#gs"), seq = 0, t;
+        ui.addEventListener("input", function () {
+          var v = ui.value.trim().replace(/^@/, ""); gs.disabled = true; clearTimeout(t);
+          if (!v) { gm.textContent = ""; return; }
+          gm.textContent = "در حال بررسی…"; var my = ++seq;
+          t = setTimeout(function () {
+            NG.api("check_username", { username: v }).then(function (r) {
+              if (my !== seq) return;
+              if (!r.ok) { gm.textContent = "خطا در بررسی"; return; }
+              if (r.data.available) { gm.textContent = "✓ آزاده"; gs.disabled = false; } else gm.textContent = UE[r.data.reason] || "نامعتبره";
+            });
+          }, 350);
+        });
+        gs.onclick = function () {
+          gs.disabled = true;
+          NG.api("set_username", { username: ui.value.trim().replace(/^@/, "") }).then(function (r) {
+            if (!r.ok) { gm.textContent = UE[r.data && r.data.error] || NG.errText(r); gs.disabled = false; return; }
+            NG.refreshMe().then(render);
+          }).catch(function () { gs.disabled = false; NG.netErr(); });
+        };
+      }
+    }
+    NG.on("me", function () { if (document.body.contains(box)) render(); });
+    render();
+  };
+})();

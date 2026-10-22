@@ -26,7 +26,8 @@ export interface ChatRequestDoc {
   origin?: "bot" | "miniapp";
 }
 
-export const CHAT_REQUEST_TTL_MS = 10 * 60 * 1000;
+/** v1.23: a request never runs out by itself (XP is only checked and charged when the other person accepts). */
+export const CHAT_REQUEST_TTL_MS = 20 * 365 * 24 * 3600 * 1000;
 export const CHAT_REQUEST_HOURLY_LIMIT = 10;
 
 export async function chatRequestCollection(): Promise<Collection<ChatRequestDoc>> {
@@ -36,12 +37,18 @@ export async function chatRequestCollection(): Promise<Collection<ChatRequestDoc
 
 export async function ensureChatRequestIndexes(): Promise<void> {
   const col = await chatRequestCollection();
+  // the old index deleted every request after 7 days, pending ones included: drop it (ignore "not found")
+  try {
+    await (col as any).dropIndex("createdAt_ttl");
+  } catch {
+    /* not there (or a driver without dropIndex): fine */
+  }
   await col.createIndexes([
     // at most ONE pending request per (from -> to) pair, enforced by Mongo
     { key: { fromId: 1, toId: 1 }, name: "pending_pair_unique", unique: true, partialFilterExpression: { status: "pending" } },
     { key: { fromId: 1, createdAt: -1 }, name: "from_createdAt" },
-    // request history is not needed long-term
-    { key: { createdAt: 1 }, name: "createdAt_ttl", expireAfterSeconds: 7 * 24 * 3600 },
+    // answered / cancelled requests are not needed long-term; a PENDING one has no respondedAt and is never deleted
+    { key: { respondedAt: 1 }, name: "respondedAt_ttl", expireAfterSeconds: 14 * 24 * 3600 },
   ]);
 }
 

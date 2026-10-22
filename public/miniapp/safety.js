@@ -91,9 +91,9 @@
   /* ---------------------------------------------------------- staff (owner / admins) */
   function badgeSheet(p, after) {
     var cur = ((p.mod && p.mod.badges) || p.bd || []).slice();
-    var html = '<div class="shd">بج‌های ' + esc(NG.nameOf(p)) + '</div><div class="bgrid">' + NG.BADGE_IDS.map(function (id) {
+    var html = '<div class="shd">بج‌های ' + esc(NG.nameOf(p)) + '</div><div class="scroll"><div class="bgrid">' + NG.BADGE_IDS.map(function (id) {
       return '<button class="bgi' + (cur.indexOf(id) >= 0 ? " on" : "") + '" data-id="' + id + '"><span class="bgart">' + NG.BADGE_ART[id] + "</span><span>" + esc(NG.BADGE_LABEL[id] || id) + "</span></button>";
-    }).join("") + '</div><div class="pad"><button class="btn blue tall" id="sv" style="width:100%">ذخیره</button></div>';
+    }).join("") + '</div></div><div class="pad" style="padding-top:10px"><button class="btn blue tall" id="sv" style="width:100%">ذخیره</button></div>';
     NG.sheet(html, function (sh, close) {
       Array.prototype.forEach.call(sh.querySelectorAll(".bgi"), function (b) {
         b.onclick = function () {

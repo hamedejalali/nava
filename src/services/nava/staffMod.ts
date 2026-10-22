@@ -1,3 +1,4 @@
+import { sendOfficialMessage } from "./dm.js";
 import type { Api } from "grammy";
 import { env } from "../../config/env.js";
 import { cleanBadges } from "../../config/badges.js";
@@ -56,7 +57,12 @@ export async function staffModerate(staffId: number, anonId: unknown, op: StaffO
     case "photo_remove":
       await users.updateOne({ _id: id }, { $unset: { profilePhotoFileId: "", profilePhotoAt: "" } });
       await logAdminAction(staffId, "miniapp_photo_remove", String(id));
-      await api.sendMessage(id, "⚠️ عکس پروفایلت به‌خاطر نقض قوانین توسط مدیریت حذف شد. می‌تونی عکس جدیدی بذاری.").catch(() => {});
+    {
+      const why = typeof extra.reason === "string" && extra.reason.trim() ? `\nدلیل: ${extra.reason.trim().slice(0, 200)}` : "";
+      const note = "⚠️ عکس پروفایلت به‌خاطر نقض قوانین توسط مدیریت حذف شد. می‌تونی عکس جدیدی بذاری." + why;
+      if (env.OWNER_ID !== undefined && id !== env.OWNER_ID) await sendOfficialMessage(api as any, env.OWNER_ID, id, note).catch(() => api.sendMessage(id, note).catch(() => {}));
+      else await api.sendMessage(id, note).catch(() => {});
+    }
       break;
     case "badges":
       await users.updateOne({ _id: id }, { $set: { badges: cleanBadges(extra.badges) } });

@@ -27,6 +27,9 @@
         rb.onclick = function () { NG.openDmRequests(); };
         root.appendChild(rb);
       }
+      var gb = el('<button class="dmreq" style="margin-top:6px"><span style="font-size:18px">🎲</span><span>تخته‌نرد — با XP یا دوستانه</span></button>');
+      gb.onclick = function () { if (NG.openGame) NG.openGame(); };
+      root.appendChild(gb);
       if (data.botChat) root.appendChild(el('<div class="dmbot">🕵️ یه چت ناشناس توی ربات داری؛ اون چت همون‌جا (ناشناس) ادامه پیدا می‌کنه.</div>'));
       if (!data.items.length) { root.appendChild(el(NG.emptyHtml("plane", "هنوز چتی نداری", "از پروفایل یا مچینگ برای یه نفر «درخواست چت» بفرست. اگه قبول کنه، همین‌جا چت می‌کنید."))); return; }
       data.items.forEach(function (t) {
@@ -62,9 +65,9 @@
     NG.addLayer && void 0;
 
     function head(t) { return el('<div class="hint"><span>' + t + "</span></div>"); }
-    function left(ms) { var m = Math.max(0, Math.ceil((ms - Date.now()) / 60000)); return num(m) + " دقیقه مونده"; }
+    function left(ms, at) { var m = Math.max(0, Math.floor((Date.now() - (at || Date.now())) / 60000)); return m < 1 ? "همین الان" : m < 60 ? num(m) + " دقیقه پیش" : m < 1440 ? num(Math.floor(m / 60)) + " ساعت پیش" : num(Math.floor(m / 1440)) + " روز پیش"; }
     function row(it, incoming) {
-      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(it.who)) + NG.vb(it.who) + "</b><span>" + left(it.expiresAt) + '</span></div><div class="rq"></div></div>');
+      var r = el('<div class="row"><div class="t"><b>' + esc(NG.nameOf(it.who)) + NG.vb(it.who) + "</b><span>" + left(it.expiresAt, it.at) + '</span></div><div class="rq"></div></div>');
       var rg = NG.ring(it.who, { noStory: true }); rg.className = "ring none"; r.insertBefore(rg, r.firstChild);
       rg.onclick = function (e) { e.stopPropagation(); NG.openProfile(it.who.id); };
       var box = r.querySelector(".rq");
@@ -95,7 +98,7 @@
         body.className = ""; body.innerHTML = "";
         if (!r.ok) return NG.toast(NG.errText(r));
         var inc = r.data.incoming, out = r.data.outgoing;
-        if (!inc.length && !out.length) { body.innerHTML = NG.emptyHtml("chat", "درخواستی نیست", "درخواست‌ها ۱۰ دقیقه اعتبار دارن."); return; }
+        if (!inc.length && !out.length) { body.innerHTML = NG.emptyHtml("chat", "درخواستی نیست", "هر درخواستی که برات بیاد اینجا می‌مونه."); return; }
         if (inc.length) { body.appendChild(head("دریافتی")); inc.forEach(function (x) { body.appendChild(row(x, true)); }); }
         if (out.length) { body.appendChild(head("ارسال‌شده")); out.forEach(function (x) { body.appendChild(row(x, false)); }); }
       }).catch(NG.netErr);
@@ -115,7 +118,7 @@
     w.appendChild(top); w.appendChild(list); w.appendChild(bar);
     var scr = NG.push(w); top.querySelector(".bk").onclick = scr.close;
     top.querySelector(".chtt").onclick = function () { if (partner) NG.openProfile(partner.id); };
-    var msgs = {}, order = [], last = 0, theirRead = 0, active = true, gone = false, tm = null, alive = true, firstLoad = true, pend = [];
+    var msgs = {}, order = [], last = 0, theirRead = 0, active = true, ro = false, gone = false, tm = null, alive = true, firstLoad = true, pend = [];
     var inp = bar.querySelector("textarea"), snd = bar.querySelector(".cs"), cp = bar.querySelector(".cp");
 
     function nearBottom() { return list.scrollHeight - list.scrollTop - list.clientHeight < 120; }
@@ -137,18 +140,19 @@
     function render(keepBottom) {
       var stick = keepBottom || nearBottom();
       list.innerHTML = "";
-      if (!order.length && !pend.length) list.appendChild(el('<div class="chhint">چت شروع شد. سلام کن 👋</div>'));
+      if (!order.length && !pend.length && !ro) list.appendChild(el('<div class="chhint">چت شروع شد. سلام کن 👋</div>'));
       order.forEach(function (s) { list.appendChild(bubble(msgs[s])); });
       pend.forEach(function (p) { var b = bubble({ seq: 0, mine: true, kind: p.kind, text: p.text, src: p.src, at: p.at }); b.classList.add("sending"); b.querySelector(".tk") && (b.querySelector(".tk").textContent = "…"); list.appendChild(b); });
       if (!active) list.appendChild(el('<div class="chend">' + (gone ? "این کاربر در دسترس نیست." : "این چت تموم شده.") + "</div>"));
+      if (ro) { bar.style.display = "none"; if (!list.querySelector(".chend")) list.appendChild(el('<div class="chend">این گفتگو فقط‌خواندنیه؛ امکان پاسخ دادن نیست.</div>')); }
       bar.classList.toggle("off", !active);
-      inp.disabled = !active; cp.disabled = !active;
+      inp.disabled = !active || ro; cp.disabled = !active || ro;
       if (stick) toBottom();
     }
     function merge(d) {
       if (d.messages) d.messages.forEach(function (m) { if (!msgs[m.seq]) order.push(m.seq); msgs[m.seq] = m; if (m.seq > last) last = m.seq; });
       order.sort(function (a, b) { return a - b; });
-      theirRead = d.theirRead || 0; active = !!d.active; gone = !!d.partnerGone;
+      theirRead = d.theirRead || 0; active = !!d.active; ro = !!d.readonly; gone = !!d.partnerGone;
       if (d.partner && !partner) { partner = d.partner; top.querySelector(".chtt").innerHTML = "<span>" + esc(NG.nameOf(partner)) + "</span>" + NG.vb(partner); }
     }
     var sig = "";
@@ -206,6 +210,7 @@
     /* menu */
     top.querySelector(".rt").onclick = function () {
       var items = [];
+      if (ro) { if (partner) NG.actions([{ label: "دیدن پروفایل", fn: function () { NG.openProfile(partner.id); } }]); return; }
       if (active) items.push({ label: "پایان چت", cls: "red", fn: function () {
         NG.confirm("پایان چت؟", "چت بسته می‌شه و هر دو نفر آزاد می‌شید.", "پایان چت", function () {
           NG.api("dm_end", { sid: sid }).then(function (r) { if (!r.ok) return NG.toast(NG.errText(r)); NG.haptic("ok"); active = false; render(true); NG.emit("dm:changed"); }).catch(NG.netErr);

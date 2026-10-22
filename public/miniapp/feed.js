@@ -116,7 +116,7 @@
     }
     list.push({ label: "رفتن به پروفایل", fn: function () { NG.openProfile(it.owner.id); } });
     if (!it.mine && it.kind === "post") list.push({ label: "گزارش پست", cls: "red", fn: function () { reportPost(it); } });
-    if (NG.staff && !it.mine && it.kind === "post") list.push({ label: "حذف پست (مدیریت)", cls: "red", fn: function () { NG.confirm("حذف پست کاربر؟", "پست برای همیشه پاک می‌شه و به صاحبش اطلاع داده می‌شه.", "حذف", function () { deletePost(it); }); } });
+    if (NG.staff && !it.mine) list.push({ label: it.kind === "post" ? "حذف پست (مدیریت)" : "حذف عکس پروفایل (مدیریت)", cls: "red", fn: function () { staffRemove(it); } });
     if (it.mine && it.kind === "post") list.push({ label: "حذف پست", cls: "red", fn: function () { NG.confirm("حذف پست؟", "این پست همراه با لایک‌ها و نظرهاش برای همیشه پاک می‌شه.", "حذف", function () { deletePost(it); }); } });
     NG.actions(list);
   }
@@ -139,8 +139,23 @@
       NG.syncPost(it); NG.toast("ذخیره شد ✓"); NG.haptic("ok");
     }).catch(NG.netErr);
   }
-  function deletePost(it) {
-    NG.api("post_delete", { pid: it.pid }).then(function (r) {
+  /** owner / admins: remove somebody's photo from Home / Explore; the person gets a message from Nava (a read-only direct thread) */
+  function staffRemove(it) {
+    NG.sheet('<div class="shd">حذف توسط مدیریت</div><div class="ctx">این مورد برای همیشه حذف می‌شه و از طرف نوا یک پیام به صاحبش در بخش پیام‌ها می‌رسه. دلیل (اختیاری):</div><div class="pad"><input class="inp" id="why" maxlength="200" placeholder="مثلاً: نقض قوانین"></div><div class="pad" style="margin-top:10px"><button class="btn tall" id="go" style="width:100%;background:var(--red);color:#fff">حذف و ارسال پیام</button></div>', function (sh, close) {
+      sh.querySelector("#go").onclick = function () {
+        var why = sh.querySelector("#why").value.trim();
+        close(function () {
+          if (it.kind === "post") return deletePost(it, why);
+          NG.api("mod", { id: it.owner.id, op: "photo_remove", reason: why }).then(function (r) {
+            if (!r.ok) return NG.toast(NG.errText(r));
+            NG.haptic("ok"); NG.toast("عکس حذف شد"); delete items[it.pid]; NG.emit("post:deleted", it.pid);
+          }).catch(NG.netErr);
+        });
+      };
+    });
+  }
+  function deletePost(it, why) {
+    NG.api("post_delete", { pid: it.pid, reason: why || undefined }).then(function (r) {
       if (!r.ok) return NG.toast(NG.errText(r));
       NG.haptic("ok"); NG.toast("پست حذف شد");
       delete items[it.pid];

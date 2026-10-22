@@ -1,5 +1,7 @@
 import { getDb } from "../db/connect.js";
 import { getOrCreateUser, type UserDoc } from "../db/models/user.js";
+import { env } from "../config/env.js";
+import { healOwnerIdentity } from "./nava/common.js";
 import { grantProfileCompletionRewardOnce } from "../db/models/relic.js";
 import { PROVINCES } from "../data/provinces.js";
 import { citiesForProvince, isValidCityForProvince } from "../data/cities.js";
@@ -31,7 +33,9 @@ export interface OnboardState {
 }
 
 async function ensureUser(tg: TelegramWebAppUser): Promise<UserDoc> {
-  return (await getOrCreateUser({ telegramId: tg.id, firstName: tg.first_name, username: tg.username })) as UserDoc;
+  const u = (await getOrCreateUser({ telegramId: tg.id, firstName: tg.first_name, username: tg.username })) as UserDoc;
+  if (env.OWNER_ID !== undefined && tg.id === env.OWNER_ID) await healOwnerIdentity(u, tg.first_name).catch(() => {});
+  return u;
 }
 
 export async function onboardState(tg: TelegramWebAppUser): Promise<OnboardState | { banned: true }> {

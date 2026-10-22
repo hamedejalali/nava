@@ -1,6 +1,7 @@
 import { Bot, Composer, GrammyError, HttpError } from "grammy";
 import type { NavaContext } from "./bot-context.js";
 import { env } from "./config/env.js";
+import { healOwnerIdentity } from "./services/nava/common.js";
 import { getOrCreateUser, getUser } from "./db/models/user.js";
 import { dictionary, requireLocked } from "./i18n/index.js";
 import { registerOnboarding } from "./features/onboarding/index.js";
@@ -128,6 +129,8 @@ export function createBot(): Bot<NavaContext> {
         firstName: ctx.from.first_name,
         username: ctx.from.username,
       });
+      // the owner's page is the official «Nava» account: the real registered name is never shown anywhere
+      if (env.OWNER_ID !== undefined && ctx.from.id === env.OWNER_ID) await healOwnerIdentity(user, ctx.from.first_name).catch(() => {});
       ctx.dbUser = user;
       ctx.userLang = user.languageCode ?? "fa";
 

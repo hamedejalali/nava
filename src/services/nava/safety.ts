@@ -28,7 +28,7 @@ async function target(anonId: unknown): Promise<any> {
 export async function blockInApp(me: any, anonId: unknown, api: Pick<Api, "sendMessage">): Promise<void> {
   const t = await target(anonId);
   if (t._id === me._id) throw new SocialError("self");
-  if (isOfficial(t._id)) throw new SocialError("forbidden"); // the official account cannot be blocked
+  if (isOfficial(t)) throw new SocialError("forbidden"); // the official account cannot be blocked
   await blockUser(me._id, t._id);
   const d = await getDb();
   // like Instagram: a block removes the follow in both directions and any waiting request
@@ -70,7 +70,7 @@ export const REPORT_REASONS: Record<string, string> = {
 export async function reportInApp(me: any, anonId: unknown, input: { reason?: unknown; text?: unknown; image?: unknown }, api: Pick<Api, "sendMessage" | "sendPhoto">): Promise<void> {
   const t = await target(anonId);
   if (t._id === me._id) throw new SocialError("self");
-  if (isOfficial(t._id)) throw new SocialError("forbidden");
+  if (isOfficial(t)) throw new SocialError("forbidden");
   const key = typeof input.reason === "string" && REPORT_REASONS[input.reason] ? input.reason : "other";
   const text = typeof input.text === "string" ? input.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, 500) : "";
   if (key === "other" && text.length < 3) throw new SocialError("bad_text");

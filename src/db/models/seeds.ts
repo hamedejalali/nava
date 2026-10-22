@@ -82,6 +82,15 @@ export async function createSeed(input: SeedInput): Promise<UserDoc> {
   throw new Error("could not allocate a seed member");
 }
 
+/** A legal-entity ("حقوقی") account: a default member that behaves like «Nava» — verified tick + gold coin, age/city hidden,
+ *  no random-search matching, no hiding switches, chat requests closed until the owner opens them. */
+export async function createOfficialAccount(nickname: string, photoFileId?: string): Promise<UserDoc> {
+  const seed = await createSeed({ nickname, gender: "male", age: 30, province: "", city: "", bio: "", ...(photoFileId ? { profilePhotoFileId: photoFileId } : {}), verified: true });
+  const u = await users();
+  await u.updateOne({ _id: seed._id }, { $set: { official: true, officialChatOpen: false, seedHidden: false, seedChatEnabled: false, verified: true, miniUsername: undefined } as any, $unset: { age: "", province: "", city: "", miniUsername: "" } });
+  return (await u.findOne({ _id: seed._id })) as UserDoc;
+}
+
 export async function getSeed(id: number): Promise<UserDoc | null> {
   if (!isSeedId(id)) return null;
   const u = await users();
@@ -130,13 +139,13 @@ export async function updateSeed(id: number, patch: SeedPatch): Promise<UserDoc 
  *  seed document and every Mini App query reads the flag from the document itself. */
 export async function setSeedsHidden(hidden: boolean): Promise<void> {
   await patchBotSettings({ seedsHidden: hidden });
-  await (await users()).updateMany({ isSeed: true }, { $set: { seedHidden: hidden } });
+  await (await users()).updateMany({ isSeed: true, official: { $ne: true } }, { $set: { seedHidden: hidden } });
 }
 
 /** Master switch: may a real user whose random search found nobody be connected to a seed? */
 export async function setSeedChatEnabled(enabled: boolean): Promise<void> {
   await patchBotSettings({ seedChatEnabled: enabled });
-  await (await users()).updateMany({ isSeed: true }, { $set: { seedChatEnabled: enabled } });
+  await (await users()).updateMany({ isSeed: true, official: { $ne: true } }, { $set: { seedChatEnabled: enabled } });
 }
 
 /**
