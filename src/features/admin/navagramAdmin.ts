@@ -8,7 +8,7 @@ import { env } from "../../config/env.js";
 import { isAdmin } from "./constants.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 import { giftCatalog } from "../../services/nava/gifts.js";
-import { removeCustomGift } from "../../services/nava/giftDefs.js";
+import { cleanGlyph, removeCustomGift, updateCustomGift } from "../../services/nava/giftDefs.js";
 import { getMiniSettings, setGiftEnabled, setGiftPrice, setGiftUnique, setPostsChannel, setPostsChannelEnabled, setEventsChannel } from "../../services/nava/settings.js";
 import { GF } from "./giftsAdmin.js";
 
@@ -30,6 +30,7 @@ export const NG_CB = {
   giftPrice: "admin:ng:gp:", // + giftId
   giftUnique: "admin:ng:gu:", // + giftId
   giftDelete: "admin:ng:gd:", // + giftId (custom/Telegram gifts only)
+  giftEdit: "admin:ng:ge:", // + n|e|p + ":" + giftId (name / emoji / background emoji)
 };
 const FLOW = "navagram";
 export const MAX_GIFT_PRICE = 100_000;
@@ -60,7 +61,7 @@ export async function giftsScreen() {
   const cards = await giftCatalog(true);
   const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} XP${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
   const rows = cards.map((g) => [glassButton(`${g.emoji} ${g.name}${g.off ? " (غیرفعال)" : ""}`, `${NG_CB.gift}${g.id}`, "primary")]);
-  rows.push([glassButton("➕ هدیه‌ی تلگرامی جدید", GF.add, "success")]);
+  rows.push([glassButton("➕ هدیه‌ی تلگرامی جدید", GF.add, "success"), glassButton("📥 ایمپورت از فایل", GF.pack, "success")]);
   rows.push([glassButton("🔨 حراج و قرعه‌کشی", GF.ev, "primary"), glassButton("👤 هدیه‌های یک کاربر", GF.users, "primary")]);
   rows.push([glassButton("↩️ بازگشت", NG_CB.open, "primary")]);
   return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به XP هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
@@ -76,6 +77,7 @@ async function giftScreen(giftId: string) {
       [glassButton("تغییر قیمت", `${NG_CB.giftPrice}${g.id}`, "primary")],
       [glassButton(off ? "فعال کردن" : "غیرفعال کردن", `${NG_CB.giftToggle}${g.id}`, off ? "success" : "danger")],
       [glassButton(g.unique ? "برداشتن حالت یکتا" : "✨ یکتا کردن (فقط یک نسخه)", `${NG_CB.giftUnique}${g.id}`, "primary")],
+      ...(g.custom ? [[glassButton("✏️ نام", `${NG_CB.giftEdit}n:${g.id}`, "primary"), glassButton("😀 اموجی", `${NG_CB.giftEdit}e:${g.id}`, "primary"), glassButton("🎨 اموجی پس‌زمینه", `${NG_CB.giftEdit}p:${g.id}`, "primary")]] : []),
       ...(g.custom ? [[glassButton("🗑 حذف این هدیه", `${NG_CB.giftDelete}${g.id}`, "danger")]] : []),
       [glassButton("↩️ بازگشت", NG_CB.gifts, "primary")],
     ]),
@@ -188,6 +190,16 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     await show(ctx, await giftsScreen());
   });
 
+  composer.callbackQuery(new RegExp(`^${NG_CB.giftEdit}([nep]):(tg[a-z0-9]{6})$`), async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    const field = ctx.match![1]!;
+    const id = ctx.match![2]!;
+    if (!(await giftCatalog(true)).some((x) => x.id === id)) return void (await ctx.answerCallbackQuery());
+    await ctx.answerCallbackQuery();
+    await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "edit", data: { giftId: id, field } });
+    await ctx.reply(field === "n" ? "نام جدید هدیه رو بفرست:" : field === "e" ? "اموجی اصلی هدیه رو بفرست (یک اموجی):" : "اموجی پس‌زمینه‌ی هدیه رو بفرست (همون که توی الگوی پشت هدیه تکرار میشه؛ یک اموجی):", { reply_markup: cancelKeyboard() });
+  });
+
   composer.callbackQuery(new RegExp(`^${NG_CB.giftPrice}([a-z0-9]+)$`), async (ctx) => {
     if (!isAdmin(ctx)) return;
     const id = ctx.match![1]!;
@@ -206,6 +218,21 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
       await setAdminFlow(ctx.from!.id, null);
       if (text.startsWith("/")) return next();
       await ctx.reply("لغو شد.");
+      return;
+    }
+
+    if (flow.stage === "edit") {
+      const giftId = String(flow.data?.giftId ?? "");
+      const field = String(flow.data?.field ?? "");
+      const patch: Record<string, string> = {};
+      if (field === "n") { const n = text.slice(0, 24); if (n) patch.name = n; }
+      else { const g = cleanGlyph(text); if (g) patch[field === "e" ? "emoji" : "pattern"] = g; }
+      if (!Object.keys(patch).length) return void (await ctx.reply("مقدار معتبر نیست. دوباره بفرست یا «لغو».", { reply_markup: cancelKeyboard() }));
+      await updateCustomGift(giftId, patch as any);
+      await logAdminAction(ctx.from!.id, "navagram_gift_edit", `${giftId}:${field}`);
+      await setAdminFlow(ctx.from!.id, null);
+      const v = await giftScreen(giftId);
+      if (v) await ctx.reply(`✅ ذخیره شد.\n\n${v.text}`, { parse_mode: "HTML", reply_markup: v.reply_markup });
       return;
     }
 

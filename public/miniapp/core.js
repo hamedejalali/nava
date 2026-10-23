@@ -107,9 +107,24 @@
     return fetch("/api/miniapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
   };
+  /** Like NG.api but reports upload progress (0..1) — used for photo uploads. */
+  NG.apiUp = function (action, body, onProgress) {
+    body = body || {}; body.action = action; body.initData = NG.initData;
+    if (qs.get("as") === "user") body.asUser = true;
+    if (NG.actAs) body.actAs = NG.actAs;
+    return new Promise(function (resolve, reject) {
+      var x = new XMLHttpRequest(); x.open("POST", "/api/miniapp");
+      x.setRequestHeader("Content-Type", "application/json");
+      if (x.upload && onProgress) x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+      x.onload = function () { var d = {}; try { d = JSON.parse(x.responseText); } catch (e) {} if (onProgress) onProgress(1); resolve({ ok: x.status >= 200 && x.status < 300, status: x.status, data: d }); };
+      x.onerror = x.ontimeout = function () { reject(new Error("net")); };
+      x.send(JSON.stringify(body));
+    });
+  };
   var ERR = {
     insufficient: "XP کافی نیست", need_photo: "برای این بخش اول باید عکس پروفایلت تأیید شده باشه.", not_registered: "ابتدا از داخل ربات ثبت‌نام کنید", too_fast: "کمی صبر کن و دوباره امتحان کن.", too_many: "به سقف مجاز امروز رسیدی.",
     bad_image: "این عکس قابل استفاده نیست.", text_too_long: "متن خیلی طولانیه.", bad_text: "متن معتبر نیست.", bad_input: "ورودی نامعتبره.",
+    chat_running: "اول چت رو پایان بده.", read_only: "این گفتگو فقط‌خواندنیه.", insufficient: "XP کافی نیست",
     forbidden: "اجازه‌ی این کار رو نداری.", comments_off: "کامنت‌ها برای این پست بسته شده.", not_found: "پیدا نشد (ممکنه حذف شده باشه).",
     share_unavailable: "الان اشتراک‌گذاری ممکن نیست.", unavailable: "فعلاً امکانش نیست.", self: "این کار روی خودت ممکن نیست.",
     bad_gift: "این هدیه در دسترس نیست.", bad_name: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
@@ -168,7 +183,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.23.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.24.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

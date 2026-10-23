@@ -255,16 +255,21 @@
   }
 
   /* ----------------------------------------------------- profile photo */
-  NG.changeProfilePhoto = function () {
+  /** opts (optional): { preview(dataUrl), progress(0..1), end(ok) } — used by the setup gate to draw the circular loader. */
+  NG.changeProfilePhoto = function (opts) {
+    opts = opts || {};
     NG.pickImage(function (file) {
       NG.cropFlow(file, { ratios: [{ k: "1:1", r: 1 }], out: 1080, title: "عکس پروفایل", cta: "ثبت", round: true }, function (res, done) {
-        NG.api("upload_photo", { image: res.data }).then(function (r) {
-          if (!r.ok) { done(false); return NG.toast(NG.errText(r)); }
-          done(true); NG.haptic("ok");
+        done(true);
+        if (opts.preview) opts.preview(res.data);
+        NG.apiUp("upload_photo", { image: res.data }, opts.progress).then(function (r) {
+          if (!r.ok) { if (opts.end) opts.end(false); return NG.toast(NG.errText(r)); }
+          NG.haptic("ok");
           if (r.data.status === "approved") NG.toast("✅ عکس پروفایلت عوض شد");
           else NG.toast("📷 عکس برای تأیید مالک ارسال شد؛ بعد از تأیید خودکار جایگزین می‌شه");
+          if (opts.end) opts.end(true);
           NG.refreshMe();
-        }).catch(function () { done(false); NG.netErr(); });
+        }).catch(function () { if (opts.end) opts.end(false); NG.netErr(); });
       });
     });
   };

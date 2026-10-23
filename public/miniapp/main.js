@@ -242,16 +242,15 @@
   function prefetch() {
     if (NG.guest || document.hidden) return;
     try {
-      if (!expl.loaded && !expl.loading) loadExplore(true);
-      if (!dmV) dmV = NG.dmView(pages.dm);
-      if (!matchV) matchV = NG.matchView(pages.match);
-      if (!profileV) { renderProfileTab(); }
+      // one heavy thing per idle slot, so nothing janks the first interaction
+      var q = [function () { if (!dmV) dmV = NG.dmView(pages.dm); }, function () { if (!expl.loaded && !expl.loading) loadExplore(true); }, function () { if (!profileV) renderProfileTab(); }, function () { if (!matchV) matchV = NG.matchView(pages.match); }];
+      q.forEach(function (fn, i) { setTimeout(function () { try { fn(); } catch (e) {} }, i * 350); });
     } catch (e) {}
   }
   /* -------------------------------------------------------------------- boot */
   function boot() {
     var t0 = Date.now();
-    function reveal() { var wait = Math.max(0, 1500 - (Date.now() - t0)); setTimeout(NG.hideSplash, wait); }
+    function reveal() { var wait = Math.max(0, 900 - (Date.now() - t0)); setTimeout(NG.hideSplash, wait); }
     if (!NG.initData) { NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن."); return; }
     NG.splashProgress(30);
     NG.api("whoami").then(function (r) {
@@ -267,13 +266,13 @@
         NG.fail(r); return;
       }
       if (r.data.role === "staff") { location.replace("/monitor/"); return; }
-      NG.me = r.data.me; NG.bot = r.data.bot || null; NG.staff = !!r.data.staff; // owner / admins may remove any post, story or comment
+      NG.me = r.data.me; NG.bot = r.data.bot || null; NG.staff = !!r.data.staff; NG.staffOwner = !!r.data.staffOwner; // owner / admins may remove any post, story or comment
       buildShell(); renderExploreShell();
       if (NG.needsSetup && NG.needsSetup(NG.me) && !r.data.acting) NG.setupGate();
       pages.home.classList.add("on"); movePill();
       NG.splashProgress(80);
       var done = NG.renderHome(pages.home);
-      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); setTimeout(prefetch, 1500); };
+      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); setTimeout(prefetch, 250); };
       if (done && done.then) done.then(fin, fin); else fin();
       setTimeout(movePill, 120);
     }).catch(function () { NG.fatal("اتصال برقرار نیست", "اینترنتت رو چک کن و دوباره باز کن."); });

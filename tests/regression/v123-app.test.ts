@@ -1,4 +1,4 @@
-/** v1.23.0 — legal accounts, read-only Nava threads, no-expiry chat requests, acting-as accept, owner location, XP-stake backgammon. (mocked Mongo + Telegram) */
+/** v1.24.0 — legal accounts, read-only Nava threads, no-expiry chat requests, acting-as accept, owner location, XP-stake backgammon. (mocked Mongo + Telegram) */
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";

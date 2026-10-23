@@ -9,7 +9,7 @@
 export interface BadgeDef {
   id: string;
   label: string;
-  group: "tick" | "star" | "tg" | "ig";
+  group: "tick" | "star" | "tg" | "ig" | "em";
 }
 
 export const BADGES: readonly BadgeDef[] = [
@@ -30,9 +30,46 @@ export const BADGES: readonly BadgeDef[] = [
   { id: "ig-spark", label: "درخشش", group: "ig" },
   { id: "ig-ring", label: "حلقه‌ی گرادیان", group: "ig" },
   { id: "ig-camera", label: "دوربین", group: "ig" },
+  // v1.24: emoji-style badges (Noto Color Emoji artwork in public/miniapp/emoji/)
+  { id: "em-crown", label: "تاج", group: "em" },
+  { id: "em-gem", label: "الماس", group: "em" },
+  { id: "em-fire", label: "آتش", group: "em" },
+  { id: "em-bolt", label: "صاعقه", group: "em" },
+  { id: "em-rocket", label: "موشک", group: "em" },
+  { id: "em-sparkles", label: "درخشش", group: "em" },
+  { id: "em-star", label: "ستاره", group: "em" },
+  { id: "em-star2", label: "ستاره‌ی درخشان", group: "em" },
+  { id: "em-dizzy", label: "ستاره‌باران", group: "em" },
+  { id: "em-heartfire", label: "قلب آتشین", group: "em" },
+  { id: "em-sparkheart", label: "قلب درخشان", group: "em" },
+  { id: "em-trophy", label: "جام", group: "em" },
+  { id: "em-medal", label: "مدال", group: "em" },
+  { id: "em-gold1", label: "رتبه‌ی یک", group: "em" },
+  { id: "em-camera", label: "دوربین", group: "em" },
+  { id: "em-rainbow", label: "رنگین‌کمان", group: "em" },
+  { id: "em-unicorn", label: "اسب تک‌شاخ", group: "em" },
+  { id: "em-crystal", label: "گوی جادویی", group: "em" },
+  { id: "em-shield", label: "سپر", group: "em" },
+  { id: "em-money", label: "کیسه‌ی طلا", group: "em" },
+  { id: "em-gift", label: "هدیه", group: "em" },
+  { id: "em-party", label: "جشن", group: "em" },
+  { id: "em-clover", label: "شبدر", group: "em" },
+  { id: "em-blossom", label: "شکوفه", group: "em" },
+  { id: "em-butterfly", label: "پروانه", group: "em" },
+  { id: "em-eagle", label: "عقاب", group: "em" },
+  { id: "em-lion", label: "شیر", group: "em" },
+  { id: "em-dragon", label: "اژدها", group: "em" },
+  { id: "em-ring", label: "حلقه", group: "em" },
+  { id: "em-hundred", label: "صد", group: "em" },
+  { id: "em-rose", label: "رز", group: "em" },
+  { id: "em-moon", label: "ماه", group: "em" },
+  { id: "em-sun", label: "خورشید", group: "em" },
+  { id: "em-alien", label: "فضایی", group: "em" },
+  { id: "em-diamondblue", label: "الماس آبی", group: "em" },
+  { id: "em-cool", label: "خفن", group: "em" },
 ] as const;
 
-export const MAX_BADGES = 6;
+export const MAX_BADGES = 8;
 const IDS = new Set(BADGES.map((b) => b.id));
 
 export function isBadgeId(x: unknown): x is string {

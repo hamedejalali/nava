@@ -223,6 +223,16 @@ export async function setLocation(user: UserDoc, provinceRaw: unknown, cityRaw: 
   return { province: province || null, city: city || null };
 }
 
+/** The official coin next to the tick: any one emoji, or "" to remove it (owner's page and legal accounts). */
+export async function setCoin(user: UserDoc, raw: unknown): Promise<string | null> {
+  if (!isOfficial(user)) throw new SocialError("forbidden");
+  const t = typeof raw === "string" ? raw.trim() : "";
+  if (t && (t.length > 12 || /[\u0000-\u001f<>&"']/.test(t))) throw new SocialError("bad_input");
+  const db = await getDb();
+  await db.collection<any>("users").updateOne({ _id: user._id }, { $set: { officialCoin: t } });
+  return t || null;
+}
+
 /** A legal account's switch: may people send it chat requests? (The owner's «Nava» page never takes any.) */
 export async function setOfficialChatOpen(user: UserDoc, open: boolean): Promise<boolean> {
   if (!isOfficial(user) || (env.OWNER_ID !== undefined && user._id === env.OWNER_ID)) throw new SocialError("forbidden");

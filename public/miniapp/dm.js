@@ -11,7 +11,8 @@
   /* ------------------------------------------------------------------ tab */
   NG.dmView = function (page) {
     var root = el('<div class="dmv"></div>'); page.innerHTML = ""; page.appendChild(root);
-    var data = null, timer = null, loading = false;
+    var data = null, timer = null, loading = false, CK = "ng_dm_" + (NG.me ? NG.me.id : "x");
+    try { var c = JSON.parse(localStorage.getItem(CK) || "null"); if (c && c.items && c.requests) data = c; } catch (e) {} // instant first paint, refreshed right after
 
     function paint() {
       root.innerHTML = "";
@@ -45,7 +46,8 @@
       NG.api("dm_overview").then(function (r) {
         loading = false;
         if (!r.ok) { if (!data) NG.fail(r); return; }
-        data = r.data; NG.setDmBadge(data.requests.incoming + data.items.reduce(function (n, x) { return n + (x.unread || 0); }, 0));
+        data = r.data; try { localStorage.setItem(CK, JSON.stringify(data)); } catch (e) {}
+        NG.setDmBadge(data.requests.incoming + data.items.reduce(function (n, x) { return n + (x.unread || 0); }, 0));
         if (page.classList.contains("on") && !document.querySelector(".chatscr")) paint();
       }).catch(function () { loading = false; });
     }
@@ -207,15 +209,21 @@
     inp.onkeydown = function (e) { if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) { e.preventDefault(); sendText(); } };
     snd.onclick = sendText; cp.onclick = sendPhoto;
 
+    function delThread() {
+      NG.confirm("حذف گفتگو؟", "این گفتگو فقط برای خودت پاک می‌شه.", "حذف", function () {
+        NG.api("dm_delete", { sid: sid }).then(function (r) { if (!r.ok) return NG.toast(NG.errText(r)); NG.haptic("ok"); alive = false; scr.close(); NG.emit("dm:changed"); }).catch(NG.netErr);
+      });
+    }
     /* menu */
     top.querySelector(".rt").onclick = function () {
       var items = [];
-      if (ro) { if (partner) NG.actions([{ label: "دیدن پروفایل", fn: function () { NG.openProfile(partner.id); } }]); return; }
+      if (ro) { var ri = [{ label: "حذف گفتگو", cls: "red", fn: function () { delThread(); } }]; if (partner) ri.unshift({ label: "دیدن پروفایل", fn: function () { NG.openProfile(partner.id); } }); NG.actions(ri); return; }
       if (active) items.push({ label: "پایان چت", cls: "red", fn: function () {
         NG.confirm("پایان چت؟", "چت بسته می‌شه و هر دو نفر آزاد می‌شید.", "پایان چت", function () {
           NG.api("dm_end", { sid: sid }).then(function (r) { if (!r.ok) return NG.toast(NG.errText(r)); NG.haptic("ok"); active = false; render(true); NG.emit("dm:changed"); }).catch(NG.netErr);
         });
       } });
+      if (!active) items.push({ label: "حذف گفتگو", cls: "red", fn: function () { delThread(); } });
       if (partner) {
         items.push({ label: "گزارش", cls: "red", fn: function () { NG.reportUser(partner); } });
         items.push({ label: "مسدود کردن", cls: "red", fn: function () { NG.blockUser(partner, function () { active = false; render(true); NG.emit("dm:changed"); }); } });

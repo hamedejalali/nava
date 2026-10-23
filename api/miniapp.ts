@@ -12,7 +12,7 @@ import {
   MINIAPP_INITDATA_MAX_AGE_SECONDS,
 } from "../src/services/miniapp.js";
 import { authenticateStaff } from "../src/services/monitor.js";
-import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setLike, setLocation, setMiniUsername, setOfficialChatOpen, uploadProfilePhoto } from "../src/services/miniappSocial.js";
+import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setCoin, setLike, setLocation, setMiniUsername, setOfficialChatOpen, uploadProfilePhoto } from "../src/services/miniappSocial.js";
 import { createChatRequest } from "../src/db/models/chatRequest.js";
 import { sendChatRequestToTarget } from "../src/features/matching/chatRequest.js";
 import { getDb } from "../src/db/connect.js";
@@ -20,9 +20,10 @@ import { getSupportLink } from "../src/features/support/index.js";
 import { checkRateLimit } from "../src/utils/rateLimit.js";
 import { env } from "../src/config/env.js";
 import { onboardCities, onboardSave, onboardState } from "../src/services/miniOnboarding.js";
-import { pickGuestCards, pickMemberCards, sanitizeMatchExclude } from "../src/services/matchCards.js";
+import { pickGuestCards, markMatchSeen, markMatchSeenById, pickMemberCards, sanitizeMatchExclude } from "../src/services/matchCards.js";
 import { verifyTelegramWebAppInitData } from "../src/utils/telegramWebApp.js";
-import { isOfficial, parsePid } from "../src/services/nava/common.js";
+import { adminDeleteGift } from "../src/services/nava/giftAdmin.js";
+import { findVisibleUser, isOfficial, parsePid } from "../src/services/nava/common.js";
 import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
 import { present } from "../src/services/nava/present.js";
 import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setCommentLike, setPostLike } from "../src/services/nava/posts.js";
@@ -42,7 +43,7 @@ import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople
 import { prepareShare } from "../src/services/nava/share.js";
 import { waitUntil } from "@vercel/functions";
 import * as bg from "../src/services/games/backgammonGames.js";
-import { cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
+import { deleteThreadForMe, cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
 import { blockInApp, listBlocked, reportInApp, unblockInApp } from "../src/services/nava/safety.js";
 import { sendOfficialMessage } from "../src/services/nava/dm.js";
 import { staffModerate, type StaffOp } from "../src/services/nava/staffMod.js";
@@ -86,7 +87,7 @@ async function botUsername(): Promise<string | null> {
 }
 const ACTIONS = new Set([
   // identity / profile
-  "whoami", "guest_cards", "onboard_state", "onboard_cities", "onboard_save", "match_cards", "me", "profile", "check_username", "set_username", "set_bio", "upload_photo", "request_change", "set_visibility", "set_location", "official_chat",
+  "whoami", "guest_cards", "onboard_state", "onboard_cities", "onboard_save", "match_cards", "match_seen", "me", "profile", "check_username", "set_username", "set_bio", "upload_photo", "request_change", "set_visibility", "set_location", "official_chat",
   // feed / explore / search
   "home", "explore", "search", "recent_add", "recent_remove", "recent_clear",
   // posts
@@ -103,7 +104,7 @@ const ACTIONS = new Set([
   // gifts / share / chat request
   "gift_catalog", "gift_send", "gift_regift", "gifts", "share", "request",
   // direct messages (Navagram chat) + chat requests inbox
-  "dm_overview", "dm_open", "dm_send", "dm_photo", "dm_end", "dm_requests", "dm_respond", "dm_cancel",
+  "dm_overview", "dm_open", "dm_send", "dm_photo", "dm_end", "dm_delete", "official_send", "gift_remove", "set_coin", "dm_requests", "dm_respond", "dm_cancel",
   // safety: block / report (synced with the bot) and staff moderation from a profile's ⋮ menu
   "block", "unblock", "blocked_list", "report", "mod",
   // backgammon (experimental two-player game)
@@ -146,6 +147,11 @@ async function serveImage(req: VercelRequest, res: VercelResponse): Promise<void
   const m = q1(req.query?.m);
   const u = q1(req.query?.u);
   const s = q1(req.query?.s);
+  // hardening: an image URL can never run script, leak a referrer, or be indexed
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
   if (m) {
     if (m.length > 24 || !verifyMediaSig(m, s)) return void res.status(403).end();
     const media = await loadMedia(m);
@@ -204,7 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Owner / admins get the monitoring panel instead of the social app (unless they ask for user mode).
     const wantsActAs = typeof body.actAs === "string" && body.actAs.length > 0;
-    const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" || action === "mod" ? await authenticateStaff(body.initData) : null;
+    const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" || action === "mod" || action === "gift_remove" ? await authenticateStaff(body.initData) : null;
     if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
 
     // Guest preview: somebody who opened the mini-app WITHOUT finishing registration in the bot sees 5 fictional
@@ -288,7 +294,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const miss = await joinMissing(me);
       if (miss.length) return void res.status(403).json({ error: "join_required", channels: miss });
       if (!acting) await ensureOfficialFollow(me).catch((err) => console.error("[miniapp] official follow failed:", err instanceof Error ? err.name : "unknown"));
-      return send({ role: "user", me: await getProfile(me, me.anonId), bot: await botUsername(), staff: !!staff?.ok, acting: acting ? me.anonId : null });
+      return send({ role: "user", me: await getProfile(me, me.anonId), bot: await botUsername(), staff: !!staff?.ok, staffOwner: !!staff?.ok && env.OWNER_ID !== undefined && staff.id === env.OWNER_ID, acting: acting ? me.anonId : null });
     }
 
     if (action === "photo") {
@@ -318,6 +324,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (r === "need_photo") throw new SocialError("need_photo");
           return send({ cards: r });
         }
+        case "match_seen":
+          return void res.status(200).json({ ok: await markMatchSeen(me, body.id) });
         case "check_username":
           return void res.status(200).json(await checkUsername(me, body.username, !!staff?.ok));
         case "set_username":
@@ -328,6 +336,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return void res.status(200).json({ status: await uploadProfilePhoto(me, body.image) });
         case "set_location":
           return void res.status(200).json(await setLocation(me, body.province, body.city));
+        case "set_coin":
+          return void res.status(200).json({ coin: await setCoin(me, body.coin) });
         case "official_chat":
           return void res.status(200).json({ open: await setOfficialChatOpen(me, body.open === true) });
         case "set_visibility":
@@ -508,6 +518,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!hasUnlimitedXp(me._id) && (me.relicBalance ?? 0) < 1) return void res.status(200).json({ status: "no_balance" });
           const target = await findRequestTarget(me._id, body.id);
           if (!target) return void res.status(200).json({ status: "unavailable" });
+          await markMatchSeenById(me._id, target._id);
           const created = await createChatRequest(me._id, target._id, new Date(), "miniapp");
           if (created.status !== "created") return void res.status(200).json({ status: created.status });
           const delivered = await sendChatRequestToTarget(created.request, me, target);
@@ -530,6 +541,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         case "dm_end":
           return void res.status(200).json(await endThread(me, body.sid, botApi()));
+        case "gift_remove": {
+          if (!staff?.ok || env.OWNER_ID === undefined || staff.id !== env.OWNER_ID) return void res.status(403).json({ error: "forbidden" });
+          const r = await adminDeleteGift(typeof body.id === "string" ? body.id : "");
+          if (!r) return void res.status(404).json({ error: "not_found" });
+          await logAdminAction(staff.id, "gift_delete", `${r.ownerId}:${r.giftId}`).catch(() => {});
+          return void res.status(200).json({ ok: true });
+        }
+        case "dm_delete":
+          return void res.status(200).json({ ok: await deleteThreadForMe(me, body.sid) });
+        case "official_send": {
+          // Nava / a legal account writes to one person: no request, no XP, the person cannot answer
+          if (!isOfficial(me)) return void res.status(403).json({ error: "forbidden" });
+          const to: any = await findVisibleUser(me._id, body.id);
+          if (!to || isOfficial(to)) return void res.status(404).json({ error: "not_found" });
+          await sendOfficialMessage(botApi(), me._id, to._id, typeof body.text === "string" ? body.text : "");
+          return void res.status(200).json({ ok: true });
+        }
         case "dm_requests":
           return send(await listRequests(me));
         case "dm_respond":
@@ -551,7 +579,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return void res.status(200).json({ ok: true });
         case "mod": {
           if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
-          const ops: StaffOp[] = ["ban", "unban", "verify", "unverify", "photo_remove", "badges"];
+          const ops: StaffOp[] = ["ban", "unban", "verify", "unverify", "photo_remove", "badges", "reset_user"];
           if (!ops.includes(body.op as StaffOp)) return void res.status(400).json({ error: "bad_input" });
           return void res.status(200).json(await staffModerate(staff.id, body.id, body.op as StaffOp, botApi(), { badges: body.badges, reason: body.reason }));
         }

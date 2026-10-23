@@ -120,7 +120,10 @@ export async function overview(me: any): Promise<DmOverview> {
   const items: ThreadItem[] = [];
   for (const s of sessions) {
     const pid = otherParticipant(s, me._id)!;
-    const [last] = await c.find({ sessionId: s._id }).sort({ seq: -1 }).limit(1).toArray();
+    const cleared = ((isA(s, me._id) ? (s as any).clearA : (s as any).clearB) as number | undefined) ?? 0;
+    if (cleared > 0 && (s.dmSeq ?? 0) <= cleared) continue; // deleted by me and nothing new since
+    const [last] = await c.find({ sessionId: s._id, seq: { $gt: cleared } }).sort({ seq: -1 }).limit(1).toArray();
+    if (cleared > 0 && !last) continue;
     const myRead = (isA(s, me._id) ? s.readA : s.readB) ?? 0;
     const unread = s.active ? await c.countDocuments({ sessionId: s._id, senderId: pid, seq: { $gt: myRead }, kind: { $ne: "system" } } as any) : 0;
     items.push({
@@ -128,7 +131,7 @@ export async function overview(me: any): Promise<DmOverview> {
       partner: byId.get(pid) ?? null,
       partnerGone: !byId.has(pid),
       active: s.active,
-      ...((s as any).readonly ? { readonly: true } : {}),
+      ...((s as any).readonly && s.userA !== me._id ? { readonly: true } : {}),
       last: last ? { kind: last.kind, text: last.deleted ? undefined : last.text, mine: last.senderId === me._id, at: last.at.getTime() } : null,
       unread,
       at: (last?.at ?? s.createdAt).getTime(),
@@ -206,10 +209,12 @@ export async function openThread(me: any, sid: unknown, since: unknown): Promise
   const s = await mySession(me, sid);
   if (!s) return null;
   const c = await msgs();
-  const from = typeof since === "number" && Number.isFinite(since) && since > 0 ? Math.max(0, Math.floor(since) - OVERLAP) : 0;
+  const cleared = ((isA(s, me._id) ? (s as any).clearA : (s as any).clearB) as number | undefined) ?? 0;
+  const from0 = typeof since === "number" && Number.isFinite(since) && since > 0 ? Math.max(0, Math.floor(since) - OVERLAP) : 0;
+  const from = from0;
   let rows: DmDoc[];
-  if (from > 0) rows = await c.find({ sessionId: s._id, seq: { $gt: from } }).sort({ seq: 1 }).limit(200).toArray();
-  else rows = (await c.find({ sessionId: s._id }).sort({ seq: -1 }).limit(PAGE).toArray()).reverse();
+  if (from > 0) rows = await c.find({ sessionId: s._id, seq: { $gt: Math.max(from, cleared) } }).sort({ seq: 1 }).limit(200).toArray();
+  else rows = (await c.find({ sessionId: s._id, seq: { $gt: cleared } }).sort({ seq: -1 }).limit(PAGE).toArray()).reverse();
   const pid = otherParticipant(s, me._id)!;
   const users = await usersCol();
   const partner: any = await users.findOne({ _id: pid });
@@ -226,7 +231,7 @@ export async function openThread(me: any, sid: unknown, since: unknown): Promise
   if (nowMs - (((s as any)[liveField] as number) ?? 0) > 10_000) set[liveField] = nowMs;
   if (Object.keys(set).length) await (await sessionsCol()).updateOne({ _id: s._id }, { $set: set });
   const theirRead = (mine === "A" ? s.readB : s.readA) ?? 0;
-  return { sid: s._id, active: s.active, partner: brief ?? null, partnerGone: gone, messages: rows.map((r) => toMsg(r, me._id)), theirRead, last, endedAt: s.endedAt ? s.endedAt.getTime() : null, readonly: !!(s as any).readonly };
+  return { sid: s._id, active: s.active, partner: brief ?? null, partnerGone: gone, messages: rows.map((r) => toMsg(r, me._id)), theirRead, last, endedAt: s.endedAt ? s.endedAt.getTime() : null, readonly: !!(s as any).readonly && s.userA !== me._id };
 }
 
 async function nextSeq(sid: string): Promise<number> {
@@ -262,6 +267,13 @@ export async function sendText(me: any, sid: unknown, raw: unknown, cidRaw: unkn
   const text = raw.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").replace(/\r\n?/g, "\n").trim();
   if (!text) throw new SocialError("bad_text");
   if ([...text].length > DM_MAX_TEXT) throw new SocialError("text_too_long");
+  const own = await mySession(me, sid);
+  if (own && (own as any).readonly && own.userA === me._id) {
+    // an official account writing in its own notice thread: no filters, no XP, no request
+    await sendOfficialMessage(api as any, me._id, own.userB, text);
+    const last = await (await msgs()).find({ sessionId: own._id }).sort({ seq: -1 }).limit(1).toArray();
+    return toMsg(last[0]!, me._id);
+  }
   const { s, pid } = await usable(me, sid);
   if (containsTelegramContact(text)) throw new SocialError("contact_forbidden");
   const rl = await checkRateLimit(me._id, "dm-text", 40, 60_000);
@@ -374,6 +386,17 @@ async function pushIfAway(api: Pick<Api, "sendMessage">, s: ChatSessionDoc, part
   } catch {
     /* best effort */
   }
+}
+
+/** «حذف گفتگو» — only for ME: the thread (and everything in it so far) disappears from my list; a new message makes it come back, empty of the old ones.
+ *  A running chat has to be ended first. */
+export async function deleteThreadForMe(me: any, sid: unknown): Promise<boolean> {
+  const s = await mySession(me, sid);
+  if (!s) throw new SocialError("not_found");
+  if (s.active && !(s as any).readonly) throw new SocialError("chat_running");
+  const mark = isA(s, me._id) ? "clearA" : "clearB";
+  await (await sessionsCol()).updateOne({ _id: s._id }, { $set: { [mark]: s.dmSeq ?? 0, [isA(s, me._id) ? "readA" : "readB"]: s.dmSeq ?? 0 } });
+  return true;
 }
 
 /* ------------------------------------------------------------ official notices */

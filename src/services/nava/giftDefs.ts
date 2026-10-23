@@ -54,12 +54,17 @@ export async function addCustomGift(input: {
   sticker: CustomGiftDoc["sticker"];
   starCount?: number;
   createdBy: number;
+  /** background pattern emoji (default = the gift's emoji) and the two gradient colours (default = random palette) */
+  pattern?: string;
+  c1?: string;
+  c2?: string;
 }): Promise<CustomGiftDoc> {
   const name = input.name.trim().slice(0, MAX_GIFT_NAME);
   if (!name) throw new Error("bad_name");
   if (!Number.isInteger(input.price) || input.price < 1 || input.price > MAX_GIFT_PRICE) throw new Error("bad_price");
   const c = await col<CustomGiftDoc>(C.giftDefs);
-  const [c1, c2] = PALETTES[Math.floor(Math.random() * PALETTES.length)]!;
+  const [p1, p2] = PALETTES[Math.floor(Math.random() * PALETTES.length)]!;
+  const c1 = cleanColor(input.c1) ?? p1, c2 = cleanColor(input.c2) ?? p2;
   for (let attempt = 0; attempt < 5; attempt++) {
     const doc: CustomGiftDoc = {
       _id: "tg" + [...randomBytes(6)].map((b) => (b % 36).toString(36)).join(""),
@@ -71,7 +76,7 @@ export async function addCustomGift(input: {
       ...(input.starCount ? { starCount: input.starCount } : {}),
       c1,
       c2,
-      pattern: input.emoji || "✨",
+      pattern: cleanGlyph(input.pattern) ?? (input.emoji || "✨"),
       createdAt: new Date(),
       createdBy: input.createdBy,
     };
@@ -85,7 +90,17 @@ export async function addCustomGift(input: {
   throw new Error("id_collision");
 }
 
-export async function updateCustomGift(id: string, patch: Partial<Pick<CustomGiftDoc, "price" | "enabled" | "name">>): Promise<void> {
+export function cleanColor(v: unknown): string | null {
+  return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v.trim()) ? v.trim() : null;
+}
+/** one emoji / short glyph (at most ~8 UTF-16 units, no letters-only words) */
+export function cleanGlyph(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t && t.length <= 12 && !/[\u0000-\u001f<>&"']/.test(t) ? t : null;
+}
+
+export async function updateCustomGift(id: string, patch: Partial<Pick<CustomGiftDoc, "price" | "enabled" | "name" | "emoji" | "pattern" | "c1" | "c2">>): Promise<void> {
   await (await col<CustomGiftDoc>(C.giftDefs)).updateOne({ _id: id }, { $set: patch });
 }
 

@@ -43,6 +43,7 @@ test("A1. owner adds a gift from an animated sticker (name + price asked); it sh
   await h.text(OWNER_ID, "abc");
   assert.equal(col("mini_gift_defs").all().length, 0, "bad price rejected");
   await h.text(OWNER_ID, "۴۰");
+  await h.text(OWNER_ID, "رد"); // background emoji step (skip)
   const defs = col("mini_gift_defs").all();
   assert.equal(defs.length, 1);
   assert.deepEqual([defs[0].name, defs[0].price, defs[0].sticker.fileId], ["میمون", 40, "STK-MONKEY"]);
@@ -58,6 +59,7 @@ test("A2. official Telegram gifts list (Bot API getAvailableGifts) -> pick -> na
   await h.callback(OWNER_ID, "admin:gf:tp:1");
   await h.text(OWNER_ID, "کیک ویدیویی");
   await h.text(OWNER_ID, "25");
+  await h.text(OWNER_ID, "رد");
   const d = col("mini_gift_defs").all()[0];
   assert.deepEqual([d.sticker.format, d.sticker.fileId, d.price, d.starCount], ["webm", "OFF2", 25, 100]);
 });

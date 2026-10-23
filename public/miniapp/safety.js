@@ -108,6 +108,7 @@
     }, { cls: "tall" });
   }
 
+  NG.badgeSheet = badgeSheet;
   NG.staffMenu = function (p, after) {
     var m = p.mod || { banned: false, hasPhoto: !!p.av };
     function run(op, okText, extra) {
@@ -119,6 +120,7 @@
     items.push(p.verified ? { label: "☑️ لغو وریفای", fn: function () { run("unverify", "وریفای برداشته شد"); } } : { label: "☑️ وریفای (تیک آبی)", fn: function () { run("verify", "وریفای شد ✓"); } });
     items.push({ label: "🏅 بج‌ها", fn: function () { badgeSheet(p, after); } });
     if (m.hasPhoto) items.push({ label: "🗑 حذف عکس پروفایل", cls: "red", fn: function () { NG.confirm("حذف عکس پروفایل", "عکس پروفایل و پست اولش پاک می‌شه.", "حذف", function () { run("photo_remove", "عکس حذف شد"); }); } });
+    if (NG.staffOwner && !p.isOwnerPage) items.push({ label: "🗑 حذف کاربر (ریست کامل)", cls: "red", fn: function () { NG.confirm("حذف کاربر", "همهٔ اطلاعات کاربر (پروفایل، عکس، XP، پست‌ها، چت‌ها) پاک می‌شه و دیگه جایی نشون داده نمی‌شه. برگشت‌ناپذیره.", "حذف کامل", function () { NG.api("mod", { id: p.id, op: "reset_user" }).then(function (r) { if (!r.ok) return NG.toast(NG.errText(r)); NG.haptic("ok"); NG.toast("کاربر حذف شد"); if (NG.back) NG.back(); }).catch(NG.netErr); }); } });
     NG.actions(items, "مدیریت " + NG.nameOf(p));
   };
 })();

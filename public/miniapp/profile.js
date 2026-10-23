@@ -89,7 +89,7 @@
 
   function giftDetail(g, ownerBrief, isMe) {
     var def = giftDef(g.giftId); if (!def) return;
-    NG.sheet('<div class="gdetail" id="gd"></div><div class="pad">' + (isMe ? '<button class="btn blue tall" id="rg" style="width:100%;margin-bottom:8px">🎁 ارسال این هدیه به یه نفر دیگه</button>' : "") + '<button class="btn tall" id="cl" style="width:100%">بستن</button></div>', function (sh, close) {
+    NG.sheet('<div class="gdetail" id="gd"></div><div class="pad">' + (isMe ? '<button class="btn blue tall" id="rg" style="width:100%;margin-bottom:8px">🎁 ارسال این هدیه به یه نفر دیگه</button>' : "") + '' + (NG.staff && !isMe ? '<button class="btn tall" id="gx" style="width:100%;margin-bottom:8px;color:var(--red)">🗑 حذف این هدیه (مدیریت)</button>' : "") + '<button class="btn tall" id="cl" style="width:100%">بستن</button></div>', function (sh, close) {
       var box = sh.querySelector("#gd");
       box.appendChild(giftCard(def, { cls: "lg", name: true }));
       if (g.from) {
@@ -103,6 +103,12 @@
       if (g.message) box.appendChild(el('<div class="msg">«' + esc(g.message) + "»</div>"));
       box.appendChild(el('<div style="color:var(--muted);font-size:12px">' + NG.ago(g.at) + "</div>"));
       sh.querySelector("#cl").onclick = function () { close(); };
+      var gx = sh.querySelector("#gx");
+      if (gx) gx.onclick = function () {
+        NG.confirm("حذف هدیه؟", "هدیه از پروفایل این کاربر پاک می‌شه (هدیه‌ی یکتا دوباره قابل فروش می‌شه).", "حذف", function () {
+          NG.api("gift_remove", { id: g.id }).then(function (r) { if (!r.ok) return NG.toast(NG.errText(r)); NG.haptic("ok"); NG.toast("هدیه حذف شد"); close(); if (ownerBrief) NG.emit("gift:removed", { id: ownerBrief.id }); }).catch(NG.netErr);
+        });
+      };
       var rg = sh.querySelector("#rg");
       if (rg) rg.onclick = function () { close(function () { regiftPick(g, def); }); };
     });
@@ -413,7 +419,13 @@
         }
         cs(); c.onclick = function () { NG.requestChat(P); };
         var g = el('<button class="btn sq" aria-label="gift">' + svg("gift") + "</button>"); g.onclick = function () { NG.openGiftSheet(P); };
-        btns.appendChild(f); if (P.chat !== "official") btns.appendChild(c); btns.appendChild(g);
+        var asOfficial = !!(NG.me && NG.me.isOwnerPage) && P.chat !== "official";
+        if (asOfficial) {
+          // Nava / a legal account writes directly (no request, no XP); the person gets it in Directs and cannot answer
+          c = el('<button class="btn blue">ارسال پیام</button>');
+          c.onclick = function () { officialSendSheet(P); };
+        }
+        btns.appendChild(f); if (P.chat !== "official" || asOfficial) btns.appendChild(c); btns.appendChild(g);
         P._cs = cs;
       }
       head.appendChild(btns);
@@ -541,6 +553,7 @@
     NG.on("post:created", function () { if (document.body.contains(root) && P && P.isMe) reloadSoft(); });
     NG.on("chat:requested", function (uid) { if (P && P.id === uid) { P.chat = "requested"; if (P._cs) P._cs(); } });
     NG.on("gift:regifted", function () { if (P && P.isMe && tab === "gifts" && document.body.contains(root)) { P.gifts = Math.max(0, (P.gifts || 1) - 1); renderBody(true); } });
+    NG.on("gift:removed", function (d) { if (P && P.id === d.id && tab === "gifts" && document.body.contains(root)) { P.gifts = Math.max(0, (P.gifts || 1) - 1); renderBody(true); } });
     NG.on("gift:sent", function (d) { if (P && P.id === d.to && tab === "gifts" && document.body.contains(root)) { P.gifts++; renderBody(true); } });
     function reloadSoft() { if (tab === "posts") { reload(); } else reload(); }
 
@@ -552,7 +565,9 @@
         { label: "آرشیو استوری‌ها", fn: function () { NG.openArchive(); } },
         { label: "کاربران مسدود‌شده", fn: function () { NG.openBlocked(); } },
         { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } },
-        ].concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
+        ].concat(p.isOwnerPage ? [
+          { label: "🪙 سکه‌ی کنار تیک (تغییر / حذف)", fn: function () { coinSheet(p, function () { reload(); }); } }
+        ].concat(NG.staff && !NG.actAs ? [{ label: "🏅 بج‌های این اکانت", fn: function () { NG.badgeSheet({ id: p.id, name: p.name, bd: p.bd, mod: { badges: p.bd || [] } }, function () { PCACHE[p.id] && delete PCACHE[p.id]; NG.refreshMe().then(function () { reload(); }); }); } }] : []) : []).concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
         { label: "XP: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
       ]));
     }
@@ -611,6 +626,36 @@
           go.disabled = false;
           if (!r.ok) { err.textContent = NG.errText(r); err.classList.add("show"); NG.haptic("err"); return; }
           NG.haptic("ok"); var applied = r.data && r.data.status === "applied"; close(function () { NG.toast(applied ? "✅ ذخیره شد" : "✅ درخواستت برای مالک ارسال شد"); NG.refreshMe(); });
+        }).catch(function () { go.disabled = false; NG.netErr(); });
+      };
+    });
+  }
+
+  var COINS = ["🪙", "💰", "👑", "💎", "⭐", "🌟", "🔥", "❤️", "✨", "🏆", "🛡️", "⚡"];
+  function coinSheet(p, after) {
+    NG.sheet('<div class="shd">سکه‌ی کنار تیک</div><div class="ctx">یک اموجی انتخاب کن یا سکه رو حذف کن.</div><div class="bgsr" id="cg" style="padding:6px 16px;justify-content:center"></div><div class="pad" style="margin-top:10px"><input class="inp" id="ci" maxlength="8" placeholder="اموجی دلخواه"></div><div class="pad" style="margin-top:10px;display:flex;gap:8px"><button class="btn blue tall" id="cs" style="flex:1">ذخیره</button><button class="btn tall" id="cx" style="flex:1;color:var(--red)">حذف سکه</button></div>', function (sh, close) {
+      var cg = sh.querySelector("#cg"), ci = sh.querySelector("#ci");
+      COINS.forEach(function (c) { var b = el('<button class="bgchip" style="font-size:22px">' + c + "</button>"); b.onclick = function () { ci.value = c; }; cg.appendChild(b); });
+      function save(v) {
+        NG.api("set_coin", { coin: v }).then(function (r) {
+          if (!r.ok) return NG.toast(NG.errText(r));
+          NG.haptic("ok"); close(function () { NG.toast("✅ ذخیره شد"); delete PCACHE[p.id]; NG.refreshMe().then(function () { if (after) after(); }); });
+        }).catch(NG.netErr);
+      }
+      sh.querySelector("#cs").onclick = function () { if (ci.value.trim()) save(ci.value.trim()); };
+      sh.querySelector("#cx").onclick = function () { save(""); };
+    });
+  }
+
+  function officialSendSheet(p) {
+    NG.sheet('<div class="shd">پیام به ' + esc(NG.nameOf(p)) + '</div><div class="ctx">پیام مستقیم از طرف این اکانت به دایرکت کاربر می‌ره. کاربر نمی‌تونه جواب بده.</div><div class="pad"><textarea class="inp" id="osm" rows="4" maxlength="1500" placeholder="متن پیام…" style="width:100%"></textarea></div><div class="pad" style="margin-top:10px"><button class="btn blue tall" id="oss" style="width:100%">ارسال</button></div>', function (sh, close) {
+      var go = sh.querySelector("#oss");
+      go.onclick = function () {
+        var t = sh.querySelector("#osm").value.trim(); if (!t) return;
+        go.disabled = true;
+        NG.api("official_send", { id: p.id, text: t }).then(function (r) {
+          if (!r.ok) { go.disabled = false; return NG.toast(NG.errText(r)); }
+          NG.haptic("ok"); close(function () { NG.toast("✅ پیام ارسال شد"); });
         }).catch(function () { go.disabled = false; NG.netErr(); });
       };
     });

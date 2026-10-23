@@ -5,7 +5,7 @@ import { verifyMediaSig } from "./nava/media.js";
 import { eligibleCandidateFilter } from "./miniapp.js";
 import { env } from "../config/env.js";
 import { effectiveHide } from "./nava/profile.js";
-import { isOfficial } from "./nava/common.js";
+import { coinOf, isOfficial } from "./nava/common.js";
 
 /**
  * "Matching" tab cards.
@@ -29,6 +29,7 @@ export interface MatchCard {
   bio: string;
   verified: boolean;
   gold?: true;
+  coin?: string;
   av: string | null;
   /** I already liked this person's profile photo (first post) */
   liked?: boolean;
@@ -54,7 +55,7 @@ function toCard(u: any): MatchCard {
     province: hide.location ? null : (u.province ?? null),
     bio: hide.bio ? "" : String(u.bio ?? "").slice(0, 160),
     verified: !!u.verified || isOfficial(u),
-    ...(isOfficial(u) ? { gold: true as const } : {}),
+    ...(isOfficial(u) && coinOf(u) ? { gold: true as const, coin: coinOf(u)! } : {}),
     av: u.profilePhotoFileId ? avatarUrl(u.anonId, version) : null,
   };
 }
@@ -86,15 +87,14 @@ export async function pickMemberCards(me: any, excludeAnonIds: string[], count =
   const db = await getDb();
   const users = db.collection<any>("users");
   const blocked = await getBlockedCounterparts(me._id);
-  const nin = [me._id, ...blocked];
+  // people I already liked / asked to chat / skipped are never shown again
+  const seenRows = await db.collection<any>("match_seen").find({ userId: me._id }, { projection: { targetId: 1 } }).limit(20000).toArray();
+  const nin = [me._id, ...blocked, ...seenRows.map((r: any) => r.targetId as number)];
   if (env.OWNER_ID !== undefined) nin.push(env.OWNER_ID);
   const base = { _id: { $nin: nin }, onboardingStep: "COMPLETED", banned: { $ne: true }, seedHidden: { $ne: true }, official: { $ne: true }, anonId: { $nin: excludeAnonIds } };
   const withPhoto = await users.find({ ...base, profilePhotoFileId: { $type: "string", $ne: "" } } as any).limit(400).toArray();
-  let pool = shuffle(withPhoto);
-  if (pool.length < allowance) {
-    const noPhoto = await users.find({ ...base, $or: [{ profilePhotoFileId: { $exists: false } }, { profilePhotoFileId: "" }, { profilePhotoFileId: null }] } as any).limit(200).toArray();
-    pool = pool.concat(shuffle(noPhoto));
-  }
+  // people without a profile photo are never shown
+  const pool = shuffle(withPhoto);
   const picked = pool.slice(0, allowance);
   if (!hasPhoto && picked.length) await users.updateOne({ _id: me._id }, { $inc: { matchServed: picked.length } });
   const likedRows = picked.length ? await db.collection<any>("profile_likes").find({ _id: { $in: picked.map((u: any) => `${me._id}:${u._id}`) } }, { projection: { _id: 1 } }).toArray() : [];
@@ -103,3 +103,18 @@ export async function pickMemberCards(me: any, excludeAnonIds: string[], count =
 }
 
 export { verifyMediaSig };
+
+/** Remembers that `me` has seen (liked / messaged / skipped) this person: the card never comes back. */
+export async function markMatchSeen(me: any, targetAnonId: unknown): Promise<boolean> {
+  if (typeof targetAnonId !== "string" || !/^user_[A-Za-z0-9]{3,40}$/.test(targetAnonId)) return false;
+  const db = await getDb();
+  const t: any = await db.collection<any>("users").findOne({ anonId: targetAnonId }, { projection: { _id: 1 } });
+  if (!t || t._id === me._id) return false;
+  await db.collection<any>("match_seen").updateOne({ _id: `${me._id}:${t._id}` } as any, { $setOnInsert: { userId: me._id, targetId: t._id, at: new Date() } }, { upsert: true });
+  return true;
+}
+
+export async function markMatchSeenById(meId: number, targetId: number): Promise<void> {
+  const db = await getDb();
+  await db.collection<any>("match_seen").updateOne({ _id: `${meId}:${targetId}` } as any, { $setOnInsert: { userId: meId, targetId, at: new Date() } }, { upsert: true }).catch(() => {});
+}

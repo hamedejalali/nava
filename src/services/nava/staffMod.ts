@@ -6,13 +6,14 @@ import { logAdminAction } from "../../db/models/adminLog.js";
 import { setVerified } from "../../db/models/user.js";
 import { banUser, unbanUser } from "../banCleanup.js";
 import { notifyVerificationChange } from "../../features/admin/verifyNotify.js";
+import { resetUserEverywhere } from "../resetUserEverywhere.js";
 import { SocialError, isAnonId, isStaffId, usersCol } from "./common.js";
 
 /**
  * Staff (owner + admins) moderation from INSIDE the Mini App — the same functions the bot's admin panel uses
  * (banUser / unbanUser / setVerified), so both surfaces always agree: one ban flag, one verified flag, one badge list.
  */
-export type StaffOp = "ban" | "unban" | "verify" | "unverify" | "photo_remove" | "badges";
+export type StaffOp = "ban" | "unban" | "verify" | "unverify" | "photo_remove" | "badges" | "reset_user";
 
 export interface StaffResult {
   banned: boolean;
@@ -33,6 +34,14 @@ export async function staffModerate(staffId: number, anonId: unknown, op: StaffO
   if (!staffIsOwner && target._id !== staffId && (isStaffId(target._id) || target.isAdmin === true) && (op === "ban" || op === "photo_remove")) throw new SocialError("forbidden");
 
   const id = target._id as number;
+  if (op === "reset_user") {
+    // owner only, never the owner's own account
+    if (!staffIsOwner || id === env.OWNER_ID) throw new SocialError("forbidden");
+    await resetUserEverywhere(id);
+    await logAdminAction(staffId, "reset_user", String(id));
+    await api.sendMessage(id, "🔄 اطلاعات حساب شما توسط ادمین ریست شد. لطفاً برای شروع دوباره /start رو بزنید.").catch(() => {});
+    return { banned: false, verified: false, badges: [], hasPhoto: false };
+  }
   switch (op) {
     case "ban": {
       const reason = typeof extra.reason === "string" && extra.reason.trim() ? extra.reason.trim().slice(0, 120) : "توسط ادمین";

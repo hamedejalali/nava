@@ -33,7 +33,12 @@
   NG.BADGE_ART = ART;
   var LABEL = { "tick-gold": "تیک طلایی", "tick-green": "تیک سبز", "tick-purple": "تیک بنفش", "tick-red": "تیک قرمز", "tick-black": "تیک مشکی", "star-gold": "ستاره‌ی طلایی", "star-blue": "ستاره‌ی آبی", "star-rose": "ستاره‌ی صورتی", "tg-crown": "تاج", "tg-diamond": "الماس", "tg-flame": "شعله", "tg-bolt": "صاعقه", "tg-rocket": "موشک", "ig-heart": "قلب رنگین‌کمانی", "ig-spark": "درخشش", "ig-ring": "حلقه‌ی گرادیان", "ig-camera": "دوربین" };
   NG.BADGE_LABEL = LABEL;
-  NG.BADGE_IDS = Object.keys(ART);
+
+
+  /* v1.24 emoji badges: real emoji artwork (Noto Color Emoji), shown as small images */
+  var EM = {"crown": "تاج", "gem": "الماس", "fire": "آتش", "bolt": "صاعقه", "rocket": "موشک", "sparkles": "درخشش", "star": "ستاره", "star2": "ستاره‌ی درخشان", "dizzy": "ستاره‌باران", "heartfire": "قلب آتشین", "sparkheart": "قلب درخشان", "trophy": "جام", "medal": "مدال", "gold1": "رتبه‌ی یک", "camera": "دوربین", "rainbow": "رنگین‌کمان", "unicorn": "اسب تک‌شاخ", "crystal": "گوی جادویی", "shield": "سپر", "money": "کیسه‌ی طلا", "gift": "هدیه", "party": "جشن", "clover": "شبدر", "blossom": "شکوفه", "butterfly": "پروانه", "eagle": "عقاب", "lion": "شیر", "dragon": "اژدها", "ring": "حلقه", "hundred": "صد", "rose": "رز", "moon": "ماه", "sun": "خورشید", "alien": "فضایی", "diamondblue": "الماس آبی", "cool": "خفن"};
+  Object.keys(EM).forEach(function (k) { ART["em-" + k] = '<img class="bdg bdi" src="emoji/' + k + '.png" alt="" draggable="false">'; LABEL["em-" + k] = EM[k]; });
+  NG.BADGE_IDS = Object.keys(ART).filter(function (id) { return id.indexOf("tick-") === 0 || id.indexOf("em-") === 0; });
 
   /* shared gradient definitions (referenced by url(#id) from every badge) */
   var defs = document.createElement("div");
@@ -58,7 +63,7 @@
     bd.forEach(function (id) { if (!ART[id]) return; if (id.indexOf("tick-") === 0) { if (!tickId) tickId = id; } else rest.push(id); });
     var h = "";
     if (tickId) h += ART[tickId]; else if (u.verified) h += DEFAULT_TICK;
-    if (u.verified && u.gold) h += '<span class="goldc" title="Nava">🪙</span>';
+    if (u.verified && u.gold) h += '<span class="goldc" title="Nava">' + NG.esc(u.coin || "🪙") + "</span>";
     rest.forEach(function (id) { h += '<span class="bdw" title="' + (LABEL[id] || "") + '">' + ART[id] + "</span>"; });
     return h;
   };

@@ -4,3 +4,5 @@ Third-party files shipped with the Mini App (served from our own domain — no e
 * Aref Ruqaa (ArefRuqaa-700.woff2) — © The Aref Ruqaa Project Authors, SIL Open Font License 1.1 (via @fontsource/aref-ruqaa).
 * lottie-web 5.12.2 (lottie_light.min.js) — © Airbnb, MIT License (https://github.com/airbnb/lottie-web).
 * Grand Hotel (GrandHotel-400.woff2) — © 2012 Brian J. Bonislawsky DBA Astigmatic, SIL Open Font License 1.1 (via @fontsource/grand-hotel).
+
+Emoji artwork in public/miniapp/emoji/ — Noto Color Emoji by Google (Apache License 2.0), via the MIT-licensed npm package emoji-datasource-google.

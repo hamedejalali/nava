@@ -15,7 +15,7 @@
   NG.openBotForSignup = openBot;
   var I_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8.5-5.2-8.5-11.2A4.9 4.9 0 0 1 12 7.2a4.9 4.9 0 0 1 8.5 2.6C20.5 15.8 12 21 12 21Z" fill="currentColor"/></svg>';
   var I_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
-  var I_MSG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v10.5H9.5L5.5 20v-4H4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>';
+  var I_MSG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l6.5 2.5L12 21l3.2-6.4L21 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m9.5 13 5.6-5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 
   NG.matchView = function (page) {
     var cards = [], idx = 0, loading = false, exhausted = false, seen = [], needPhoto = false, wrapped = false, lock = false, token = 0;
@@ -34,34 +34,39 @@
       if (NG.guest) return ctaCard("✨", "دوست داری بیشتر ببینی؟", "برای دیدن پروفایل‌های بیشتر، لایک کردن و گپ زدن، ثبت‌نامت رو کامل کن (فقط چند سوال کوتاه).", "ثبت‌نام کن", function () { NG.openOnboarding(); }, { label: "ثبت‌نام از داخل ربات", fn: openBot });
       if (needPhoto) return ctaCard("📸", "اول عکس پروفایلت رو بذار", "برای دیدن بقیه‌ی کارت‌ها باید عکس پروفایلت تأیید شده باشه.", "گذاشتن عکس پروفایل", function () { NG.selectTab("profile", true); if (NG.changeProfilePhoto) NG.changeProfilePhoto(); });
       if (loading) return el('<div class="more-spin" style="margin:auto"><div class="spin"></div></div>');
-      return ctaCard("🔎", "فعلاً کسی برای نمایش نیست", "کمی بعد دوباره سر بزن یا لیست رو از اول ببین.", "از اول", function () { restart(); });
+      return ctaCard("🔎", "فعلاً کسی برای نمایش نیست", "همه‌ی افراد فعلی رو دیدی. کمی بعد که کاربر جدید بیاد، اینجا نشونت می‌دم.", "بررسی دوباره", function () { restart(); });
     }
 
     function render() {
       root.innerHTML = "";
       var c = cards[idx];
       if (!c) { root.appendChild(stateNode()); return; }
-      var card = el('<div class="mx-card"><div class="mx-ph sk"></div><div class="mx-info"><div class="mx-nm"></div><div class="mx-sb"></div><div class="mx-bio"></div></div></div>');
+      var card = el('<div class="mx-card"><div class="mx-ph sk"><div class="mx-fill"></div></div><div class="mx-over"><div class="mx-info"><div class="mx-nm"></div><div class="mx-sb"></div><div class="mx-bio"></div></div><div class="mx-bar"></div></div></div>');
       var ph = card.querySelector(".mx-ph");
-      if (c.av) ph.appendChild(NG.img(c.av, "mx-img")); else { ph.classList.remove("sk"); ph.classList.add("none"); ph.appendChild(el('<div class="mx-0">' + esc(String(c.name || "؟").charAt(0)) + "</div>")); }
+      if (c.av) {
+        var bgi = NG.img(c.av, "mx-bgi"); ph.querySelector(".mx-fill").appendChild(bgi);   // same photo, blurred: fills whatever the picture leaves empty
+        ph.appendChild(NG.img(c.av, "mx-img"));
+      } else { ph.classList.remove("sk"); ph.appendChild(el('<div class="mx-0">' + esc(String(c.name || "؟").charAt(0)) + "</div>")); }
       card.querySelector(".mx-nm").innerHTML = "<span>" + esc(c.name) + "</span>" + NG.vb(c);
       card.querySelector(".mx-sb").textContent = sub(c);
       var bio = card.querySelector(".mx-bio"); bio.textContent = c.bio || ""; if (!c.bio) bio.remove();
       if (!NG.guest) { ph.onclick = card.querySelector(".mx-info").onclick = function () { NG.openProfile(c.id); }; }
       root.appendChild(card);
-      var bar = el('<div class="mx-bar"><button class="mx-b nx" aria-label="next">' + I_X + '</button><button class="mx-b lk' + (c.liked ? " on" : "") + '" aria-label="like">' + I_HEART + '</button><button class="mx-b ms" aria-label="message">' + I_MSG + "</button></div>");
-      bar.querySelector(".nx").onclick = function () { go(card, "no"); };
-      bar.querySelector(".ms").onclick = function () { if (NG.guest) { NG.haptic("err"); return NG.toast(GUEST_MSG); } NG.requestChat({ id: c.id, name: c.name }); };
+      var bar = card.querySelector(".mx-bar");
+      bar.innerHTML = '<button class="mx-b nx" aria-label="next">' + I_X + '</button><button class="mx-b lk' + (c.liked ? " on" : "") + '" aria-label="like">' + I_HEART + '</button><button class="mx-b ms" aria-label="message">' + I_MSG + "</button>";
+      bar.querySelector(".nx").onclick = function () { seenIt(c); go(card, "no"); };
+      bar.querySelector(".ms").onclick = function () { if (NG.guest) { NG.haptic("err"); return NG.toast(GUEST_MSG); } seenIt(c); NG.requestChat({ id: c.id, name: c.name }); };
       var lk = bar.querySelector(".lk");
       lk.onclick = function () {
         if (NG.guest) { NG.haptic("err"); return NG.toast(GUEST_MSG); }
         if (lock) return;
         NG.haptic("ok"); lk.classList.add("pop");
         if (!c.liked) NG.api("like", { pid: "pp:" + c.id, like: true }).then(function (r) { if (!r.ok) NG.fail(r); });
-        c.liked = true; go(card, "yes");
+        c.liked = true; seenIt(c); go(card, "yes");
       };
-      root.appendChild(bar);
     }
+
+    function seenIt(c) { if (!NG.guest && c && !c._seen) { c._seen = 1; NG.api("match_seen", { id: c.id }); } }
 
     /* animate out, then ALWAYS advance (the timer is the single source of truth — no state can get stuck) */
     function go(card, dir) {
@@ -90,7 +95,6 @@
         var have = {}; cards.forEach(function (x) { have[x.id] = 1; });
         var got = (r.data.cards || []).filter(function (x) { return !have[x.id]; });
         if (!got.length) {
-          if (seen.length && !wrapped) { wrapped = true; seen = []; more(); return; } // everybody was shown once: start over
           exhausted = true; if (!cards[idx]) render(); return;
         }
         wrapped = false; cards = cards.concat(got);

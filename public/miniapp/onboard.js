@@ -111,44 +111,69 @@
   var UE = { too_short: "یوزرنیم خیلی کوتاهه (حداقل ۵ حرف).", too_long: "یوزرنیم خیلی بلنده.", bad_chars: "فقط حروف انگلیسی، عدد، نقطه و _ مجازه.", taken: "این یوزرنیم قبلاً انتخاب شده.", reserved: "این یوزرنیم رزرو شده.", invalid: "یوزرنیم نامعتبره." };
   NG.needsSetup = function (m) { return !!m && !m.isOwnerPage && (!m.username || (!m.hasPhoto && !m.photoPending)); };
   NG.setupGate = function (done) {
-    var m = NG.me;
-    var box = el('<div class="gate" style="position:fixed;inset:0;z-index:300;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center"></div>');
-    document.body.appendChild(box);
+    var m = NG.me, preview = null, uploading = false, frac = 0;
+    var box = el('<div class="gate"></div>');
+    (NG.col || document.body).appendChild(box); // same stacking context as pushed screens, so the cropper opens above it
+    var R = 66, C = 2 * Math.PI * R;
+    function ringHtml() {
+      var src = preview || (m && m.av) || "";
+      return '<div class="gph' + (uploading ? " up" : "") + '" id="gph"><svg class="gring" viewBox="0 0 150 150"><defs><linearGradient id="grg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#feda75"/><stop offset=".45" stop-color="#d62976"/><stop offset="1" stop-color="#4f5bd5"/></linearGradient></defs>' +
+        '<circle class="gr0" cx="75" cy="75" r="' + R + '"/><circle class="gr1" id="gr1" cx="75" cy="75" r="' + R + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + C.toFixed(1) + '"/></svg>' +
+        '<div class="gimg" id="gimg"' + (src ? ' style="background-image:url(' + "'" + String(src).replace(/'/g, "%27") + "'" + ')"' : "") + '>' + (src ? "" : '<span>📷</span>') + '</div><div class="gpct" id="gpct"></div></div>';
+    }
+    function setFrac(f) {
+      frac = Math.max(0, Math.min(1, f));
+      var r1 = box.querySelector("#gr1"), pc = box.querySelector("#gpct");
+      if (r1) r1.style.strokeDashoffset = (C * (1 - frac)).toFixed(1);
+      if (pc) pc.textContent = uploading ? Math.round(frac * 100) + "٪".replace("٪", "%") : "";
+    }
     function render() {
       m = NG.me;
-      var needU = !m.username, needP = !m.hasPhoto && !m.photoPending;
-      if (!needU && !needP) { box.remove(); if (done) done(); return; }
-      box.innerHTML = '<h2 style="margin:0">تکمیل پروفایل نوا گرام</h2><div style="color:var(--muted);line-height:1.8">برای استفاده از نوا گرام، یه عکس پروفایل و یه یوزرنیم لازمه.</div>' +
-        (needP ? '<div id="gp"></div>' : "") + (needU ? '<div style="width:100%;max-width:320px"><input class="inp ltr" id="gu" dir="ltr" maxlength="25" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="@username"><div class="msg" id="gm" style="min-height:20px;margin-top:6px"></div><button class="btn blue tall" id="gs" style="width:100%" disabled>ثبت یوزرنیم</button></div>' : "");
-      if (needP) {
-        var b = el('<button class="btn blue tall">📷 انتخاب عکس پروفایل</button>');
-        b.onclick = function () { NG.changeProfilePhoto(); };
-        box.querySelector("#gp").appendChild(b);
-      }
+      var needU = !m.username, needP = !m.hasPhoto && !m.photoPending && !uploading;
+      if (!needU && !needP && !uploading) { box.remove(); if (done) done(); return; }
+      var typed = box.querySelector("#gu") ? box.querySelector("#gu").value : "";
+      box.innerHTML = '<div class="gbg"><i></i><i></i><i></i></div><div class="gcard">' +
+        '<div class="glogo">' + (NG.LOGO || "") + '</div><h2>به نوا گرام خوش اومدی</h2><p class="gsub">فقط دو قدم تا شروع: یه عکس پروفایل و یه یوزرنیم</p>' +
+        '<div class="gstep' + (!needP ? " ok" : "") + '"><b>۱</b><span>عکس پروفایل</span></div>' + ringHtml() +
+        '<button class="gpick" id="gpick">' + (preview || m.hasPhoto || m.photoPending ? "تغییر عکس" : "انتخاب عکس پروفایل") + "</button>" +
+        '<div class="gstep' + (!needU ? " ok" : "") + '"><b>۲</b><span>یوزرنیم</span></div>' +
+        (needU ? '<div class="gfield"><span class="gat">@</span><input class="inp ltr" id="gu" dir="ltr" maxlength="25" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="username"></div><div class="msg" id="gm"></div><button class="btn blue tall gsave" id="gs" disabled>ادامه</button>' : '<div class="gdone">@' + esc(m.username) + " ✓</div>") +
+        "</div>";
+      setFrac(frac);
+      box.querySelector("#gpick").onclick = function () {
+        if (uploading) return;
+        NG.changeProfilePhoto({
+          preview: function (d) { preview = d; uploading = true; frac = 0; render(); },
+          progress: function (f) { setFrac(f * 0.92); },
+          end: function (ok) { setFrac(1); uploading = false; if (!ok) preview = null; setTimeout(function () { NG.refreshMe().then(render); }, ok ? 350 : 0); }
+        });
+      };
+      if (uploading) { box.querySelector("#gpick").disabled = true; var g = box.querySelector("#gph"); if (g) g.classList.add("up"); }
       if (needU) {
         var ui = box.querySelector("#gu"), gm = box.querySelector("#gm"), gs = box.querySelector("#gs"), seq = 0, t;
+        ui.value = typed;
         ui.addEventListener("input", function () {
-          var v = ui.value.trim().replace(/^@/, ""); gs.disabled = true; clearTimeout(t);
+          var v = ui.value.trim().replace(/^@/, ""); gs.disabled = true; clearTimeout(t); gm.className = "msg";
           if (!v) { gm.textContent = ""; return; }
           gm.textContent = "در حال بررسی…"; var my = ++seq;
           t = setTimeout(function () {
             NG.api("check_username", { username: v }).then(function (r) {
               if (my !== seq) return;
               if (!r.ok) { gm.textContent = "خطا در بررسی"; return; }
-              if (r.data.available) { gm.textContent = "✓ آزاده"; gs.disabled = false; } else gm.textContent = UE[r.data.reason] || "نامعتبره";
+              if (r.data.available) { gm.textContent = "✓ این یوزرنیم آزاده"; gm.className = "msg good"; gs.disabled = false; } else { gm.textContent = UE[r.data.reason] || "نامعتبره"; gm.className = "msg bad"; }
             });
           }, 350);
         });
         gs.onclick = function () {
           gs.disabled = true;
           NG.api("set_username", { username: ui.value.trim().replace(/^@/, "") }).then(function (r) {
-            if (!r.ok) { gm.textContent = UE[r.data && r.data.error] || NG.errText(r); gs.disabled = false; return; }
+            if (!r.ok) { gm.textContent = UE[r.data && r.data.error] || NG.errText(r); gm.className = "msg bad"; gs.disabled = false; return; }
             NG.refreshMe().then(render);
           }).catch(function () { gs.disabled = false; NG.netErr(); });
         };
       }
     }
-    NG.on("me", function () { if (document.body.contains(box)) render(); });
+    NG.on("me", function () { if (document.body.contains(box) && !uploading) render(); });
     render();
   };
 })();
