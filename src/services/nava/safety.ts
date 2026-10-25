@@ -4,7 +4,8 @@ import { blockUser, unblockUser, getBlockedCounterparts } from "../../db/models/
 import { createReport } from "../../db/models/reports.js";
 import { closeSessionAtomic } from "../../db/models/sessionClose.js";
 import { getSession, otherParticipant } from "../../db/models/chatSession.js";
-import { getRequestRecipientIds } from "../../features/admin/constants.js";
+import {  } from "../../features/admin/constants.js";
+import { getRecipients } from "../channelRouting.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { escapeHtml } from "../../utils/html.js";
 import { checkRateLimit } from "../../utils/rateLimit.js";
@@ -105,8 +106,8 @@ export async function reportInApp(me: any, anonId: unknown, input: { reason?: un
     `دلیل: ${escapeHtml(reason)}\n` +
     (chatLines ? `\nمستندات (آخرین پیام‌های چت):\n<blockquote>${chatLines}</blockquote>\n` : "") +
     `شناسه گزارش: <code>${report._id}</code>`;
-  const kb = inlineKeyboard([[glassButton("✅ تایید (۵ XP پاداش)", `admin:report:approve:${report._id}`, "success"), glassButton("❌ رد", `admin:report:reject:${report._id}`, "danger")]]);
-  for (const adminId of await getRequestRecipientIds()) {
+  const kb = inlineKeyboard([[glassButton("✅ تایید (۵ ژتون پاداش)", `admin:report:approve:${report._id}`, "success"), glassButton("❌ رد", `admin:report:reject:${report._id}`, "danger")]]);
+  for (const adminId of await getRecipients("report")) {
     if (evidencePhoto) {
       const sent = await api.sendPhoto(adminId, new InputFile(evidencePhoto, "evidence.jpg"), { caption: caption.slice(0, 1020), parse_mode: "HTML", reply_markup: kb }).catch(() => null);
       if (sent && !report.photoFileId) await (await getDb()).collection<any>("reports").updateOne({ _id: report._id }, { $set: { photoFileId: sent.photo[sent.photo.length - 1]!.file_id } }).catch(() => {});

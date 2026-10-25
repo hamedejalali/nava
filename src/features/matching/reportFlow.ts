@@ -4,7 +4,8 @@ import { getDb } from "../../db/connect.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { createReport, getReport, decideReportOnce } from "../../db/models/reports.js";
 import { grantReportRewardOnce } from "../../db/models/relic.js";
-import { getRequestRecipientIds, isOwner } from "../admin/constants.js";
+import {  isOwner } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { getContent } from "../../db/models/content.js";
 import { getUser } from "../../db/models/user.js";
 import { CHAT_CALLBACKS } from "./constants.js";
@@ -138,12 +139,12 @@ async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId
 
   const decisionKb = inlineKeyboard([
     [
-      glassButton("✅ تایید (۵ XP پاداش)", `${DECISION_CB.approve}${report._id}`, "success"),
+      glassButton("✅ تایید (۵ ژتون پاداش)", `${DECISION_CB.approve}${report._id}`, "success"),
       glassButton("❌ رد", `${DECISION_CB.reject}${report._id}`, "danger"),
     ],
   ]);
 
-  for (const adminId of await getRequestRecipientIds()) {
+  for (const adminId of await getRecipients("report")) {
     if (photoFileId) {
       await ctx.api.sendPhoto(adminId, photoFileId, { caption, parse_mode: "HTML", reply_markup: decisionKb }).catch(() => {});
     } else {
@@ -180,7 +181,7 @@ async function decide(ctx: NavaContext, reportId: string, decision: "approved" |
     const relicEmoji = textEmoji("RELIC", "💰");
     if (rewarded) {
       await ctx.api
-        .sendMessage(report.reporterId, `✅ گزارش شما بررسی و تایید شد.\n${relicEmoji} ۵ XP به‌عنوان پاداش به حساب شما اضافه شد.`)
+        .sendMessage(report.reporterId, `✅ گزارش شما بررسی و تایید شد.\n${relicEmoji} ۵ ژتون به‌عنوان پاداش به حساب شما اضافه شد.`)
         .catch(() => {});
     }
   } else {

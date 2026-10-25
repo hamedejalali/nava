@@ -16,6 +16,8 @@ async function col(): Promise<Collection<AdminLogEntry>> {
 
 export async function logAdminAction(adminId: number, action: string, details?: string): Promise<void> {
   await (await col()).insertOne({ adminId, action, details, createdAt: new Date() });
+  const { announceAdminAction } = await import("../../services/adminAudit.js");
+  await announceAdminAction(adminId, action, details);
 }
 
 export async function getRecentAdminLogs(limit = 20): Promise<AdminLogEntry[]> {

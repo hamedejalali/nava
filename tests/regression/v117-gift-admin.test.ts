@@ -38,7 +38,7 @@ test("A1. owner adds a gift from an animated sticker (name + price asked); it sh
 
   await h.callback(OWNER_ID, "admin:gf:add");
   await h.file(OWNER_ID, "sticker", "STK-MONKEY");
-  assert.ok(h.of("sendMessage", OWNER_ID).some((c) => /نام فارسی/.test(String(c.payload.text))));
+  assert.ok(h.of("sendMessage", OWNER_ID).some((c) => /نام، قیمت و اموجی/.test(String(c.payload.text))));
   await h.text(OWNER_ID, "میمون");
   await h.text(OWNER_ID, "abc");
   assert.equal(col("mini_gift_defs").all().length, 0, "bad price rejected");

@@ -9,7 +9,7 @@ import { otherParticipant, type ChatSessionDoc } from "../../db/models/chatSessi
 import { acceptChatRequest } from "../chatRequestAccept.js";
 import { declineChatRequestOnce, type ChatRequestDoc } from "../../db/models/chatRequest.js";
 import { createPhotoModerationLog } from "../../db/models/photoModerationLog.js";
-import { getRequestRecipientIds } from "../../features/admin/constants.js";
+import { getRecipients } from "../channelRouting.js";
 import { checkImage } from "../sightengine.js";
 import { deliverSession } from "../../features/matching/matchDelivery.js";
 import { SocialError, toBriefs, usersCol, type Brief } from "./common.js";
@@ -322,7 +322,7 @@ export async function sendPhoto(me: any, sid: unknown, image: unknown, api: Pick
 
 /** Same rule as a photo in the bot chat: delivered at once; a copy goes to the moderation log with 🗑 / 🚫 buttons. */
 async function logPhoto(api: Pick<Api, "sendPhoto" | "getFile" | "editMessageCaption">, senderId: number, receiverId: number, sessionId: string, doc: DmDoc, buf: Buffer): Promise<void> {
-  const chatIds = env.MODERATION_LOG_CHAT_ID ? [env.MODERATION_LOG_CHAT_ID] : await getRequestRecipientIds();
+  const chatIds = await getRecipients("dmLog");
   const log = await createPhotoModerationLog({ senderTelegramId: senderId, receiverTelegramId: receiverId, senderMessageId: 0, receiverMessageId: 0, chatSessionId: sessionId, fileId: "", dmMessageId: doc._id });
   const head = `📸 عکس ارسالی در چت نوا گرام (تحویل داده شد)\n\nفرستنده (آیدی تلگرام): ${senderId}\nگیرنده (آیدی تلگرام): ${receiverId}\nشناسه‌ی چت: ${sessionId}`;
   const kb = { inline_keyboard: [[{ text: "🗑 حذف", callback_data: `photomod:delete:${log._id}` }, { text: "🚫 بن فرستنده", callback_data: `photomod:ban:${log._id}` }]] };
@@ -440,7 +440,7 @@ export async function endThread(me: any, sid: unknown, api: Pick<Api, "sendMessa
   const r = await closeSessionAtomic(s._id, me._id, (sess) => ((sess.messageCount ?? 0) < 4 ? [other] : []));
   if (r.status !== "ended") return { refundedOther: false };
   await insertMsg(s, 0, "system", { text: "این چت پایان یافت." }).catch(() => {});
-  await api.sendMessage(other, `🚫 چتت در نوا گرام پایان یافت — ${me.nickname ? String(me.nickname).slice(0, 32) : "مخاطبت"} چت رو بست.` + (r.refunded.includes(other) ? "\n💰 چون چت خیلی کوتاه بود، XP‌ت برگشت داده شد." : "")).catch(() => {});
+  await api.sendMessage(other, `🚫 چتت در نوا گرام پایان یافت — ${me.nickname ? String(me.nickname).slice(0, 32) : "مخاطبت"} چت رو بست.` + (r.refunded.includes(other) ? "\n💰 چون چت خیلی کوتاه بود، ژتونت برگشت داده شد." : "")).catch(() => {});
   return { refundedOther: r.refunded.includes(other) };
 }
 

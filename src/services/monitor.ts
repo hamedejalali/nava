@@ -266,7 +266,7 @@ export async function maybeRunAlertCheck(deps: AlertDeps): Promise<void> {
 }
 
 export async function defaultSend(text: string): Promise<void> {
-  const { getRequestRecipientIds } = await import("../features/admin/constants.js");
+  const { getRecipients } = await import("./channelRouting.js");
   const { botApi } = await import("./miniapp.js");
-  for (const id of await getRequestRecipientIds()) await botApi().sendMessage(id, text).catch(() => {});
+  for (const id of await getRecipients("monitor")) await botApi().sendMessage(id, text).catch(() => {});
 }

@@ -15,7 +15,7 @@ export interface CustomGiftDoc {
   name: string; // Persian display name
   emoji: string; // fallback glyph (also used in notifications)
   price: number; // Relic
-  sticker: { fileId: string; uniqueId: string; format: StickerFormat };
+  sticker: { fileId: string; uniqueId: string; format: StickerFormat; /** standalone re-upload (no pack link) */ freeFileId?: string };
   enabled: boolean;
   /** Telegram's own Star price when it was imported from getAvailableGifts (informational) */
   starCount?: number;

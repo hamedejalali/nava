@@ -1,7 +1,8 @@
 import { env } from "../../config/env.js";
 import { levelDisplay } from "../../config/levels.js";
 import { createEditRequest } from "../../db/models/editRequests.js";
-import { getRequestRecipientIds } from "../../features/admin/constants.js";
+import {  } from "../../features/admin/constants.js";
+import { getRecipients } from "../channelRouting.js";
 import { isValidPersianNickname } from "../../features/onboarding/nickname.js";
 import { MAX_AGE, MIN_AGE, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
 import { botApi } from "../miniapp.js";
@@ -191,7 +192,7 @@ export async function requestProfileChange(
     value = String(n);
     if (value === String(user.age ?? "")) throw new SocialError("same_value");
   }
-  const admins = await (deps.recipients ?? getRequestRecipientIds)();
+  const admins = await (deps.recipients ?? (() => getRecipients("photo")))();
   if (admins.length === 0) throw new SocialError("unavailable");
   const reqs = await col("edit_requests");
   if (await reqs.findOne({ telegramId: user._id, field, status: "pending" })) throw new SocialError("pending_request");

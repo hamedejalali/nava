@@ -1,49 +1,51 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { env } from "../../config/env.js";
-import { getDb } from "../../db/connect.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { isOwner } from "./constants.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
-import { sweepPendingDeposits } from "../../services/wallet/walletDeposits.js";
+import { syncWalletDeposits, walletStats } from "../../services/wallet/walletDeposits.js";
 import { isWalletIntegrationEnabled, setWalletIntegrationEnabled } from "../../services/wallet/walletSettings.js";
+import { walletBaseUrl } from "../../services/wallet/walletClient.js";
 
-/** Owner-only panel «🔌 اتصال ولت»: shows the state of the Wallet -> Nava XP integration and switches it on/off. No secret is ever shown. */
+/** Owner-only panel «🔌 اتصال ولت»: connection state (env ✅/❌), on/off switch, 24h stats, last 10 deposits. No secret is ever shown. */
 const TOGGLE = "admin:wallet:toggle";
-const SWEEP = "admin:wallet:sweep";
+const SYNC = "admin:wallet:sync";
+
+const tick = (b: unknown) => (b ? "✅" : "❌");
 
 async function view() {
   const enabled = await isWalletIntegrationEnabled();
   const host = (() => {
     try {
-      return env.wallet.url ? new URL(env.wallet.url).host : null;
+      const u = walletBaseUrl();
+      return u ? new URL(u).host : null;
     } catch {
       return null;
     }
   })();
-  const db = await getDb();
-  const dep = db.collection<any>("wallet_deposits");
-  const day = new Date(Date.now() - 86_400_000);
-  const [pending, done, failed, recent] = await Promise.all([
-    dep.countDocuments({ status: { $in: ["creating", "pending"] } }),
-    dep.countDocuments({ status: "completed" }),
-    dep.countDocuments({ status: "failed" }),
-    dep.countDocuments({ createdAt: { $gte: day } }),
-  ]);
+  const st = await walletStats();
+  const last = st.recent
+    .map((r) => `• <code>${String(r._id).slice(0, 14)}</code> · ${r.userId} · ${r.amount} ژتون${r.fee !== undefined ? ` (کارمزد ${r.fee})` : ""} · ${r.creditedAt.toISOString().slice(5, 16).replace("T", " ")}`)
+    .join("\n");
+  const sy = st.sync;
   const text =
-    `🔌 <b>اتصال ولت (واریز XP)</b>\n\n` +
-    `آدرس ولت (Vercel): ${host ? "✅ " + host : "❌ WALLET_API_URL"}\n` +
-    `شناسه اتصال: ${env.wallet.integrationId ? "✅" : "❌ WALLET_INTEGRATION_ID"}\n` +
-    `کلید مخفی: ${env.wallet.secret ? "✅ تنظیم شده" : "❌ WALLET_API_SECRET"}\n` +
-    `وضعیت: ${enabled ? "🟢 روشن" : "🔴 خاموش"}\n\n` +
-    `واریزها: در انتظار ${pending} · موفق ${done} · ناموفق ${failed} (۲۴ ساعت اخیر: ${recent})\n\n` +
-    `خاموش کردن فقط «واریز XP از ولت» رو می‌بنده؛ بقیه‌ی ربات عادی کار می‌کنه.`;
+    `🔌 <b>اتصال ولت (دریافت ژتون)</b>\n\n` +
+    `${tick(host)} WALLET_API_URL${host ? ` (${host})` : ""}\n` +
+    `${tick(env.wallet.integrationId)} WALLET_INTEGRATION_ID\n` +
+    `${tick(env.wallet.secret)} WALLET_API_SECRET\n` +
+    `واریز از ولت: ${enabled ? "🟢 روشن" : "🔴 خاموش"}\n\n` +
+    `📊 ۲۴ ساعت اخیر: ${st.count24h} واریز · مجموع ${st.sum24h} ژتون\n` +
+    `آخرین همگام‌سازی موفق: ${sy?.lastOkAt ? sy.lastOkAt.toISOString().slice(0, 16).replace("T", " ") : "—"}` +
+    (sy?.lastError ? `\n⚠️ آخرین خطا: ${sy.lastError}` : "") +
+    `\n\n<b>آخرین ۱۰ واریز</b>\n${last || "— هنوز واریزی نیست —"}\n\n` +
+    `خاموش کردن فقط دریافت از ولت رو می‌بنده؛ بقیه‌ی ربات عادی کار می‌کنه. ژتون فقط وقتی اضافه میشه که خود ولت واریز رو «COMPLETED» اعلام کنه.`;
   return {
     text,
     reply_markup: inlineKeyboard([
       [glassButton(enabled ? "🔴 خاموش کن" : "🟢 روشن کن", TOGGLE, enabled ? "danger" : "success")],
-      [glassButton("🔄 بررسی انتظارها", SWEEP, "primary")],
+      [glassButton("🔄 همگام‌سازی همین الان", SYNC, "primary")],
     ]),
   };
 }
@@ -65,10 +67,11 @@ export function registerAdminWallet(composer: Composer<NavaContext>) {
     const v = await view();
     await ctx.editMessageText(v.text, { parse_mode: "HTML", reply_markup: v.reply_markup }).catch(() => {});
   });
-  composer.callbackQuery(SWEEP, async (ctx) => {
+
+  composer.callbackQuery(SYNC, async (ctx) => {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));
-    const r = await sweepPendingDeposits(ctx.api);
-    await ctx.answerCallbackQuery({ text: `بررسی شد: ${r.checked} · واریز ${r.credited} · ناموفق ${r.failed}`, show_alert: true });
+    const r = await syncWalletDeposits(ctx.api, { force: true });
+    await ctx.answerCallbackQuery({ text: r.error ? `خطا: ${r.error}` : `بررسی شد: ${r.fetched} تراکنش · ${r.credited} واریز جدید`, show_alert: true });
     const v = await view();
     await ctx.editMessageText(v.text, { parse_mode: "HTML", reply_markup: v.reply_markup }).catch(() => {});
   });

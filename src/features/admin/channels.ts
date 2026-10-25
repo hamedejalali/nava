@@ -1,7 +1,7 @@
 import type { Composer } from "grammy";
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { cancelButton } from "../../ui/cancelButton.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { listAllChannels, addChannel, toggleChannelActive, removeChannel } from "../../db/models/channel.js";
 import { isAdmin } from "./constants.js";
@@ -71,7 +71,7 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
     await ctx.reply("یوزرنیم عمومی کانال رو بفرست (مثلا @nava). ربات باید ادمین اون کانال باشه.", {
-      reply_markup: inlineKeyboard([[cancelButton("لغو", CB.addCancel)]]),
+      reply_markup: cancelKeyboard(),
     });
     await setAwaitingChannel(ctx.from!.id, true);
   });

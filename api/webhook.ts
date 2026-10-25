@@ -9,6 +9,7 @@ import { maybeProcessSearchNotices } from "../src/features/matching/searchNotice
 import { maybeProcessDueGiftEvents } from "../src/services/nava/giftEvents.js";
 import { maybeProcessDueDeliveries } from "../src/features/matching/matchDelivery.js";
 import { processDueSeedJobs } from "../src/features/matching/seedMatch.js";
+import { maybeSyncWalletDeposits } from "../src/services/wallet/walletDeposits.js";
 import { recordWebhookMetric, maybeRunAlertCheck, defaultSend } from "../src/services/monitor.js";
 
 // grammY's `webhookCallback` framework adapters don't include one that
@@ -128,5 +129,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   waitUntil(maybeProcessSearchNotices(bot!.api).catch(() => {}));
   waitUntil(maybeProcessDueGiftEvents(bot!.api).catch(() => {}));
   waitUntil(processDueSeedJobs(bot!.api).catch(() => {}));
+  waitUntil(maybeSyncWalletDeposits(bot!.api).catch(() => {})); // Wallet deposits (Flow A), at most once a minute
   res.status(200).send("ok");
 }

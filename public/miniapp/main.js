@@ -22,6 +22,7 @@
       tabbar.appendChild(b);
     });
     NG.col.appendChild(tabbar);
+    if (NG.mountGameFab) NG.mountGameFab();
     pill = $("pill");
     window.addEventListener("resize", movePill);
     setTabAvatar();
@@ -42,7 +43,7 @@
     Array.prototype.forEach.call(tabbar.querySelectorAll(".tab"), function (x) { x.classList.toggle("on", x.getAttribute("data-tab") === current); });
   }
 
-  NG.onScreens = function (n) { if (tabbar) tabbar.classList.toggle("away", n > 0); };
+  NG.onScreens = function (n) { if (tabbar) tabbar.classList.toggle("away", n > 0); if (NG.setFabAway) NG.setFabAway(n > 0); };
 
   NG.selectTab = function (t, user) {
     // not registered in the bot yet: only the Matching preview is open; everything else says "register first"
@@ -210,6 +211,7 @@
       if (profileV) profileV.reload();
     }
     NG.setPulse(d.unread);
+    if (NG.gamesPulse) NG.gamesPulse(d.games);
     if (d.dm) {
       var prevSid = NG.dmSid || null;
       NG.dmSid = d.dm.sid || null;
@@ -229,6 +231,8 @@
   function deepLink() {
     var sp = "";
     try { sp = (NG.tg && NG.tg.initDataUnsafe && NG.tg.initDataUnsafe.start_param) || NG.qs.get("tgWebAppStartParam") || NG.qs.get("go") || ""; } catch (e) {}
+    var gm = /^g_([A-Za-z0-9_-]{4,16})$/.exec(sp);
+    if (gm) { setTimeout(function () { if (NG.joinGameByLink) NG.joinGameByLink(gm[1]); }, 500); return; }
     var m = /^([pqu])_([A-Za-z0-9_-]{1,64})$/.exec(sp);
     if (!m) return;
     setTimeout(function () {
@@ -261,7 +265,7 @@
         if (er === "not_registered") {
           // guest preview: Matching tab with 5 fictional-member cards, nothing else
           NG.guest = true; NG.me = null; buildShell();
-          NG.selectTab("match"); reveal(); return;
+          NG.selectTab("match"); reveal(); deepLink(); return;
         }
         NG.fail(r); return;
       }

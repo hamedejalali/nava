@@ -1,3 +1,4 @@
+import { firstMissingStep } from "../features/onboarding/repair.js";
 import ExcelJS from "exceljs";
 import { usersCollection, type UserDoc } from "../db/models/user.js";
 
@@ -151,7 +152,7 @@ export async function importUsersFromExcel(filePath: string): Promise<ImportRepo
         relicBalance,
         relicInitialized,
         createdAt: new Date(),
-        onboardingStep: "COMPLETED",
+        onboardingStep: firstMissingStep(setFields) ?? "COMPLETED",
       } as UserDoc;
 
       if (sheetAnonId && ANON_ID_RE.test(sheetAnonId)) {
@@ -186,7 +187,7 @@ export async function importUsersFromExcel(filePath: string): Promise<ImportRepo
           // telegramId that never existed before).
           const { getOrCreateUser } = await import("../db/models/user.js");
           await getOrCreateUser({ telegramId, firstName: doc.firstName, username: doc.username });
-          await col_.updateOne({ _id: telegramId }, { $set: { ...setFields, relicBalance, relicInitialized, onboardingStep: "COMPLETED" } });
+          await col_.updateOne({ _id: telegramId }, { $set: { ...setFields, relicBalance, relicInitialized, onboardingStep: firstMissingStep(setFields) ?? "COMPLETED" } });
         } else {
           throw err;
         }

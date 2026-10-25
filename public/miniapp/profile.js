@@ -28,7 +28,7 @@
     o = o || {};
     var pat = ""; for (var i = 0; i < 16; i++) pat += "<span>" + def.pattern + "</span>";
     var c = el('<div class="gc' + (o.cls ? " " + o.cls : "") + '" style="background:linear-gradient(160deg,' + def.c1 + "," + def.c2 + ')"><div class="pat">' + pat + '</div>' +
-      (o.price != null ? '<div class="pr">' + num(o.price) + " XP</div>" : "") + '<div class="gem"><div class="em">' + def.emoji + "</div></div>" +
+      (o.price != null ? '<div class="pr">' + num(o.price) + " ژتون</div>" : "") + '<div class="gem"><div class="em">' + def.emoji + "</div></div>" +
       (o.name ? '<div class="nm">' + esc(def.name) + "</div>" : "") + (o.by ? '<div class="by">از ' + esc(o.by) + "</div>" : "") +
       (def.unique ? '<div class="tagu">✨ یکتا</div>' : "") + (o.sold && def.soldOut ? '<div class="sold">فروخته شد</div>' : "") + "</div>");
     if (def.anim) NG.mountAnim(c.querySelector(".gem"), def.anim); // original Telegram animation (TGS / WebM)
@@ -43,7 +43,7 @@
   NG.openGiftSheet = function (to) {
     NG.getCatalog(true).then(function (cat) {
       if (!cat.items.length) return NG.toast("فعلاً هدیه‌ای فعال نیست.");
-      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> XP</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>اگه روشن باشه، فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon" aria-label="anonymous"></button></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
+      NG.sheet('<div class="shd">هدیه برای ' + esc(NG.nameOf(to)) + '</div><div class="gbal"><span>موجودی شما: <b id="bal">' + num(cat.balance) + '</b> ژتون</span><span>روی هدیه بزن</span></div><div class="scroll"><div class="gifts" id="gg"></div><div class="pad" style="padding-top:12px"><input class="inp" id="gm" maxlength="100" placeholder="پیام (اختیاری)"></div><div class="anonrow"><div>ارسال ناشناس<small>اگه روشن باشه، فرستنده «ناشناس» نشون داده می‌شه</small></div><button class="tg" id="anon" aria-label="anonymous"></button></div><div class="gerr" id="ge"></div></div><div class="pad"><button class="btn blue tall" id="go" style="width:100%" disabled>یک هدیه انتخاب کن</button></div>', function (sh, close) {
         var grid = sh.querySelector("#gg"), go = sh.querySelector("#go"), err = sh.querySelector("#ge"), msg = sh.querySelector("#gm");
         var sel = null, cid = null, busy = false, anon = false;
         var at = sh.querySelector("#anon"); at.onclick = function () { anon = !anon; at.classList.toggle("on", anon); NG.haptic("sel"); };
@@ -54,7 +54,7 @@
             if (g.soldOut) { NG.haptic("err"); return NG.toast("این هدیه‌ی یکتا قبلاً فروخته شده."); }
             Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove("sel"); });
             c.classList.add("sel"); sel = g; cid = clientId(); NG.haptic("sel");
-            go.disabled = false; go.textContent = "ارسال " + g.name + " — " + num(g.price) + " XP"; err.classList.remove("show");
+            go.disabled = false; go.textContent = "ارسال " + g.name + " — " + num(g.price) + " ژتون"; err.classList.remove("show");
           };
           grid.appendChild(c);
         });
@@ -75,7 +75,7 @@
             }
             go.disabled = false; go.textContent = label; NG.haptic("err");
             if (r.data && r.data.error === "insufficient") {
-              err.textContent = "XP کافی نیست. قیمت این هدیه " + num(sel.price) + " XP‌ه و موجودی تو " + num(catalog.balance) + " XP‌ه. از داخل ربات می‌تونی XP تهیه کنی.";
+              err.textContent = "ژتون کافی نیست. قیمت این هدیه " + num(sel.price) + " ژتونه و موجودی تو " + num(catalog.balance) + " ژتونه. از داخل ربات می‌تونی ژتون تهیه کنی.";
               NG.getCatalog(true).then(function (c2) { var b = sh.querySelector("#bal"); if (b) b.textContent = num(c2.balance); });
             } else if (r.data && r.data.error === "sold_out") {
               err.textContent = NG.errText(r); NG.getCatalog(true);
@@ -158,7 +158,7 @@
 
   /* ----------------------------------------------------------- chat request */
   NG.requestChat = function (b) {
-    NG.sheet('<div class="shd">درخواست چت ناشناس</div><div class="ctx">به <b style="color:var(--text)">' + esc(NG.nameOf(b)) + '</b> درخواست چت ناشناس فرستاده می‌شه.<br>اگه قبول کنه، ۱ XP از هر دو نفر کم می‌شه.</div><div class="pad"><button class="btn blue tall" id="go" style="width:100%">ارسال درخواست</button></div><button class="item" id="no" style="margin-top:6px">انصراف</button>', function (sh, close) {
+    NG.sheet('<div class="shd">درخواست چت ناشناس</div><div class="ctx">به <b style="color:var(--text)">' + esc(NG.nameOf(b)) + '</b> درخواست چت ناشناس فرستاده می‌شه.<br>اگه قبول کنه، ۱ ژتون از هر دو نفر کم می‌شه.</div><div class="pad"><button class="btn blue tall" id="go" style="width:100%">ارسال درخواست</button></div><button class="item" id="no" style="margin-top:6px">انصراف</button>', function (sh, close) {
       sh.querySelector("#no").onclick = function () { close(); };
       var go = sh.querySelector("#go");
       go.onclick = function () {
@@ -170,7 +170,7 @@
           if (s === "sent") { NG.haptic("ok"); NG.toast("✅ درخواست ارسال شد"); NG.emit("chat:requested", b.id); }
           else if (s === "already_pending") { NG.toast("قبلاً برای این کاربر درخواست دادی. منتظر جوابش باش."); NG.emit("chat:requested", b.id); }
           else if (s === "rate_limited") NG.toast("تعداد درخواست‌هات زیاد بوده؛ کمی بعد دوباره امتحان کن.");
-          else if (s === "no_balance") NG.toast("موجودی XP‌ت کافی نیست (۱ XP لازمه).");
+          else if (s === "no_balance") NG.toast("موجودی ژتونت کافی نیست (۱ ژتون لازمه).");
           else if (s === "in_chat") NG.toast("الان توی یه چت هستی. اول چت رو تموم کن.");
           else NG.toast("این کاربر الان در دسترس نیست.");
         }).catch(function () { close(); NG.netErr(); });
@@ -336,7 +336,7 @@
       if (P && P.isMe) {
         // Relic balance in the corner: always the server's number (refreshed by the live "me" poll)
         coinEl = el('<button class="coinchip" aria-label="relic"><span class="cn">🪙</span><b>' + xpTxt(P.relic) + "</b></button>");
-        coinEl.onclick = function () { NG.toast("موجودی XP تو: " + (P.unlimited ? "نامحدود ∞" : num((NG.me && NG.me.relic != null ? NG.me.relic : P.relic) || 0))); };
+        coinEl.onclick = function () { NG.toast("موجودی ژتون تو: " + (P.unlimited ? "نامحدود ∞" : num((NG.me && NG.me.relic != null ? NG.me.relic : P.relic) || 0))); };
         act.appendChild(coinEl);
         var add = el('<button class="ib" aria-label="new">' + svg("plus") + "</button>"); add.onclick = function () { NG.composeMenu(); };
         var mn = el('<button class="ib" aria-label="menu">' + svg("menu") + "</button>"); mn.onclick = function () { ownMenu(P); };
@@ -505,7 +505,7 @@
         var r = res[1]; body.innerHTML = "";
         if (!r.ok) return NG.toast(NG.errText(r));
         if (P && !P.isMe) {
-          var sg = el('<div class="sendgift"><div class="em">🎁</div><div><b>ارسال هدیه به ' + esc(NG.nameOf(P)) + "</b><span>با XP، هدیه‌ی متحرک بفرست</span></div></div>");
+          var sg = el('<div class="sendgift"><div class="em">🎁</div><div><b>ارسال هدیه به ' + esc(NG.nameOf(P)) + "</b><span>با ژتون، هدیه‌ی متحرک بفرست</span></div></div>");
           sg.onclick = function () { NG.openGiftSheet(P); }; body.appendChild(sg);
         }
         var grid = el('<div class="gifts"></div>');
@@ -568,7 +568,7 @@
         ].concat(p.isOwnerPage ? [
           { label: "🪙 سکه‌ی کنار تیک (تغییر / حذف)", fn: function () { coinSheet(p, function () { reload(); }); } }
         ].concat(NG.staff && !NG.actAs ? [{ label: "🏅 بج‌های این اکانت", fn: function () { NG.badgeSheet({ id: p.id, name: p.name, bd: p.bd, mod: { badges: p.bd || [] } }, function () { PCACHE[p.id] && delete PCACHE[p.id]; NG.refreshMe().then(function () { reload(); }); }); } }] : []) : []).concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
-        { label: "XP: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
+        { label: "ژتون: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
       ]));
     }
     function togglePrivate(p) {

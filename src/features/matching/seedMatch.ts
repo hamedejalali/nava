@@ -14,7 +14,7 @@ import { textEmoji } from "../../config/emojis.js";
 import { env } from "../../config/env.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { escapeHtml } from "../../utils/html.js";
-import { getRequestRecipientIds } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { CHAT_CALLBACKS } from "./constants.js";
 import { deliverSession } from "./matchDelivery.js";
@@ -206,7 +206,7 @@ async function announceToManagement(api: Api, job: SeedJobDoc, session: ChatSess
     `👤 کاربر: ${escapeHtml(user?.nickname ?? "-")} — <code>${escapeHtml(user?.anonId ?? "-")}</code> (<code>${job.userId}</code>)\n` +
     `🎭 ممبر فرضی: ${escapeHtml(seed?.nickname ?? "-")} — <code>${escapeHtml(seed?.anonId ?? "-")}</code>\n` +
     `⏱ مدت: ${secs ?? "-"} ثانیه • پایان: ${byUser ? "توسط کاربر" : "توسط ممبر فرضی"}`;
-  const targets = env.MODERATION_LOG_CHAT_ID ? [env.MODERATION_LOG_CHAT_ID] : await getRequestRecipientIds();
+  const targets = await getRecipients("seedLog");
   for (const id of targets) await api.sendMessage(id, text, { parse_mode: "HTML" }).catch(() => {});
 }
 

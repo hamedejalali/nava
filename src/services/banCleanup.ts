@@ -33,7 +33,7 @@ export async function banUser(api: Pick<Api, "sendMessage">, targetId: number, r
         if (partnerId) {
           const partner = await getUser(partnerId).catch(() => null);
           await api
-            .sendMessage(partnerId, "⚠️ مخاطبت دیگه در دسترس نیست و چت تموم شد. XP‌ت برگشت داده شد.", { reply_markup: buildMainMenuReplyKeyboard(partner?.languageCode ?? "fa") })
+            .sendMessage(partnerId, "⚠️ مخاطبت دیگه در دسترس نیست و چت تموم شد. ژتونت برگشت داده شد.", { reply_markup: buildMainMenuReplyKeyboard(partner?.languageCode ?? "fa") })
             .catch(() => {});
         }
       }

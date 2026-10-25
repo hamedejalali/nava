@@ -189,7 +189,7 @@ test("G1. backgammon: create → join → roll → legal move; wrong turn / ille
   const res = await call(second, { action: "game_resign", gid });
   assert.equal(res.payload.status, "finished");
   assert.equal(res.payload.winner, (await call(first, { action: "game_state", gid })).payload.me);
-  assert.equal((await call(10, { action: "game_lobby" })).payload.mine, null);
+  assert.deepEqual((await call(10, { action: "game_lobby" })).payload.mine, []);
 });
 
 test("B1. admin panel «🏅 بج‌ها»: enter a numeric id, toggle badges from the keyboard; saved on the user", async () => {

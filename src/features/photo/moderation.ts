@@ -6,7 +6,8 @@ import { createModerationRecord, decideModerationRecord, type ImageModerationDoc
 import { setProfilePhoto, getUser, type UserDoc } from "../../db/models/user.js";
 import { checkImage } from "../../services/sightengine.js";
 import { buildSupportButton } from "../support/index.js";
-import { getRequestRecipientIds, isAdmin } from "../admin/constants.js";
+import {  isAdmin } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { hasPendingPhotoFlow } from "../common/userFlows.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
 
@@ -37,7 +38,7 @@ export function registerPhotoUpload(composer: Composer<NavaContext>) {
     if (await hasPendingPhotoFlow(user._id)) return next();
     // Owner + ADMIN_IDS + admins granted from the panel (was: ADMIN_IDS
     // only — with just OWNER_ID set every photo upload failed).
-    const adminIds = await getRequestRecipientIds();
+    const adminIds = await getRecipients("photo");
     if (adminIds.length === 0) {
       const t = dictionary(ctx.userLang);
       await ctx.reply(t.errors.generic);

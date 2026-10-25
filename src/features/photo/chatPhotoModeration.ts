@@ -1,7 +1,8 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { env } from "../../config/env.js";
-import { getRequestRecipientIds, isAdmin } from "../admin/constants.js";
+import { isAdmin } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { incrementMessageCount } from "../../db/models/chatSession.js";
 import { recordRelayedMessage } from "../../db/models/chatRelayMap.js";
@@ -94,7 +95,7 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
       aiClassification,
     });
 
-    const logChatIds = env.MODERATION_LOG_CHAT_ID ? [env.MODERATION_LOG_CHAT_ID] : await getRequestRecipientIds();
+    const logChatIds = await getRecipients("chatPhoto");
     const flagLine =
       aiFlagged === undefined
         ? "سیستم نظارت نوا: بررسی ناموفق (سرویس در دسترس نبود)"

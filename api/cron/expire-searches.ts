@@ -14,6 +14,7 @@ import { purgeOldDmMedia } from "../../src/services/nava/dm.js";
 import { processDueSeedJobs } from "../../src/features/matching/seedMatch.js";
 import { seedGuardTransformer } from "../../src/services/seeds/guard.js";
 import { processDueGiftEvents } from "../../src/services/nava/giftEvents.js";
+import { sweepStaleGames } from "../../src/services/games/backgammonGames.js";
 
 /**
  * MongoDB's TTL index eventually deletes expired match_queue documents on
@@ -66,13 +67,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Retry match notices that failed transiently (durable records in match_deliveries; never throws).
   const deliveries = await processDueDeliveries(api, 25);
 
+  // Backgammon: finish (and refund / announce) tables and games nobody touched any more (never throws).
+  let gamesSwept = 0;
+  try {
+    gamesSwept = await sweepStaleGames();
+  } catch (err) {
+    console.error("[cron] backgammon sweep failed:", err instanceof Error ? err.name : "unknown");
+  }
+
   // Settle gift auctions / giveaways whose time is up (never throws).
   const giftEvents = await processDueGiftEvents(api, 25);
 
   // Finish default-member chats whose invocation was cut off (never throws).
   const seedChats = await processDueSeedJobs(api, 25, 0);
 
-  res.status(200).json({ ...result, seedChatsFinished: seedChats, searchNotices: notices, storiesDropped, dmMediaDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed });
+  res.status(200).json({ ...result, seedChatsFinished: seedChats, searchNotices: notices, storiesDropped, dmMediaDropped, deliveriesProcessed: deliveries.processed, giftEventsSettled: giftEvents.processed, gamesSwept });
 }
 
 /** A Telegram error that retrying can never fix (user blocked the bot, chat gone, bad request). */

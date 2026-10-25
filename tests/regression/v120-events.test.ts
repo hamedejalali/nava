@@ -47,7 +47,7 @@ test("E1. bids are written as quotes into the SAME post (edited, not re-posted)"
   assert.match(t, /<blockquote/);
   assert.match(t, /u1/);
   assert.match(t, /u2/);
-  assert.match(t, /15 XP/);
+  assert.match(t, /15 ژتون/);
   assert.equal(h.of("sendMessage", CH).length, posts, "no new channel post per bid");
   assert.equal(h.of("editMessageText", CH).every((c) => c.payload.message_id === ev.messageId), true);
   assert.equal(col("gift_event_bids").all().length, 2);
@@ -65,7 +65,7 @@ test("E2. a sale: buyer pays once, the OWNER is credited the same amount in the 
   assert.equal(col("relic_transactions").all().filter((t: any) => t.type === "AUCTION_SALE").length, 1);
   assert.equal(await settleGiftEvent(api(), ev._id, { force: true }), null, "second settle does nothing");
   assert.equal(bal(OWNER_ID), 17, "owner paid exactly once");
-  assert.match(lastEdit(), /17 XP/);
+  assert.match(lastEdit(), /17 ژتون/);
 });
 
 test("E3. auction without bids / with a vanished gift pays the owner nothing", async () => {

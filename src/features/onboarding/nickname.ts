@@ -59,7 +59,7 @@ export function registerNicknameHandlers(composer: Composer<NavaContext>) {
           await ctx.api
             .sendMessage(
               referrer._id,
-              `🎉 یکی از دوستانت با لینک دعوتت به نوا پیوست و پروفایلش رو کامل کرد!\n${relicEmoji} ۲۰ XP به حساب شما اضافه شد.`
+              `🎉 یکی از دوستانت با لینک دعوتت به نوا پیوست و پروفایلش رو کامل کرد!\n${relicEmoji} ۲۰ ژتون به حساب شما اضافه شد.`
             )
             .catch(() => {});
         }

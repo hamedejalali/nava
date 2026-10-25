@@ -66,24 +66,11 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
       case "myAnonymousLink":
         await sendMyAnonymousLink(ctx);
         return;
-      case "searchUsers": {
-        // "جستجوی کاربران" opens the Nava Mini App (photos + chat request).
-        // It must be an INLINE web_app button: only those give the Mini App
-        // a signed initData (reply-keyboard Mini Apps get none).
-        const url = env.NAVA_MINIAPP_URL;
-        if (!url) return;
-        const eligible = await requireChannelMembership(ctx, ctx.userLang);
-        if (!eligible) return;
-        await ctx.reply("🖼 برای دیدن کاربران و ارسال درخواست چت، مینی‌اپ نوا رو باز کن:", {
-          reply_markup: { inline_keyboard: [[{ text: "🖼 باز کردن مینی‌اپ نوا", web_app: { url }, style: "success" } as any]] },
-        });
-        return;
-      }
+      case "searchUsers":
       case "nearbyPeople":
-        // Not implemented yet (same as the old inline buttons, which the
-        // generic callback fallback silently acknowledged without taking
-        // any action) — swallow the tap rather than falling through to the
-        // "unknown input" error, since this IS a recognized menu button.
+        // v1.26: «جستجوی کاربران» no longer jumps into the Mini App (that was never agreed) and «افراد نزدیک» is no longer
+        // a silent button: both answer with a clear "coming soon" until their bot-side behaviour is specified.
+        await ctx.reply("🚧 این بخش به‌زودی فعال میشه.");
         return;
       default: {
         const _exhaustive: never = action;

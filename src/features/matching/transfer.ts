@@ -32,7 +32,7 @@ export function registerRelicTransfer(composer: Composer<NavaContext>) {
     }
     if (target.isSeed) {
       // default (seed) members have no wallet: Relic sent there would simply vanish
-      await ctx.answerCallbackQuery({ text: "انتقال XP به این کاربر در حال حاضر ممکن نیست.", show_alert: true });
+      await ctx.answerCallbackQuery({ text: "انتقال ژتون به این کاربر در حال حاضر ممکن نیست.", show_alert: true });
       return;
     }
 

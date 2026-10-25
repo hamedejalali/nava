@@ -149,7 +149,8 @@ test("A4. pulse: unread counts by group, then «seen» zeroes them; coins and re
   await call(1, { action: "like", pid: "post000001", like: true });
   await call(1, { action: "comment_add", pid: "post000001", text: "سلام" });
   let p = (await call(2, { action: "pulse" })).payload;
-  assert.deepEqual(p.unread, { total: 3, likes: 1, follows: 1, comments: 1 });
+  assert.deepEqual({ ...p.unread, latest: 0 }, { latest: 0, total: 3, likes: 1, follows: 1, comments: 1 });
+  assert.ok(p.unread.latest > 0);
   assert.equal(p.relic, 500);
   col("users").updateOne({ _id: 2 }, { $set: { relicBalance: 321 } });
   assert.equal((await call(2, { action: "pulse" })).payload.relic, 321);
@@ -213,7 +214,7 @@ test("S1. one-message member: six lines parse; bad lines say which line is wrong
 test("S2. admin keyboard: coins / Navagram / default members are direct categories", async () => {
   await h.text(OWNER_ID, "/start");
   const kb = JSON.stringify(h.last("sendMessage", OWNER_ID)?.payload.reply_markup);
-  for (const t of ["🪙 سکه‌ها", "📸 نوا گرام", "🎭 ممبرهای پیش‌فرض"]) assert.match(kb, new RegExp(t));
+  for (const t of ["🪙 ژتون‌ها", "📸 نوا گرام", "🎭 ممبرهای پیش‌فرض"]) assert.match(kb, new RegExp(t));
   await h.text(OWNER_ID, "🎭 ممبرهای پیش‌فرض");
   assert.match(JSON.stringify(h.last("sendMessage", OWNER_ID)?.payload.reply_markup), /ساخت ممبر جدید/);
   await h.text(OWNER_ID, "➕ ساخت ممبر جدید");

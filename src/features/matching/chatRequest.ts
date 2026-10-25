@@ -21,7 +21,7 @@ function requestCaption(from: UserDoc): string {
   return (
     `💬 <b>درخواست چت</b>\n\n` +
     `${name}${age} از نوا گرام می‌خواد باهات چت کنه.\n` +
-    `<blockquote>با قبول کردن، از هر دو نفر ۱ XP کم میشه و چت داخل نوا گرام شروع میشه (می‌تونی از بخش «پیام‌ها» توی مینی‌اپ هم جواب بدی).</blockquote>`
+    `<blockquote>با قبول کردن، از هر دو نفر ۱ ژتون کم میشه و چت داخل نوا گرام شروع میشه (می‌تونی از بخش «پیام‌ها» توی مینی‌اپ هم جواب بدی).</blockquote>`
   );
 }
 
@@ -82,11 +82,11 @@ export function registerChatRequest(composer: Composer<NavaContext>) {
     if (result.status === "insufficient") {
       if (result.userId === me) {
         await ctx.answerCallbackQuery();
-        await ctx.reply("😔 موجودی XP‌ت برای شروع چت کافی نیست.", {
-          reply_markup: inlineKeyboard([[glassButton("خرید XP", MENU_CALLBACKS.relicCoin, "primary", buttonIcon("CROWN"))]]),
+        await ctx.reply("😔 موجودی ژتونت برای شروع چت کافی نیست.", {
+          reply_markup: inlineKeyboard([[glassButton("خرید ژتون", MENU_CALLBACKS.relicCoin, "primary", buttonIcon("CROWN"))]]),
         });
       } else {
-        await ctx.answerCallbackQuery({ text: "موجودی XP طرف مقابل فعلاً کافی نیست.", show_alert: true });
+        await ctx.answerCallbackQuery({ text: "موجودی ژتون طرف مقابل فعلاً کافی نیست.", show_alert: true });
       }
       return;
     }

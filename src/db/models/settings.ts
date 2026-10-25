@@ -13,6 +13,11 @@ export interface BotSettingsDoc {
    *  (`seedHidden` / `seedChatEnabled`) so every query can read it without a second lookup. */
   seedsHidden?: boolean;
   seedChatEnabled?: boolean;
+  /** Management channel (v1.26): where staff-facing requests/logs go. See src/services/channelRouting.ts. */
+  managementChannelId?: number;
+  managementChannelTitle?: string;
+  /** Per-purpose destination: "mgmt" (default) | "dm" (owner) | "off". */
+  routes?: Record<string, "mgmt" | "dm" | "off">;
 }
 
 async function col() {

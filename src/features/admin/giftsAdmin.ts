@@ -8,6 +8,8 @@ import { escapeHtml } from "../../utils/html.js";
 import { isAdmin, isOwner } from "./constants.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 import { giftCatalog } from "../../services/nava/gifts.js";
+import { DONE_LABEL } from "../common/cancelLabel.js";
+import { glassReplyButton, replyKeyboard } from "../../ui/keyboard.js";
 import { cleanGlyph, addCustomGift, MAX_GIFT_NAME, MAX_GIFT_PRICE, stickerFormatOf, type StickerFormat } from "../../services/nava/giftDefs.js";
 import { adminDeleteGift, adminTakeGift, listUserGifts } from "../../services/nava/giftAdmin.js";
 import { createGiftEvent, getGiftEvent, listOpenEvents, MAX_EVENT_HOURS, MAX_WINNERS, settleGiftEvent } from "../../services/nava/giftEvents.js";
@@ -39,6 +41,7 @@ export const GF = {
   take: "admin:gf:ut:", // + gift pub
 };
 const FLOW = "navagifts";
+const NAME_PROMPT = `نام، قیمت و اموجی هدیه رو توی «یک پیام» بفرست (هر کدوم یه خط):\n\nمشعل\n10\n🔥\n\n(یا فقط نام رو بفرست تا قدم‌به‌قدم بپرسم.)`;
 const BACK_GIFTS = "admin:ng:gifts";
 const faDigits = (t: string) => t.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 const PUB = "([A-Za-z0-9_-]{6,24})";
@@ -70,7 +73,7 @@ export async function openUserGiftsPrompt(ctx: NavaContext) {
 }
 
 export const GIFT_EVENTS_HOME = {
-  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال حراج و قرعه‌کشی» (کانال جدا؛ از «کانال و تنظیمات نوا گرام» تنظیمش کن) منتشر میشه و همون پست ادیت میشه.\nدر حراج، XP پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
+  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال حراج و قرعه‌کشی» (کانال جدا؛ از «کانال و تنظیمات نوا گرام» تنظیمش کن) منتشر میشه و همون پست ادیت میشه.\nدر حراج، ژتون پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
   reply_markup: inlineKeyboard([
     [glassButton("🔨 حراج جدید", `${GF.evNew}a`, "success"), glassButton("🎉 قرعه‌کشی جدید", `${GF.evNew}g`, "success")],
     [glassButton("📋 رویدادهای باز", GF.evList, "primary")],
@@ -121,7 +124,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (flow?.flow !== FLOW || !pick) return void (await ctx.answerCallbackQuery({ text: "لیست قدیمیه؛ دوباره از اول بزن.", show_alert: true }));
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "name", data: { pick } });
-    await ctx.reply(`نام فارسی این هدیه رو بفرست (حداکثر ${MAX_GIFT_NAME} حرف):`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(NAME_PROMPT, { reply_markup: cancelKeyboard() });
   });
 
   composer.on("message:sticker", async (ctx, next) => {
@@ -131,7 +134,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     const st = ctx.message.sticker;
     const pick: Pick = { fileId: st.file_id, uniqueId: st.file_unique_id, format: stickerFormatOf(st), emoji: st.emoji || "🎁" };
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "name", data: { pick } });
-    await ctx.reply(`✅ استیکر دریافت شد (${pick.format === "tgs" ? "انیمیشن" : pick.format === "webm" ? "ویدیو" : "ثابت"}).\nنام فارسی این هدیه رو بفرست (حداکثر ${MAX_GIFT_NAME} حرف):`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(`✅ استیکر دریافت شد (${pick.format === "tgs" ? "انیمیشن" : pick.format === "webm" ? "ویدیو" : "ثابت"}).\n${NAME_PROMPT}`, { reply_markup: cancelKeyboard() });
   });
 
   /** a picture as a gift: a cut-out PNG sent as a FILE (transparent), a still sticker handled above, or a normal photo */
@@ -139,7 +142,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (size && size > 2 * 1024 * 1024) return void (await ctx.reply("حجم عکس بیشتر از ۲ مگابایته؛ یه نسخه‌ی کوچیک‌تر بفرست.", { reply_markup: cancelKeyboard() }));
     const pick: Pick = { fileId, uniqueId, format, emoji: "🎁" };
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "name", data: { pick } });
-    await ctx.reply(`✅ عکس دریافت شد${format === "jpg" ? " (عکس معمولیه؛ برای پس‌زمینه‌ی شفاف، PNG رو به‌صورت فایل بفرست)" : " — داخل هدیه آروم شناور میشه"}.\nنام فارسی این هدیه رو بفرست (حداکثر ${MAX_GIFT_NAME} حرف):`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(`✅ عکس دریافت شد${format === "jpg" ? " (عکس معمولیه؛ برای پس‌زمینه‌ی شفاف، PNG رو به‌صورت فایل بفرست)" : " — داخل هدیه آروم شناور میشه"}.\n${NAME_PROMPT}`, { reply_markup: cancelKeyboard() });
   };
 
   composer.callbackQuery(GF.pack, async (ctx) => {
@@ -174,7 +177,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
         const r = await importPack(ctx.api, ctx.from!.id, items, ctx.from!.id);
         await logAdminAction(ctx.from!.id, "navagram_gift_import", `${r.created.length}/${items.length}`);
         await setAdminFlow(ctx.from!.id, null);
-        await ctx.reply(`✅ ${r.created.length} هدیه ساخته شد${r.failed.length ? `\n❌ ناموفق: ${r.failed.map(escapeHtml).join("، ")}` : ""}\n\nقیمت پیش‌فرض ${DEFAULT_PACK_PRICE} XP — از «🎁 هدیه‌ها و قیمت‌ها» نام/قیمت/اموجی هر کدوم رو تنظیم کن.`, { parse_mode: "HTML", reply_markup: inlineKeyboard([[glassButton("🎁 رفتن به هدیه‌ها", BACK_GIFTS, "primary")]]) });
+        await ctx.reply(`✅ ${r.created.length} هدیه ساخته شد${r.failed.length ? `\n❌ ناموفق: ${r.failed.map(escapeHtml).join("، ")}` : ""}\n\nقیمت پیش‌فرض ${DEFAULT_PACK_PRICE} ژتون — از «🎁 هدیه‌ها و قیمت‌ها» نام/قیمت/اموجی هر کدوم رو تنظیم کن.`, { parse_mode: "HTML", reply_markup: inlineKeyboard([[glassButton("🎁 رفتن به هدیه‌ها", BACK_GIFTS, "primary")]]) });
       } catch (e) {
         await ctx.reply(`❌ ${e instanceof Error && e.message ? escapeHtml(e.message) : "ایمپورت انجام نشد."}`, { parse_mode: "HTML", reply_markup: cancelKeyboard() });
       }
@@ -261,7 +264,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (!card) return void (await ctx.answerCallbackQuery());
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: kind === "a" ? "evPrice" : "evHours", data: { kind, giftId } });
-    await ctx.reply(kind === "a" ? `قیمت شروع حراج ${card.emoji} ${card.name} (به XP، ۱ تا ${MAX_GIFT_PRICE}):` : `قرعه‌کشی ${card.emoji} ${card.name} — تا چند ساعت دیگه تموم بشه؟ (۱ تا ${MAX_EVENT_HOURS})`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(kind === "a" ? `قیمت شروع حراج ${card.emoji} ${card.name} (به ژتون، ۱ تا ${MAX_GIFT_PRICE}):` : `قرعه‌کشی ${card.emoji} ${card.name} — تا چند ساعت دیگه تموم بشه؟ (۱ تا ${MAX_EVENT_HOURS})`, { reply_markup: cancelKeyboard() });
   });
 
   const eventsList = async () => {
@@ -298,7 +301,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));
     const r = await settleGiftEvent(ctx.api, ctx.match![1]!, { cancel: true });
     await logAdminAction(ctx.from!.id, "gift_event_cancel", `${ctx.match![1]}:${r?.outcome ?? "noop"}`);
-    await ctx.answerCallbackQuery({ text: r ? "لغو شد (XP پیشنهاد دهنده برگشت)" : "این رویداد دیگه باز نیست" });
+    await ctx.answerCallbackQuery({ text: r ? "لغو شد (ژتون پیشنهاد دهنده برگشت)" : "این رویداد دیگه باز نیست" });
     const v = await eventsList();
     await show(ctx, v.text, v.reply_markup);
   });
@@ -317,11 +320,37 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
     }
     const num = Number(faDigits(text));
 
+    // «✅ پایان» ends the "create another gift" loop
+    if (text === DONE_LABEL && flow.stage === "sticker") {
+      await setAdminFlow(ctx.from!.id, null);
+      await ctx.reply("✅ ساخت هدیه‌ها تموم شد.", { reply_markup: inlineKeyboard([[glassButton("🎁 رفتن به هدیه‌ها", BACK_GIFTS, "primary")]]) });
+      return;
+    }
+
+    // one message instead of three: «نام ⏎ قیمت ⏎ اموجی» (an optional 4th line = background emoji)
+    if (flow.stage === "name" && text.includes("\n")) {
+      const pick = flow.data?.pick as Pick | undefined;
+      if (!pick) return void (await setAdminFlow(ctx.from!.id, null));
+      const [l1 = "", l2 = "", l3 = "", l4 = ""] = text.split("\n").map((x) => x.trim());
+      const price = Number(faDigits(l2));
+      const name = l1.slice(0, MAX_GIFT_NAME);
+      const emoji = l3 ? cleanGlyph(l3) : null;
+      const bg = l4 ? cleanGlyph(l4) : null;
+      if (!name || !Number.isInteger(price) || price < 1 || price > MAX_GIFT_PRICE || (l3 && !emoji) || (l4 && !bg)) {
+        return void (await ctx.reply(`فرمت درست نیست. سه خط بفرست:\nنام هدیه\nقیمت (عدد صحیح ۱ تا ${MAX_GIFT_PRICE})\nاموجی\n\nمثال:\nمشعل\n10\n🔥`, { reply_markup: cancelKeyboard() }));
+      }
+      const g = await addCustomGift({ name, emoji: emoji ?? pick.emoji, price, sticker: { fileId: pick.fileId, uniqueId: pick.uniqueId, format: pick.format }, starCount: pick.stars, createdBy: ctx.from!.id, ...(bg ? { pattern: bg } : emoji ? { pattern: emoji } : {}) });
+      await logAdminAction(ctx.from!.id, "navagram_gift_add", `${g._id}:${price}`);
+      await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "sticker", data: { more: true } });
+      await ctx.reply(`✅ هدیه‌ی «${escapeHtml(g.name)}» ساخته شد.\n\nهدیه‌ی بعدی؟ عکس / استیکر / فایلش رو بفرست؛ اگه تموم شد «${DONE_LABEL}» رو بزن.`, { parse_mode: "HTML", reply_markup: replyKeyboard([[glassReplyButton(DONE_LABEL, "success")]]) });
+      return;
+    }
+
     if (flow.stage === "name") {
       const name = text.slice(0, MAX_GIFT_NAME);
       if (!name) return void (await ctx.reply("نام خالیه.", { reply_markup: cancelKeyboard() }));
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "price", data: { pick: flow.data?.pick, name } });
-      await ctx.reply(`قیمت این هدیه به XP؟ (عدد صحیح ۱ تا ${MAX_GIFT_PRICE})`, { reply_markup: cancelKeyboard() });
+      await ctx.reply(`قیمت این هدیه به ژتون؟ (عدد صحیح ۱ تا ${MAX_GIFT_PRICE})`, { reply_markup: cancelKeyboard() });
       return;
     }
 
@@ -342,8 +371,8 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
       const num = Number(flow.data?.price);
       const g = await addCustomGift({ name: String(flow.data?.name ?? ""), emoji: pick.emoji, price: num, sticker: { fileId: pick.fileId, uniqueId: pick.uniqueId, format: pick.format }, starCount: pick.stars, createdBy: ctx.from!.id, ...(pat ? { pattern: pat } : {}) });
       await logAdminAction(ctx.from!.id, "navagram_gift_add", `${g._id}:${num}`);
-      await setAdminFlow(ctx.from!.id, null);
-      await ctx.reply(`✅ هدیه‌ی «${escapeHtml(g.name)}» اضافه شد و همین الان توی لیست هدیه‌های نوا گرام هست.\nاز «هدیه‌ها» می‌تونی یکتاش کنی یا قیمتش رو عوض کنی.`, { parse_mode: "HTML", reply_markup: inlineKeyboard([[glassButton("🎁 رفتن به هدیه‌ها", BACK_GIFTS, "primary")]]) });
+      await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "sticker", data: { more: true } });
+      await ctx.reply(`✅ هدیه‌ی «${escapeHtml(g.name)}» اضافه شد و همین الان توی لیست هدیه‌های نوا گرام هست.\n\nهدیه‌ی بعدی؟ عکس / استیکر / فایلش رو بفرست؛ اگه تموم شد «${DONE_LABEL}» رو بزن.`, { parse_mode: "HTML", reply_markup: replyKeyboard([[glassReplyButton(DONE_LABEL, "success")]]) });
       return;
     }
 

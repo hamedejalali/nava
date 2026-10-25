@@ -57,8 +57,11 @@ export async function ensureNotifIndexes(db: { collection: (n: string) => { crea
 export async function pushNotif(key: string, n: Omit<NotifDoc, "_id" | "at" | "seen">): Promise<void> {
   if (n.userId === n.actorId) return;
   try {
+    // An UPSERT, not a plain insert: when the same action happens again (like → unlike → like, follow again) the old
+    // notification is refreshed — it is "new" again and shows the time of the LAST action. (A plain insert silently kept
+    // the first one, so a like made two minutes ago could still say "16 hours ago".)
     const c = await col<NotifDoc>(C.notifs);
-    await c.insertOne({ _id: key, ...n, at: new Date(), seen: false } as NotifDoc);
+    await c.updateOne({ _id: key } as any, { $set: { ...n, at: new Date(), seen: false } }, { upsert: true });
   } catch (err: any) {
     if (err?.code !== 11000) console.error("[notifs] push failed:", err instanceof Error ? err.name : "unknown");
   }
@@ -73,6 +76,8 @@ export async function dropNotifs(filter: Record<string, unknown>): Promise<void>
 }
 
 export interface Pulse {
+  /** ms timestamp of the newest unread notification (0 = none): the app animates each notification only once */
+  latest: number;
   total: number;
   likes: number;
   follows: number;
@@ -81,9 +86,11 @@ export interface Pulse {
 
 /** Unread counts per group — one small query; the Mini App polls it every few seconds. */
 export async function unreadCounts(userId: number): Promise<Pulse> {
-  const rows = await (await col<NotifDoc>(C.notifs)).find({ userId, seen: false }, { projection: { type: 1 } }).limit(200).toArray();
-  const p: Pulse = { total: rows.length, likes: 0, follows: 0, comments: 0 };
+  const rows = await (await col<NotifDoc>(C.notifs)).find({ userId, seen: false }, { projection: { type: 1, at: 1 } }).limit(200).toArray();
+  const p: Pulse = { latest: 0, total: rows.length, likes: 0, follows: 0, comments: 0 };
   for (const r of rows) {
+    const at = r.at instanceof Date ? r.at.getTime() : 0;
+    if (at > p.latest) p.latest = at;
     if (r.type === "like_post" || r.type === "like_profile" || r.type === "like_comment" || r.type === "story_like") p.likes++;
     else if (r.type === "follow" || r.type === "follow_request" || r.type === "accepted") p.follows++;
     else p.comments++;

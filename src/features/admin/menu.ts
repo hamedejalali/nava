@@ -5,6 +5,7 @@ import type { Composer } from "grammy";
 import { isOwner, isAdmin } from "./constants.js";
 import type { NavaContext } from "../../bot-context.js";
 import { setAdminFlow } from "./flowState.js";
+import { canAdmin, labelPermissions } from "./permissions.js";
 
 /** Plain-text labels for the admin Reply Keyboard — Reply Keyboard buttons
  *  have no callback_data, so a tap arrives as a normal text message with
@@ -20,7 +21,7 @@ export const ADMIN_MENU_LABELS = {
   reports: "⚠️ گزارش‌های کاربران",
   search: "🔎 جستجوی کاربر",
   fullProfile: "👤 پروفایل کامل کاربر",
-  relic: "🪙 مدیریت XP",
+  relic: "🪙 مدیریت ژتون",
   level: "⭐ مدیریت Level",
   moderators: "🛡️ مدیریت Moderator / Admin",
   stats: "📊 آمار ربات",
@@ -28,7 +29,7 @@ export const ADMIN_MENU_LABELS = {
   settings: "⚙️ تنظیمات ربات",
   guidesAndChannels: "🛠 راهنما / کانال جوین / پشتیبانی",
   resetUser: "♻️ ریست اطلاعات کاربر",
-  pricing: "💳 تنظیم قیمت XP",
+  pricing: "💳 تنظیم قیمت ژتون",
   reactionGate: "🎯 تنظیم گیت ری‌اکشن",
   exportUsers: "📤 خروجی اکسل کاربران",
   importUsers: "📥 ورودی اکسل (بازیابی)",
@@ -45,6 +46,10 @@ export const ADMIN_MENU_LABELS = {
   ngShortNames: "🔢 یوزرنیم کوتاه",
   ownerProfile: "👑 اکانت مالک (Nava)",
   wallet: "🔌 اتصال ولت",
+  shop: "🛒 منوی خرید",
+  channels: "📡 کانال‌ها و مسیر پیام‌ها",
+  emojis: "✨ ایموجی‌ها",
+  adminAccess: "🔑 دسترسی ادمین‌ها",
   close: "❌ بستن پنل",
 } as const;
 
@@ -73,6 +78,9 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.ngShortNames,
   ADMIN_MENU_LABELS.ownerProfile,
   ADMIN_MENU_LABELS.wallet,
+  ADMIN_MENU_LABELS.channels,
+  ADMIN_MENU_LABELS.emojis,
+  ADMIN_MENU_LABELS.adminAccess,
   ADMIN_MENU_LABELS.officialAdd,
 ];
 
@@ -81,7 +89,7 @@ const OWNER_ONLY: string[] = [
 export const ADMIN_CATEGORY_LABELS = {
   users: "👥 کاربر ها",
   messages: "📢 پیام و گزارش",
-  economy: "🪙 سکه‌ها",
+  economy: "🪙 ژتون‌ها",
   nava: "📸 نوا گرام",
   seeds: "🎭 ممبرهای پیش‌فرض",
   staff: "🛡️ مدیریت و لاگ",
@@ -107,6 +115,7 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
   economy: [
     { label: ADMIN_MENU_LABELS.relic, icon: () => buttonIcon("CROWN") },
     { label: ADMIN_MENU_LABELS.pricing },
+    { label: ADMIN_MENU_LABELS.shop },
     { label: ADMIN_MENU_LABELS.level, icon: () => buttonIcon("LEVEL_LEGEND") },
   ],
   nava: [
@@ -119,13 +128,14 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.ownerProfile },
   ],
   seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedBatch }, { label: ADMIN_MENU_LABELS.officialAdd }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
-  staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
+  staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.adminAccess }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
   data: [{ label: ADMIN_MENU_LABELS.exportUsers }, { label: ADMIN_MENU_LABELS.importUsers }],
 };
 
 function visibleEntries(ctx: NavaContext, id: CategoryId) {
   const owner = isOwner(ctx);
-  return ADMIN_CATEGORIES[id].filter((e) => owner || !OWNER_ONLY.includes(e.label));
+  const need = labelPermissions(ADMIN_MENU_LABELS as unknown as Record<string, string>);
+  return ADMIN_CATEGORIES[id].filter((e) => owner || (!OWNER_ONLY.includes(e.label) && (!need[e.label] || canAdmin(ctx, need[e.label]!))));
 }
 
 function pairRows(items: Array<{ label: string; icon?: IconInput }>) {
@@ -142,6 +152,8 @@ const MAIN_PANEL_TOOLS: Array<{ label: string; icon?: () => IconInput }> = [
   { label: ADMIN_MENU_LABELS.guidesAndChannels },
   { label: ADMIN_MENU_LABELS.reactionGate },
   { label: ADMIN_MENU_LABELS.wallet },
+  { label: ADMIN_MENU_LABELS.channels },
+  { label: ADMIN_MENU_LABELS.emojis },
 ];
 
 export function buildAdminReplyKeyboard(ctx: NavaContext) {

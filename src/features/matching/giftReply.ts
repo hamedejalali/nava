@@ -14,8 +14,8 @@ const REPLY = /^gr:([A-Za-z0-9_-]{6,24})$/;
 const CONFIRM = /^grc:([A-Za-z0-9_-]{6,24})$/;
 
 export const GIFT_REPLY_NO_BALANCE_TEXT =
-  "💎 برای پیام دادن به فرستنده‌ی هدیه ۱ XP لازمه و موجودی تو الان کافی نیست.\n" +
-  "<blockquote>از ربات کیف پول XP بخر و به همین ربات منتقلش کن؛ بعد دوباره روی دکمه بزن.</blockquote>";
+  "💎 برای پیام دادن به فرستنده‌ی هدیه ۱ ژتون لازمه و موجودی تو الان کافی نیست.\n" +
+  "<blockquote>از ربات کیف پول ژتون بخر و به همین ربات منتقلش کن؛ بعد دوباره روی دکمه بزن.</blockquote>";
 
 /** The gift only counts while the person tapping still OWNS it and it was not sent anonymously. */
 async function giftForReply(pub: string, me: number): Promise<{ senderId: number } | null> {
@@ -43,7 +43,7 @@ export function registerGiftReply(composer: Composer<NavaContext>) {
       return;
     }
     await ctx.reply(
-      "💬 پیام دادن به فرستنده‌ی هدیه ۱ XP هزینه داره.\n<blockquote>یه درخواست چت براش می‌فرستیم؛ اگه قبول کنه از هر دو نفر ۱ XP کم میشه و چت ناشناس شروع میشه. اگه قبول نکنه چیزی کم نمیشه.</blockquote>\nتأیید می‌کنی؟",
+      "💬 پیام دادن به فرستنده‌ی هدیه ۱ ژتون هزینه داره.\n<blockquote>یه درخواست چت براش می‌فرستیم؛ اگه قبول کنه از هر دو نفر ۱ ژتون کم میشه و چت ناشناس شروع میشه. اگه قبول نکنه چیزی کم نمیشه.</blockquote>\nتأیید می‌کنی؟",
       {
         parse_mode: "HTML",
         reply_markup: inlineKeyboard([[glassButton("تأیید", `grc:${pub}`, "success", buttonIcon("GREEN_CHECK")), glassButton("انصراف", "grc:no", "danger", buttonIcon("BAN"))]]),

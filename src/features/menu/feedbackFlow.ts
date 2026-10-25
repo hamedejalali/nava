@@ -1,7 +1,8 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
-import { getRequestRecipientIds } from "../admin/constants.js";
+import {  } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
 import { escapeHtml } from "../../utils/html.js";
@@ -67,7 +68,7 @@ export function registerFeedbackFlow(composer: Composer<NavaContext>) {
 
     await (await flowCollection()).deleteOne({ _id: ctx.from!.id });
     const body = `💬 پیشنهاد/انتقاد جدید\n\n${userInfoLines(ctx)}\n\n<blockquote>${escapeHtml(text)}</blockquote>`;
-    for (const ownerId of await getRequestRecipientIds()) {
+    for (const ownerId of await getRecipients("feedback")) {
       await ctx.api.sendMessage(ownerId, body, { parse_mode: "HTML" }).catch(() => {});
     }
     await ctx.reply("✅ ممنون! پیامت ارسال شد.");
@@ -82,7 +83,7 @@ export function registerFeedbackFlow(composer: Composer<NavaContext>) {
     const caption = ctx.message.caption?.trim();
     const captionLine = caption ? `\n\n<blockquote>${escapeHtml(caption)}</blockquote>` : "";
     const body = `💬 پیشنهاد/انتقاد جدید (با عکس)\n\n${userInfoLines(ctx)}${captionLine}`;
-    for (const ownerId of await getRequestRecipientIds()) {
+    for (const ownerId of await getRecipients("feedback")) {
       await ctx.api.sendPhoto(ownerId, largest.file_id, { caption: body, parse_mode: "HTML" }).catch(() => {});
     }
     await ctx.reply("✅ ممنون! پیامت ارسال شد.");

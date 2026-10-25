@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { getBotSettings } from "../../db/models/settings.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { cancelKeyboard } from "../common/userFlows.js";
@@ -59,12 +60,12 @@ export async function navagramScreen(): Promise<{ text: string; reply_markup: Re
 
 export async function giftsScreen() {
   const cards = await giftCatalog(true);
-  const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} XP${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
+  const lines = cards.map((g) => `${g.emoji} ${g.name} — ${g.price} ژتون${g.unique ? (g.soldOut ? " ✨یکتا (فروخته شد)" : " ✨یکتا") : ""}${g.custom ? " 🎞" : ""}${g.off ? " (غیرفعال)" : ""}`);
   const rows = cards.map((g) => [glassButton(`${g.emoji} ${g.name}${g.off ? " (غیرفعال)" : ""}`, `${NG_CB.gift}${g.id}`, "primary")]);
   rows.push([glassButton("➕ هدیه‌ی تلگرامی جدید", GF.add, "success"), glassButton("📥 ایمپورت از فایل", GF.pack, "success")]);
   rows.push([glassButton("🔨 حراج و قرعه‌کشی", GF.ev, "primary"), glassButton("👤 هدیه‌های یک کاربر", GF.users, "primary")]);
   rows.push([glassButton("↩️ بازگشت", NG_CB.open, "primary")]);
-  return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به XP هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
+  return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به ژتون هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
 }
 
 async function giftScreen(giftId: string) {
@@ -72,7 +73,7 @@ async function giftScreen(giftId: string) {
   if (!g) return null;
   const off = g.off;
   return {
-    text: `${g.emoji} <b>${escapeHtml(g.name)}</b>\n\nقیمت: ${g.price} XP\nوضعیت: ${off ? "🔴 غیرفعال" : "🟢 فعال"}\nنسخه‌ی یکتا: ${g.unique ? (g.soldOut ? "✨ بله (فروخته شده)" : "✨ بله (هنوز فروخته نشده)") : "نه"}${g.custom ? "\nنوع: 🎞 هدیه‌ی انیمیشنی تلگرام" : ""}`,
+    text: `${g.emoji} <b>${escapeHtml(g.name)}</b>\n\nقیمت: ${g.price} ژتون\nوضعیت: ${off ? "🔴 غیرفعال" : "🟢 فعال"}\nنسخه‌ی یکتا: ${g.unique ? (g.soldOut ? "✨ بله (فروخته شده)" : "✨ بله (هنوز فروخته نشده)") : "نه"}${g.custom ? "\nنوع: 🎞 هدیه‌ی انیمیشنی تلگرام" : ""}`,
     reply_markup: inlineKeyboard([
       [glassButton("تغییر قیمت", `${NG_CB.giftPrice}${g.id}`, "primary")],
       [glassButton(off ? "فعال کردن" : "غیرفعال کردن", `${NG_CB.giftToggle}${g.id}`, off ? "success" : "danger")],
@@ -206,7 +207,7 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
     if (!(await giftCatalog(true)).some((x) => x.id === id)) return void (await ctx.answerCallbackQuery());
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "price", data: { giftId: id } });
-    await ctx.reply(`قیمت جدید (به XP، عدد صحیح بین ۱ تا ${MAX_GIFT_PRICE}) رو بفرست:`, { reply_markup: cancelKeyboard() });
+    await ctx.reply(`قیمت جدید (به ژتون، عدد صحیح بین ۱ تا ${MAX_GIFT_PRICE}) رو بفرست:`, { reply_markup: cancelKeyboard() });
   });
 
   composer.on("message:text", async (ctx, next) => {
@@ -268,7 +269,7 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
         const me = await ctx.api.getChatMember(chat.id, ctx.me.id);
         if (me.status !== "administrator" && me.status !== "creator") throw new Error("not admin");
         const cur = await getMiniSettings();
-        const mgmt = env.MODERATION_LOG_CHAT_ID;
+        const mgmt = (await getBotSettings()).managementChannelId ?? env.MODERATION_LOG_CHAT_ID;
         const clash = isEvents ? chat.id === cur.postsChannelId || chat.id === mgmt : chat.id === cur.eventsChannelId;
         if (clash) {
           await ctx.reply("این کانال با یکی از کانال‌های دیگه (کپی پست‌ها / حراج و قرعه‌کشی / مدیریت) یکیه. برای جلوگیری از قاطی‌شدن، یه کانال جدا بفرست.", { reply_markup: cancelKeyboard() });

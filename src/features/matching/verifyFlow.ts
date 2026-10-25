@@ -7,7 +7,8 @@ import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { env } from "../../config/env.js";
 import { textEmoji } from "../../config/emojis.js";
 import { getUser, setVerified } from "../../db/models/user.js";
-import { getRequestRecipientIds, isOwner } from "../admin/constants.js";
+import {  isOwner } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { getContent } from "../../db/models/content.js";
 import { escapeHtml } from "../../utils/html.js";
@@ -266,7 +267,7 @@ async function finalizeVerify(ctx: NavaContext, flow: VerifyFlowDoc, phone: stri
   ]);
 
   // Photo + phone travel together (the phone is in the photo's caption).
-  for (const adminId of await getRequestRecipientIds()) {
+  for (const adminId of await getRecipients("verify")) {
     await ctx.api.sendPhoto(adminId, flow.photoFileId!, { caption, parse_mode: "HTML", reply_markup: kb }).catch(async () => {
       await ctx.api.sendMessage(adminId, caption, { parse_mode: "HTML", reply_markup: kb }).catch(() => {});
     });

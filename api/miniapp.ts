@@ -42,7 +42,7 @@ import { hasPendingProfilePhoto } from "../src/db/models/imageModeration.js";
 import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople } from "../src/services/nava/search.js";
 import { prepareShare } from "../src/services/nava/share.js";
 import { waitUntil } from "@vercel/functions";
-import * as bg from "../src/services/games/backgammonGames.js";
+import { GAME_ACTIONS, GAME_ACTING_NEVER, GAME_ERRORS, gamePulse, handleGameAction } from "../src/services/games/index.js";
 import { deleteThreadForMe, cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
 import { blockInApp, listBlocked, reportInApp, unblockInApp } from "../src/services/nava/safety.js";
 import { sendOfficialMessage } from "../src/services/nava/dm.js";
@@ -108,7 +108,7 @@ const ACTIONS = new Set([
   // safety: block / report (synced with the bot) and staff moderation from a profile's ⋮ menu
   "block", "unblock", "blocked_list", "report", "mod",
   // backgammon (experimental two-player game)
-  "game_lobby", "game_create", "game_join", "game_state", "game_roll", "game_move", "game_resign",
+  ...GAME_ACTIONS,
   // legacy (v1.14/v1.15 clients)
   "feed", "photo",
 ]);
@@ -121,7 +121,7 @@ const SOCIAL_ERRORS: Record<string, number> = {
   bad_bio: 400, bio_too_long: 400, bad_image: 400, bad_text: 400, text_too_long: 400, bad_input: 400, bad_gift: 400,
   bad_name: 400, bad_age: 400, same_value: 400, pending_request: 409, self: 400,
   too_fast: 429, too_many: 429, insufficient: 402, forbidden: 403, comments_off: 403, not_found: 404,
-  unavailable: 503, share_unavailable: 503, sold_out: 409, busy: 409, not_your_turn: 409, illegal_move: 400, chat_ended: 409, contact_forbidden: 400, need_photo: 403, bad_input2: 400,
+  unavailable: 503, share_unavailable: 503, sold_out: 409, busy: 409, ...GAME_ERRORS, chat_ended: 409, contact_forbidden: 400, need_photo: 403, bad_input2: 400,
 };
 
 function readBody(req: VercelRequest): Record<string, unknown> {
@@ -276,7 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // A default member has no Relic: nothing that spends, earns or goes through moderation / Telegram as a real person.
     // (v1.23: chats — requests, accepting, writing — now work while acting as a default member / legal account; the real person on the
     // other side pays, the default member never does.) Legal ("حقوقی") accounts may also change their own name / photo.
-    const ACTING_NEVER = ["gift_send", "gift_regift", "block", "unblock", "report", "mod", "game_create", "game_join", "game_roll", "game_move", "game_resign"];
+    const ACTING_NEVER = ["gift_send", "gift_regift", "block", "unblock", "report", "mod", ...GAME_ACTING_NEVER];
     const ACTING_PLAIN_SEED_NEVER = ["upload_photo", "request_change"];
     if (acting && (ACTING_NEVER.includes(action) || (!isOfficial(me) && ACTING_PLAIN_SEED_NEVER.includes(action)))) return void res.status(403).json({ error: "forbidden" });
     // Abuse protection (v1.16.3): per-person budget, counted in MongoDB so it holds across serverless instances.
@@ -428,6 +428,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             requests: u?.isPrivate ? await countFollowRequests(me._id) : 0,
             unread: await unreadCounts(me._id),
             dm: await dmPulse(me),
+            games: await gamePulse(me),
           });
         }
         case "comment_delete":
@@ -586,19 +587,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         /* ----------------------------------------------------------- games */
         case "game_lobby":
-          return send(await bg.lobby(me));
         case "game_create":
-          return send(await bg.create(me, body.stake));
         case "game_join":
-          return send(await bg.join(me, body.gid));
         case "game_state":
-          return send(await bg.getState(me, body.gid, body.since));
         case "game_roll":
-          return send(await bg.roll(me, body.gid));
         case "game_move":
-          return send(await bg.move(me, body.gid, { from: body.from, to: body.to, die: body.die }));
         case "game_resign":
-          return send(await bg.resign(me, body.gid));
+          return send(await handleGameAction(action, me, body));
 
         /* ---------------------------------------------------------- legacy */
         case "feed": {

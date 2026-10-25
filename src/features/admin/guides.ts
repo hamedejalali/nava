@@ -1,7 +1,7 @@
 import type { Composer } from "grammy";
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { cancelButton } from "../../ui/cancelButton.js";
 import { getContent, setContent, type ContentKey } from "../../db/models/content.js";
 import { startEdit, getEdit, clearEdit } from "../../db/models/adminSession.js";
 import { fa } from "../../i18n/locales/fa.js";
@@ -35,7 +35,7 @@ export const DEFAULT_RULES =
   "6️⃣ ثبت جنسیت اشتباه در پروفایل\n\n" +
   "7️⃣ تهدید و جا زدن خود بعنوان مدیر ربات یا پلیس فتا !\n\n" +
   "برای گزارش عدم رعایت قوانین می توانید با لمس 《 🚫 گزارش کاربر 》 در پروفایل، کاربر را گزارش کنید.\n\n" +
-  "👈درصورت گزارش صحیح کاربر متخلف 💰 5 XP بعنوان هدیه دریافت میکنید.\n\n" +
+  "👈درصورت گزارش صحیح کاربر متخلف 💰 5 ژتون بعنوان هدیه دریافت میکنید.\n\n" +
   "🔸 - ‏ راهنما : /help";
 
 const LABELS: Record<ContentKey, string> = {
@@ -83,7 +83,7 @@ export function registerAdminGuides(composer: Composer<NavaContext>) {
     await ctx.reply(current ? `متن فعلی «${LABELS[key]}»:\n\n${current}` : `«${LABELS[key]}» هنوز تنظیم نشده.`);
 
     const sent = await ctx.reply("متن جدید رو بفرست:", {
-      reply_markup: inlineKeyboard([[cancelButton("لغو", ADMIN_CALLBACKS.cancelEdit)]]),
+      reply_markup: cancelKeyboard(),
     });
     await startEdit(ctx.from!.id, key, sent.message_id);
   };

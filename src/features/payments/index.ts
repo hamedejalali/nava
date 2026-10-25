@@ -1,17 +1,11 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
-import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { buttonIcon, textEmoji } from "../../config/emojis.js";
+import { textEmoji } from "../../config/emojis.js";
 import { creditPurchaseOnce } from "../../db/models/relic.js";
 import { getPackages } from "../../db/models/pricing.js";
-import { MENU_CALLBACKS } from "../menu/mainMenu.js";
-import { XP_CB } from "../wallet/xpDeposit.js";
 import { env } from "../../config/env.js";
 import { getOrCreateStarsOrder, getStarsOrder, markStarsOrderFulfilled, recordStarsPaymentException, type StarsOrderDoc } from "../../db/models/starsOrder.js";
 
-const OPEN_CB = { stars: "relic:open:stars", gateway: "relic:open:gateway" };
-const BUY_STARS_PREFIX = "relic:buy:stars:"; // + package index
-const BUY_GATEWAY_PREFIX = "relic:buy:gateway:"; // + package index
 
 /** Payload formats:
  *   "relic:o:<orderId>"  (current) — points at the persisted order (package + price as OFFERED at invoice time);
@@ -46,78 +40,7 @@ async function resolveStarsPayload(payload: string): Promise<Resolved> {
   return { ok: true, relic: pkg.relic, price: pkg.price };
 }
 
-export async function showRelicScreen(ctx: NavaContext): Promise<void> {
-  const balance = ctx.dbUser?.relicBalance ?? 0;
-  const relicEmoji = textEmoji("RELIC", "👑");
-
-  await ctx.reply(`${relicEmoji} موجودی XP شما: ${balance}\n\nاز کدوم روش می‌خوای XP بخری؟`, {
-    reply_markup: inlineKeyboard([
-      [glassButton("⭐ خرید XP با Telegram Stars", OPEN_CB.stars, "primary", buttonIcon("CROWN"))],
-      [glassButton("💳 خرید XP از طریق درگاه", OPEN_CB.gateway, "primary", buttonIcon("CROWN"))],
-      [glassButton("📥 واریز XP از ولت", XP_CB.open, "success")],
-    ]),
-  });
-}
-
-export function registerRelicScreen(composer: Composer<NavaContext>) {
-  composer.callbackQuery(MENU_CALLBACKS.relicCoin, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await showRelicScreen(ctx);
-  });
-
-  composer.callbackQuery(OPEN_CB.stars, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const packages = await getPackages("stars");
-    if (packages.length === 0) {
-      await ctx.reply("فعلاً پکیجی برای خرید با استارز تنظیم نشده.");
-      return;
-    }
-    const buttons = packages.map((pkg, index) =>
-      glassButton(`⭐ ${pkg.price} = 👑 ${pkg.relic}`, `${BUY_STARS_PREFIX}${index}`, "primary", buttonIcon("CROWN"))
-    );
-    await ctx.reply("یکی از پکیج‌های زیر رو انتخاب کن:", { reply_markup: inlineKeyboard(buttons.map((b) => [b])) });
-  });
-
-  composer.callbackQuery(OPEN_CB.gateway, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    // (getPackages falls back to 5 ready-made default packages until real
-    //  ones are set from the admin panel.)
-    const packages = await getPackages("gateway");
-    const buttons = packages.map((pkg, index) =>
-      glassButton(`${pkg.price.toLocaleString("fa-IR")} تومان = ${pkg.relic} XP`, `${BUY_GATEWAY_PREFIX}${index}`, index % 2 === 0 ? "primary" : "success", buttonIcon("CROWN"))
-    );
-    await ctx.reply("💳 خرید XP از طریق درگاه\n\nیکی از پکیج‌های زیر رو انتخاب کن:", {
-      reply_markup: inlineKeyboard(buttons.map((b) => [b])),
-    });
-  });
-
-  composer.callbackQuery(new RegExp(`^${BUY_STARS_PREFIX}(\\d+)$`), async (ctx) => {
-    const index = Number(ctx.match![1]);
-    const packages = await getPackages("stars");
-    const pkg = packages[index];
-    if (!pkg) {
-      await ctx.answerCallbackQuery({ text: "این پکیج دیگه معتبر نیست." });
-      return;
-    }
-
-    await ctx.answerCallbackQuery();
-    const order = await getOrCreateStarsOrder(ctx.from!.id, index, pkg);
-    await ctx.api.sendInvoice(
-      ctx.chat!.id,
-      `${order.relic} XP`,
-      `خرید ${order.relic} XP برای نوا`,
-      encodePayload(order._id),
-      "XTR",
-      [{ label: `${order.relic} XP`, amount: order.price }],
-      { provider_token: "" }
-    );
-  });
-
-  // Gateway checkout isn't connected yet — friendly notice only.
-  composer.callbackQuery(new RegExp(`^${BUY_GATEWAY_PREFIX}(\\d+)$`), async (ctx) => {
-    await ctx.answerCallbackQuery({ text: "درگاه پرداخت هنوز فعال نشده؛ به‌زودی فعال میشه 🙏", show_alert: true });
-  });
-}
+export { showRelicScreen } from "../shop/shop.js";
 
 export function registerStarsCheckout(composer: Composer<NavaContext>) {
   composer.on("pre_checkout_query", async (ctx) => {
@@ -177,6 +100,6 @@ export function registerStarsCheckout(composer: Composer<NavaContext>) {
     if (!credited) return; // duplicate delivery, already credited
 
     const relicEmoji = textEmoji("RELIC", "👑");
-    await ctx.reply(`✅ ${resolved.relic} ${relicEmoji} XP به حساب شما اضافه شد. ممنون از خریدت 🙏`);
+    await ctx.reply(`✅ ${resolved.relic} ${relicEmoji} ژتون به حساب شما اضافه شد. ممنون از خریدت 🙏`);
   });
 }

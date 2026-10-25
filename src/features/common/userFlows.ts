@@ -2,10 +2,12 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
 import { clearTransferSession } from "../../db/models/transferSession.js";
-import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
+import { glassButton, glassReplyButton, inlineKeyboard, replyKeyboard } from "../../ui/keyboard.js";
+import { CANCEL_LABEL } from "./cancelLabel.js";
+import { sendRestore } from "./keyboardState.js";
 import { matchMainMenuAction } from "../menu/mainMenu.js";
 import { isAdmin } from "../admin/constants.js";
-import { ADMIN_MENU_LABELS } from "../admin/menu.js";
+import { ADMIN_MENU_LABELS, ADMIN_CATEGORY_LABELS } from "../admin/menu.js";
 import { setAdminFlow } from "../admin/flowState.js";
 
 /**
@@ -26,8 +28,15 @@ import { setAdminFlow } from "../admin/flowState.js";
 
 export const FLOW_CANCEL_CALLBACK = "flow:cancel";
 
-/** Red "❌ لغو" button — attach as `reply_markup` to any "waiting for input" prompt. */
+/** The input-step cancel control (v1.26): ONE red «❌ لغو» reply-keyboard button — and nothing else on screen.
+ *  It replaces whatever keyboard was shown; `restoreKeyboardIfDone` (src/features/common/keyboardState.ts) brings the
+ *  previous one back when the step is over. Attach as `reply_markup` to any "waiting for input" prompt. */
 export function cancelKeyboard() {
+  return replyKeyboard([[glassReplyButton(CANCEL_LABEL, "danger")]]);
+}
+
+/** Old inline version, kept for messages that were sent by earlier versions (their callback still works). */
+export function inlineCancelKeyboard() {
   return inlineKeyboard([[glassButton("❌ لغو", FLOW_CANCEL_CALLBACK, "danger")]]);
 }
 
@@ -84,6 +93,14 @@ export function registerFlowInterrupt(composer: Composer<NavaContext>) {
     const text = ctx.message.text.trim();
     const user = ctx.dbUser;
 
+    // the red «❌ لغو» keyboard button: ends EVERY pending step and brings the previous keyboard back
+    if (text === CANCEL_LABEL && !user?.activeChatSessionId) {
+      await clearAllUserFlows(ctx.from!.id);
+      await setAdminFlow(ctx.from!.id, null);
+      await sendRestore(ctx, "لغو شد ✅");
+      return;
+    }
+
     if (user && !user.activeChatSessionId) {
       const isCommand = text.startsWith("/");
       const isMenuTap = user.onboardingStep === "COMPLETED" && !!matchMainMenuAction(text);
@@ -92,8 +109,18 @@ export function registerFlowInterrupt(composer: Composer<NavaContext>) {
       }
     }
 
-    if (isAdmin(ctx) && Object.values(ADMIN_MENU_LABELS).includes(text as never)) {
+    // Any admin-panel button (main panel, category, back, close) abandons EVERY pending text step —
+    // including the relic/ژتون step (admin_relic_flow) that used to swallow the next taps with
+    // «آیدی معتبر نیست».
+    const adminTap =
+      isAdmin(ctx) &&
+      ((Object.values(ADMIN_MENU_LABELS) as string[]).includes(text) ||
+        (Object.values(ADMIN_CATEGORY_LABELS) as string[]).includes(text) ||
+        !!matchMainMenuAction(text) ||
+        text.startsWith("/"));
+    if (adminTap) {
       await setAdminFlow(ctx.from!.id, null);
+      await clearAllUserFlows(ctx.from!.id);
     }
 
     await next();

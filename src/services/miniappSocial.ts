@@ -6,7 +6,8 @@ import { env } from "../config/env.js";
 import { getBotSettings } from "../db/models/settings.js";
 import { dictionary } from "../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../ui/keyboard.js";
-import { getRequestRecipientIds } from "../features/admin/constants.js";
+import {  } from "../features/admin/constants.js";
+import { getRecipients } from "./channelRouting.js";
 import { adminCaption } from "../features/photo/moderation.js";
 import { checkImage, type ModerationCheckResult } from "./sightengine.js";
 import { botApi } from "./miniapp.js";
@@ -258,7 +259,7 @@ export async function uploadProfilePhoto(user: UserDoc, raw: unknown, deps?: Par
   const d: UploadDeps = {
     api: deps?.api ?? botApi(),
     check: deps?.check ?? checkImage,
-    recipients: deps?.recipients ?? getRequestRecipientIds,
+    recipients: deps?.recipients ?? (() => getRecipients("profileEdit")),
   };
   // A legal account (a default member the owner runs): the photo goes to the OWNER's chat just to obtain a file_id, no approval.
   if (isOfficial(user) && !(env.OWNER_ID !== undefined && user._id === env.OWNER_ID) && env.OWNER_ID !== undefined) {

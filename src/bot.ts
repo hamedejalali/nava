@@ -19,8 +19,8 @@ import { registerVerifyFlow } from "./features/matching/verifyFlow.js";
 import { registerRelicTransfer } from "./features/matching/transfer.js";
 import { inMiniappChat, MINIAPP_CHAT_HINT, registerMiniappChatGuard } from "./features/matching/relayShared.js";
 import { hasPendingPhotoFlow } from "./features/common/userFlows.js";
-import { registerXpDeposit } from "./features/wallet/xpDeposit.js";
-import { registerRelicScreen, registerStarsCheckout } from "./features/payments/index.js";
+import { registerShop } from "./features/shop/shop.js";
+import { registerStarsCheckout } from "./features/payments/index.js";
 import { ensureUserIndexes } from "./db/models/user.js";
 import { ensureMatchQueueIndexes } from "./db/models/matchQueue.js";
 import { ensureChatSessionIndexes } from "./db/models/chatSession.js";
@@ -55,6 +55,10 @@ import { registerMainMenuRouter } from "./features/menu/mainMenuRouter.js";
 import { escapeHtml } from "./utils/html.js";
 import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
 import { telegramRetryTransformer } from "./ui/telegramRetry.js";
+import { loadEmojiConfig } from "./db/models/emojiConfig.js";
+import { resumeIfBroken } from "./features/onboarding/repair.js";
+import { keyboardStateTransformer, restoreKeyboardIfDone } from "./features/common/keyboardState.js";
+import { registerGameShareStart } from "./features/games/shareStart.js";
 import { registerAnonMessages } from "./features/anonMessages/index.js";
 import { registerAdminReactionGate } from "./features/admin/reactionGateAdmin.js";
 import { registerReactionGate } from "./features/reactionGate/gate.js";
@@ -90,6 +94,8 @@ export function createBot(): Bot<NavaContext> {
   // (see src/services/seeds/guard.ts).
   bot.api.config.use(seedGuardTransformer);
   bot.api.config.use(telegramRetryTransformer);
+  // remembers which reply keyboard each private chat currently shows (see features/common/keyboardState.ts)
+  bot.api.config.use(keyboardStateTransformer);
 
   // Fire-and-forget index setup — runs once per cold start (createBot is
   // only called once per warm container). createIndexes is idempotent, so
@@ -208,6 +214,18 @@ export function createBot(): Bot<NavaContext> {
     await next();
   });
 
+  // ---- emoji settings from the admin panel (premium on/off + overrides), cached 20 s ----
+  bot.use(async (_ctx, next) => {
+    await loadEmojiConfig();
+    await next();
+  });
+
+  // ---- A «completed» account without name and age goes back into the questions (never «نام: - سن: -») ----
+  bot.use(async (ctx, next) => {
+    if (await resumeIfBroken(ctx)) return;
+    await next();
+  });
+
   // ---- Rate limiting / anti-spam ----
   // Persistent (MongoDB), not process-memory — required for correctness
   // across concurrent serverless instances. Separate buckets for text
@@ -240,6 +258,7 @@ export function createBot(): Bot<NavaContext> {
   });
 
   const features = new Composer<NavaContext>();
+  bot.use(restoreKeyboardIfDone); // after every handler: bring the main/admin keyboard back once an input step is over
   registerFlowInterrupt(features); // a menu tap / command always ends a pending "waiting for text" step
   registerFlowCancel(features); // the red "❌ لغو" glass button used by every such step
   registerAdmin(features);
@@ -264,7 +283,6 @@ export function createBot(): Bot<NavaContext> {
   registerGiftEvents(features); // auction / giveaway buttons under the channel posts
   registerGiftReply(features); // "پیام به فرستنده" under gift notifications
   registerChatRequest(features); // accept/decline buttons of chat requests sent from the Nava Mini App
-  registerXpDeposit(features); // «واریز XP از ولت»: amount → wallet token → Nava asks the Wallet → credit on COMPLETED
   registerRelicTransfer(features); // before chat relay: an amount reply must never be relayed as a chat message
   registerChatControls(features); // before chat relay: the reply-keyboard control labels must never be relayed as a chat message
   registerMiniappChatGuard(features, hasPendingPhotoFlow); // a photo/sticker sent to the bot during an in-app chat points back to the app
@@ -272,6 +290,7 @@ export function createBot(): Bot<NavaContext> {
   registerChatMediaRelay(features); // stickers/gifs/voice/video/video-notes/audio inside an active chat
   registerChatReactions(features); // mirrors real message_reaction updates onto the original sender's copy
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
+  registerGameShareStart(features); // /start g_<gid> (shared game link) before the generic /start
   registerAnonMessages(features); // before onboarding (its /start payload) and before the photo uploader
   registerFeedbackFlow(features);
   registerOnboarding(features);
@@ -289,7 +308,7 @@ export function createBot(): Bot<NavaContext> {
   registerContacts(features);
   registerProfileLookup(features);
   registerVerifyFlow(features);
-  registerRelicScreen(features);
+  registerShop(features); // «ژتون» purchase menu: Stars / ژتون / آدرس ولت (one message, edited in place)
   registerStarsCheckout(features);
   registerMainMenuRouter(features); // last: only acts on exact main-menu label text, next()s everything else
   bot.use(features);

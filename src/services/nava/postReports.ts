@@ -1,7 +1,8 @@
 import { InputFile } from "grammy";
 import { escapeHtml } from "../../utils/html.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
-import { getRequestRecipientIds } from "../../features/admin/constants.js";
+import {  } from "../../features/admin/constants.js";
+import { getRecipients } from "../channelRouting.js";
 import { botApi } from "../miniapp.js";
 import { C, SocialError, col, findVisibleUser, parsePid } from "./common.js";
 import { loadMedia } from "./media.js";
@@ -59,7 +60,7 @@ async function notifyStaff(post: PostDoc, reason: ReportReason, count: number): 
     [glassButton("✅ مشکلی نیست", `${PR.ignore}${post._id}`, "success")],
   ]);
   const media = await loadMedia(post.mediaId).catch(() => null);
-  for (const id of await getRequestRecipientIds()) {
+  for (const id of await getRecipients("postReport")) {
     try {
       if (media) await botApi().sendPhoto(id, new InputFile(media.buffer), { caption: text, parse_mode: "HTML", reply_markup });
       else await botApi().sendMessage(id, text, { parse_mode: "HTML", reply_markup });

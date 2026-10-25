@@ -40,7 +40,7 @@
     clearTimeout(toastT); toastT = setTimeout(function () { e.classList.remove("show"); }, 2800);
   };
   NG.ago = function (ms) {
-    var s = Math.max(0, (Date.now() - ms) / 1000);
+    var s = Math.max(0, (Date.now() + (NG.skew || 0) - ms) / 1000); // NG.skew: server clock − this phone's clock
     if (s < 45) return "همین الان";
     if (s < 3600) return NG.num(Math.max(1, Math.round(s / 60))) + " دقیقه پیش";
     if (s < 86400) return NG.num(Math.round(s / 3600)) + " ساعت پیش";
@@ -105,7 +105,10 @@
     if (qs.get("as") === "user") body.asUser = true;
     if (NG.actAs) body.actAs = NG.actAs; // owner / admins working AS a default member (verified on the server)
     return fetch("/api/miniapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+      .then(function (r) {
+        try { var dh = r.headers.get("Date"); if (dh) { var sv = Date.parse(dh); if (sv) NG.skew = sv - Date.now(); } } catch (e) {}
+        return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
+      });
   };
   /** Like NG.api but reports upload progress (0..1) — used for photo uploads. */
   NG.apiUp = function (action, body, onProgress) {
@@ -122,14 +125,14 @@
     });
   };
   var ERR = {
-    insufficient: "XP کافی نیست", need_photo: "برای این بخش اول باید عکس پروفایلت تأیید شده باشه.", not_registered: "ابتدا از داخل ربات ثبت‌نام کنید", too_fast: "کمی صبر کن و دوباره امتحان کن.", too_many: "به سقف مجاز امروز رسیدی.",
+    insufficient: "ژتون کافی نیست", need_photo: "برای این بخش اول باید عکس پروفایلت تأیید شده باشه.", not_registered: "ابتدا از داخل ربات ثبت‌نام کنید", too_fast: "کمی صبر کن و دوباره امتحان کن.", too_many: "به سقف مجاز امروز رسیدی.",
     bad_image: "این عکس قابل استفاده نیست.", text_too_long: "متن خیلی طولانیه.", bad_text: "متن معتبر نیست.", bad_input: "ورودی نامعتبره.",
-    chat_running: "اول چت رو پایان بده.", read_only: "این گفتگو فقط‌خواندنیه.", insufficient: "XP کافی نیست",
+    chat_running: "اول چت رو پایان بده.", read_only: "این گفتگو فقط‌خواندنیه.", insufficient: "ژتون کافی نیست",
     forbidden: "اجازه‌ی این کار رو نداری.", comments_off: "کامنت‌ها برای این پست بسته شده.", not_found: "پیدا نشد (ممکنه حذف شده باشه).",
     share_unavailable: "الان اشتراک‌گذاری ممکن نیست.", unavailable: "فعلاً امکانش نیست.", self: "این کار روی خودت ممکن نیست.",
     bad_gift: "این هدیه در دسترس نیست.", bad_name: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
     same_value: "این مقدار همونیه که الان داری.", pending_request: "یه درخواست در حال بررسی داری.", bio_too_long: "بیوگرافی حداکثر ۳۰۰ کاراکتر.",
-    taken: "این یوزرنیم قبلاً انتخاب شده", chat_ended: "این چت تموم شده.", contact_forbidden: "فرستادن آیدی/شماره/لینک تلگرام مجاز نیست.", busy: "الان توی یه بازی/چت دیگه‌ای هستی.", not_your_turn: "نوبت تو نیست.", illegal_move: "این حرکت مجاز نیست.",  sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
+    taken: "این یوزرنیم قبلاً انتخاب شده", chat_ended: "این چت تموم شده.", contact_forbidden: "فرستادن آیدی/شماره/لینک تلگرام مجاز نیست.", busy: "الان توی یه بازی/چت دیگه‌ای هستی.", game_limit: "حداکثر ۵ بازی هم‌زمان می‌تونی داشته باشی.", same_opponent: "با این بازیکن همین الان یه بازی در جریان داری.", not_your_turn: "نوبت تو نیست.", illegal_move: "این حرکت مجاز نیست.",  sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
   };
   /** The account the owner is working as (a default member's Nava ID), remembered for this session only. */
   NG.actAs = null;
@@ -183,7 +186,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.24.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.26.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

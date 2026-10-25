@@ -4,13 +4,16 @@
   "use strict";
   var NG = window.NG, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;
 
-  var last = { total: 0, likes: 0, follows: 0, comments: 0 };
+  var last = { latest: 0, total: 0, likes: 0, follows: 0, comments: 0 };
   var btn = null, pill = null, first = true;
 
   /** Called with the `unread` object of every pulse. Animates only when something NEW arrived. */
   NG.setPulse = function (u) {
     u = u || last;
-    var grew = !first && u.total > last.total;
+    // Each notification animates ONCE per device: the newest one's time is remembered, so reopening the app after the activity
+    // was seen (or after it already played) stays calm — only a newer notification plays the animation again.
+    var stamp = u.latest || 0, shown = NG.ls.get("actAnim", 0), grew = stamp > shown;
+    if (stamp > 0 && btn) { NG.ls.set("actAnim", Math.max(stamp, shown)); }
     last = u; first = false;
     if (!btn) return;
     btn.classList.toggle("has", u.total > 0);
@@ -176,7 +179,7 @@
         cursor = r.data.next;
         if (!Object.keys(secs).length) body.innerHTML = NG.emptyHtml("heartO", "هنوز فعالیتی نیست", "وقتی کسی پستت رو بپسنده، دنبالت کنه یا نظر بذاره اینجا می‌بینی.");
         if (r.data.hasMore) { more = el('<button class="moreb">بیشتر</button>'); more.onclick = function () { load(false); }; body.appendChild(more); }
-        if (!marked) { marked = true; NG.api("notifs_seen").then(function () { NG.setPulse({ total: 0, likes: 0, follows: 0, comments: 0 }); }); } // the rows keep their "new" highlight until this screen is closed
+        if (!marked) { marked = true; NG.ls.set("actAnim", Date.now() + (NG.skew || 0) + 60000); NG.api("notifs_seen").then(function () { NG.setPulse({ total: 0, likes: 0, follows: 0, comments: 0 }); }); } // the rows keep their "new" highlight until this screen is closed
       }).catch(function () { loading = false; NG.netErr(); });
     }
     load(true);

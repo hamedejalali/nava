@@ -7,7 +7,8 @@ import { citiesForProvince, isValidCityForProvince } from "../../data/cities.js"
 import { usersCollectionDirectSet, setUserLocation } from "../../db/models/user.js";
 import { isValidPersianNickname } from "../onboarding/nickname.js";
 import { createEditRequest, decideEditRequest, getEditRequest } from "../../db/models/editRequests.js";
-import { getRequestRecipientIds } from "../admin/constants.js";
+import {  } from "../admin/constants.js";
+import { getRecipients } from "../../services/channelRouting.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { showOwnProfile } from "./profile.js";
 import { cancelKeyboard, clearAllUserFlows } from "../common/userFlows.js";
@@ -275,7 +276,7 @@ export async function notifyRecipientsOfEditRequest(
       glassButton("❌ رد", `${ADMIN_DECISION_PREFIX.reject}${requestId}`, "danger"),
     ],
   ]);
-  for (const adminId of await getRequestRecipientIds()) {
+  for (const adminId of await getRecipients("profileEdit")) {
     await api.sendMessage(adminId, text, { reply_markup: kb }).catch(() => {});
   }
 }

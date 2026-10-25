@@ -21,6 +21,37 @@ import { env } from "./env.js";
 
 export type EmojiKey = keyof typeof env.emoji;
 
+/* ------------------------------------------------------------------ admin-panel overrides (v1.26)
+ * The owner can switch premium emoji on/off and replace any single emoji (premium ID or plain emoji) from the admin panel.
+ * The values live in Mongo (`emoji_config`) and are mirrored here in memory (reloaded at most every 20 s per instance),
+ * so the many synchronous callers (textEmoji / buttonIcon / the sanitizer) stay synchronous. The .env values are the default. */
+interface EmojiOverrides {
+  enabled?: boolean;
+  map: Record<string, string>;
+}
+let overrides: EmojiOverrides = { map: {} };
+let overridesLoadedAt = 0;
+
+export function setEmojiOverrides(o: EmojiOverrides): void {
+  overrides = { enabled: o.enabled, map: { ...o.map } };
+  overridesLoadedAt = Date.now();
+  allowedIdsCache = null;
+}
+export function emojiOverridesLoadedAt(): number {
+  return overridesLoadedAt;
+}
+export function currentEmojiOverrides(): EmojiOverrides {
+  return overrides;
+}
+/** master switch: the panel value wins over PREMIUM_EMOJI_ENABLED when it was set */
+export function premiumEnabled(): boolean {
+  return overrides.enabled ?? env.PREMIUM_EMOJI_ENABLED;
+}
+/** raw configured value for a key: panel override first, then .env */
+export function emojiRaw(key: EmojiKey): string | undefined {
+  return overrides.map[key] ?? env.emoji[key];
+}
+
 /** Plain Unicode emoji used whenever a premium ID is missing/disabled. */
 export const DEFAULT_EMOJI: Record<EmojiKey, string> = {
   WORLD: "🌍",
@@ -130,7 +161,7 @@ export function cleanEmojiId(raw: string | undefined): string | undefined {
  * Takes precedence over the fallback hard-coded in the code.
  */
 export function envPlainEmoji(key: EmojiKey): string | undefined {
-  const raw = env.emoji[key];
+  const raw = emojiRaw(key);
   if (!raw) return undefined;
   const rest = raw.replace(/\d{6,}/g, "").replace(/["'`]/g, "").trim();
   if (!rest || /[<>]/.test(rest) || rest.length > 16) return undefined;
@@ -140,8 +171,8 @@ export function envPlainEmoji(key: EmojiKey): string | undefined {
 /** Resolved premium ID for a key, or undefined when missing OR when the
  *  master switch PREMIUM_EMOJI_ENABLED is off. */
 export function premiumId(key: EmojiKey): string | undefined {
-  if (!env.PREMIUM_EMOJI_ENABLED) return undefined;
-  return cleanEmojiId(env.emoji[key]);
+  if (!premiumEnabled()) return undefined;
+  return cleanEmojiId(emojiRaw(key));
 }
 
 let allowedIdsCache: Set<string> | null = null;
@@ -150,11 +181,11 @@ let allowedIdsCache: Set<string> | null = null;
  *  tag whose ID is not configured anymore (or was typed by a user / stored
  *  in an old DB text) is silently downgraded to its plain emoji. */
 export function allowedPremiumIds(): Set<string> {
-  if (!env.PREMIUM_EMOJI_ENABLED) return new Set();
+  if (!premiumEnabled()) return new Set();
   if (!allowedIdsCache) {
     const set = new Set<string>();
-    for (const value of Object.values(env.emoji)) {
-      const id = cleanEmojiId(value);
+    for (const key of Object.keys(env.emoji) as EmojiKey[]) {
+      const id = cleanEmojiId(emojiRaw(key));
       if (id) set.add(id);
     }
     allowedIdsCache = set;
@@ -172,7 +203,7 @@ export function textEmoji(key: EmojiKey, fallback?: string): string {
   const plain = envPlainEmoji(key) ?? fallback ?? DEFAULT_EMOJI[key];
   const id = premiumId(key);
   if (!id) {
-    if (env.PREMIUM_EMOJI_ENABLED) warnMissing(key);
+    if (premiumEnabled()) warnMissing(key);
     return plain;
   }
   return `<tg-emoji emoji-id="${id}">${plain}</tg-emoji>`;
@@ -187,6 +218,6 @@ export interface ButtonIcon {
 
 export function buttonIcon(key: EmojiKey, fallback?: string): ButtonIcon {
   const id = premiumId(key);
-  if (!id && env.PREMIUM_EMOJI_ENABLED) warnMissing(key);
+  if (!id && premiumEnabled()) warnMissing(key);
   return { id, fallback: envPlainEmoji(key) ?? fallback ?? DEFAULT_EMOJI[key] };
 }

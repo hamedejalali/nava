@@ -1,3 +1,4 @@
+import { freeStickerFileId } from "./giftSticker.js";
 import type { Api } from "grammy";
 import { randomInt } from "node:crypto";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
@@ -96,16 +97,16 @@ async function eventText(ev: GiftEventDoc): Promise<string> {
   const ends = ev.endsAt.toLocaleString("fa-IR", { timeZone: "Asia/Tehran", dateStyle: "short", timeStyle: "short" });
   if (ev.kind === "auction") {
     const bids = (await (await col<any>(BIDS)).find({ eventId: ev._id }).sort({ n: -1 }).limit(12).toArray()).reverse();
-    const lines = bids.map((b: any) => `${escapeHtml(String(b.name))} قیمت ${b.amount} XP رو پیشنهاد داد`);
+    const lines = bids.map((b: any) => `${escapeHtml(String(b.name))} قیمت ${b.amount} ژتون رو پیشنهاد داد`);
     if (ev.status === "open") {
-      const top = ev.topBid ? `بالاترین پیشنهاد: <b>${ev.topBid}</b> XP` : `قیمت شروع: <b>${ev.startPrice}</b> XP`;
+      const top = ev.topBid ? `بالاترین پیشنهاد: <b>${ev.topBid}</b> ژتون` : `قیمت شروع: <b>${ev.startPrice}</b> ژتون`;
       const head = `🔨 <b>حراج هدیه</b>\n\n${gift}\n\n${top}\nتعداد پیشنهادها: ${ev.bids}\nپایان: ${escapeHtml(ends)}\n\n`;
-      const foot = `\n<blockquote>XP پیشنهادت از همون لحظه نگه داشته میشه و اگه کسی بالاتر بزنه خودکار برمی‌گرده.</blockquote>`;
+      const foot = `\n<blockquote>ژتون پیشنهادت از همون لحظه نگه داشته میشه و اگه کسی بالاتر بزنه خودکار برمی‌گرده.</blockquote>`;
       return head + quote(lines, POST_LIMIT - head.length - foot.length - 50) + foot;
     }
     if (ev.status === "closed") {
       const head = ev.winnerId
-        ? `🔨 <b>حراج تموم شد</b>\n\n${gift}\n\n🏆 فروخته شد به <b>${escapeHtml(ev.topBidderName ?? "")}</b> با ${ev.topBid} XP\n\n`
+        ? `🔨 <b>حراج تموم شد</b>\n\n${gift}\n\n🏆 فروخته شد به <b>${escapeHtml(ev.topBidderName ?? "")}</b> با ${ev.topBid} ژتون\n\n`
         : `🔨 <b>حراج تموم شد</b>\n\n${gift}\n\nپیشنهادی ثبت نشد.`;
       return head + quote(lines, POST_LIMIT - head.length - 50);
     }
@@ -133,8 +134,8 @@ async function eventText(ev: GiftEventDoc): Promise<string> {
 function eventKeyboard(ev: GiftEventDoc) {
   if (ev.status !== "open") return { inline_keyboard: [] };
   if (ev.kind === "giveaway") return inlineKeyboard([[glassButton("🎉 شرکت در قرعه‌کشی", `${JOIN_PREFIX}${ev._id}`, "success")]]);
-  if (!ev.topBid) return inlineKeyboard([[glassButton(`💰 پیشنهاد ${ev.startPrice} XP`, `${BID_PREFIX}${ev._id}:0`, "success")]]);
-  return inlineKeyboard([[1, 5, 10].map((d) => glassButton(`${ev.topBid + d} XP`, `${BID_PREFIX}${ev._id}:${d}`, "primary"))]);
+  if (!ev.topBid) return inlineKeyboard([[glassButton(`💰 پیشنهاد ${ev.startPrice} ژتون`, `${BID_PREFIX}${ev._id}:0`, "success")]]);
+  return inlineKeyboard([[1, 5, 10].map((d) => glassButton(`${ev.topBid + d} ژتون`, `${BID_PREFIX}${ev._id}:${d}`, "primary"))]);
 }
 
 type PostApi = Pick<Api, "editMessageText">;
@@ -184,7 +185,7 @@ async function touchPost(api: PostApi, eventId: string, now = Date.now()): Promi
 export type CreateResult = { status: "ok"; event: GiftEventDoc } | { status: "bad_gift" | "sold_out" | "channel_failed" | "bad_input" | "busy" };
 
 export async function createGiftEvent(
-  api: Pick<Api, "sendMessage" | "sendSticker" | "editMessageText">,
+  api: Pick<Api, "sendMessage" | "sendSticker" | "editMessageText" | "getFile">,
   input: { kind: EventKind; giftId: string; ownerId: number; channelId: number; startPrice?: number; hours: number; winners?: number },
   now = new Date()
 ): Promise<CreateResult> {
@@ -235,7 +236,7 @@ export async function createGiftEvent(
   try {
     if (card.custom) {
       const def = await getCustomGift(card.id);
-      if (def) await api.sendSticker(input.channelId, def.sticker.fileId).catch(() => {});
+      if (def) await api.sendSticker(input.channelId, await freeStickerFileId(api as any, def as any)).catch(() => {});
     }
     const msg = await api.sendMessage(input.channelId, await eventText(ev), { parse_mode: "HTML", reply_markup: eventKeyboard(ev) });
     ev.messageId = msg.message_id;
@@ -278,7 +279,7 @@ export async function placeBid(api: Pick<Api, "editMessageText" | "sendMessage">
       await touchPost(api, eventId, now.getTime());
       if (out.outbid !== null) {
         const card = await cardOf(out.event.giftId);
-        await api.sendMessage(out.outbid, `📉 پیشنهادت برای ${card?.emoji ?? "🎁"} ${escapeHtml(card?.name ?? "هدیه")} رد شد و XP‌ت برگشت داده شد؛ می‌تونی دوباره بالاتر بزنی.`, { parse_mode: "HTML" }).catch(() => {});
+        await api.sendMessage(out.outbid, `📉 پیشنهادت برای ${card?.emoji ?? "🎁"} ${escapeHtml(card?.name ?? "هدیه")} رد شد و ژتونت برگشت داده شد؛ می‌تونی دوباره بالاتر بزنی.`, { parse_mode: "HTML" }).catch(() => {});
       }
       return { status: "ok", amount: out.amount, outbidUserId: out.outbid, event: out.event };
     } catch (err: any) {
@@ -407,9 +408,9 @@ export async function settleGiftEvent(api: Pick<Api, "editMessageText" | "sendMe
     }
   }
   const ownerNote =
-    result.outcome === "sold" ? `🔨 حراج ${label} تموم شد؛ به ${escapeHtml(result.ev.topBidderName ?? "")} با ${result.ev.topBid} XP فروخته شد و ${result.ev.topBid} XP به حساب تو اضافه شد.`
+    result.outcome === "sold" ? `🔨 حراج ${label} تموم شد؛ به ${escapeHtml(result.ev.topBidderName ?? "")} با ${result.ev.topBid} ژتون فروخته شد و ${result.ev.topBid} ژتون به حساب تو اضافه شد.`
     : result.outcome === "won" ? `🎉 قرعه‌کشی ${label} تموم شد. ${(result.ev.winnerNames?.length ?? 0) > 1 ? "برنده‌ها" : "برنده"}: ${(result.ev.winnerNames ?? []).map(escapeHtml).join("، ")}`
-    : result.outcome === "gift_missing" ? `⚠️ ${label} دیگه توی پروفایل تو نبود؛ رویداد بسته شد و (اگه حراج بود) XP پیشنهاد دهنده برگشت.`
+    : result.outcome === "gift_missing" ? `⚠️ ${label} دیگه توی پروفایل تو نبود؛ رویداد بسته شد و (اگه حراج بود) ژتون پیشنهاد دهنده برگشت.`
     : result.outcome === "cancelled" ? `✖️ رویداد ${label} لغو شد.`
     : `⌛ رویداد ${label} بدون برنده تموم شد.`;
   await api.sendMessage(result.ev.ownerId, ownerNote, { parse_mode: "HTML" }).catch(() => {});

@@ -14,11 +14,11 @@ export function registerGiftEvents(composer: Composer<NavaContext>) {
       ended: "زمان این حراج تموم شده.",
       owner: "صاحب حراج نمی‌تونه پیشنهاد بده.",
       already_top: "پیشنهاد تو همین الان بالاترینه.",
-      insufficient: "XP‌ت برای این پیشنهاد کافی نیست. از ربات کیف پول XP بخر و به ربات منتقل کن.",
+      insufficient: "ژتونت برای این پیشنهاد کافی نیست. از ربات کیف پول ژتون بخر و به ربات منتقل کن.",
       not_found: "این حراج پیدا نشد.",
       busy: "همزمان چند نفر پیشنهاد دادن؛ دوباره بزن.",
     };
-    if (r.status === "ok") return void (await ctx.answerCallbackQuery({ text: `✅ پیشنهاد ${r.amount} XP ثبت شد.`, show_alert: true }));
+    if (r.status === "ok") return void (await ctx.answerCallbackQuery({ text: `✅ پیشنهاد ${r.amount} ژتون ثبت شد.`, show_alert: true }));
     await ctx.answerCallbackQuery({ text: msg[r.status] ?? "نشد.", show_alert: true });
   });
 

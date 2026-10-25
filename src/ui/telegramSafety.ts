@@ -1,5 +1,5 @@
 import type { Transformer } from "grammy";
-import { allowedPremiumIds } from "../config/emojis.js";
+import { allowedPremiumIds, premiumEnabled } from "../config/emojis.js";
 import { env } from "../config/env.js";
 import { escapeHtml } from "../utils/html.js";
 
@@ -90,7 +90,7 @@ function fixButton(button: any): any {
     }
   }
 
-  if (fixed.icon_custom_emoji_id && !env.PREMIUM_EMOJI_ENABLED) {
+  if (fixed.icon_custom_emoji_id && !premiumEnabled()) {
     delete fixed.icon_custom_emoji_id;
   }
   return fixed;

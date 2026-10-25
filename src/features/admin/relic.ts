@@ -1,11 +1,12 @@
 import type { Composer } from "grammy";
+import { cancelKeyboard } from "../common/userFlows.js";
 import type { NavaContext } from "../../bot-context.js";
 import { inlineKeyboard } from "../../ui/keyboard.js";
-import { cancelButton } from "../../ui/cancelButton.js";
 import { getUser } from "../../db/models/user.js";
 import { adminAdjustBalance } from "../../db/models/relic.js";
 import { getDb } from "../../db/connect.js";
-import { isAdmin } from "./constants.js";
+import { isAdmin, isOwner } from "./constants.js";
+import { logAdminAction } from "../../db/models/adminLog.js";
 import { toAsciiDigits } from "../../utils/digits.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { isFlowCancelSignal } from "./flowState.js";
@@ -40,7 +41,7 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
     await ctx.reply("آیدی عددی تلگرام کاربر مورد نظر رو بفرست:", {
-      reply_markup: inlineKeyboard([[cancelButton("لغو", CB.cancel)]]),
+      reply_markup: cancelKeyboard(),
     });
     await setStep(ctx.from!.id, { stage: "await_user" });
   });
@@ -56,7 +57,7 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
     if (!isAdmin(ctx)) return next();
 
     if (ctx.message.text.trim() === ADMIN_MENU_LABELS.relic) {
-      await ctx.reply("آیدی عددی تلگرام کاربر مورد نظر رو بفرست:");
+      await ctx.reply("آیدی عددی تلگرام کاربر مورد نظر رو بفرست:", { reply_markup: cancelKeyboard() });
       await setStep(ctx.from!.id, { stage: "await_user" });
       return;
     }
@@ -86,9 +87,9 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
       }
       await setStep(ctx.from!.id, { stage: "await_amount", targetId });
       await ctx.reply(
-        `کاربر: ${target.anonId} — موجودی فعلی: ${target.relicBalance ?? 0} XP\n\n` +
+        `کاربر: ${target.anonId} — موجودی فعلی: ${target.relicBalance ?? 0} ژتون\n\n` +
           `عدد مثبت برای افزودن، عدد منفی برای کسر بفرست (مثلاً 10 یا 10-):`,
-        { reply_markup: inlineKeyboard([[cancelButton("لغو", CB.cancel)]]) }
+        { reply_markup: cancelKeyboard() }
       );
       return;
     }
@@ -100,8 +101,21 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
         return;
       }
 
+      // An admin's own ژتون balance starts at 0: what a (non-owner) admin sends is taken from THEIR balance;
+      // only the owner creates ژتون. The owner tops an admin up with the same «ارسال ژتون» screen.
+      const spender = !isOwner(ctx) && delta > 0;
+      if (spender) {
+        const paid = await adminAdjustBalance(ctx.from!.id, ctx.from!.id, -delta, "admin_send_to_user");
+        if (paid.status !== "applied") {
+          await setStep(ctx.from!.id, null);
+          await ctx.reply("موجودی ژتون خودت برای این ارسال کافی نیست. موجودی ادمین‌ها از صفر شروع میشه و مالک باید برات شارژ کنه.");
+          return;
+        }
+      }
       const result = await adminAdjustBalance(ctx.from!.id, step.targetId!, delta, "manual_admin_adjustment");
+      if (spender && result.status !== "applied") await adminAdjustBalance(ctx.from!.id, ctx.from!.id, delta, "admin_send_refund");
       await setStep(ctx.from!.id, null);
+      if (result.status === "applied") await logAdminAction(ctx.from!.id, delta > 0 ? "jeton_send" : "jeton_deduct", `${step.targetId}:${Math.abs(delta)}`);
 
       if (result.status === "insufficient") {
         await ctx.reply("موجودی کاربر برای این مقدار کسر کافی نیست.");
@@ -112,9 +126,9 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
         return;
       }
 
-      await ctx.reply(`✅ انجام شد. موجودی جدید: ${result.newBalance} XP`);
+      await ctx.reply(`✅ انجام شد. موجودی جدید: ${result.newBalance} ژتون`);
       await ctx.api
-        .sendMessage(step.targetId!, delta > 0 ? `💰 ${delta} XP به حساب شما اضافه شد.` : `⚠️ ${-delta} XP از حساب شما کسر شد.`)
+        .sendMessage(step.targetId!, delta > 0 ? `💰 ${delta} ژتون به حساب شما اضافه شد.` : `⚠️ ${-delta} ژتون از حساب شما کسر شد.`)
         .catch(() => {});
     }
   });

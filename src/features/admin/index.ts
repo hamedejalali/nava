@@ -10,10 +10,15 @@ import { registerSeedsAdmin } from "./seedsAdmin.js";
 import { registerSeedsBatch } from "./seedsBatch.js";
 import { registerOfficialAdmin } from "./officialAdmin.js";
 import { registerOwnerAdmin } from "./ownerAdmin.js";
+import { registerRoutingAdmin } from "./routingAdmin.js";
+import { registerEmojiAdmin } from "./emojiAdmin.js";
+import { registerShopAdmin } from "./shopAdmin.js";
+import { registerPermissionGate } from "./permGate.js";
 import { registerAdminCategories, registerAdminVersionButton } from "./menu.js";
 
 export function registerAdmin(composer: Composer<NavaContext>) {
   registerAdminVersionButton(composer);
+  registerPermissionGate(composer);
   registerAdminCategories(composer);
   registerSeedsBatch(composer);
   registerOfficialAdmin(composer);
@@ -25,4 +30,7 @@ export function registerAdmin(composer: Composer<NavaContext>) {
   registerAdminGuides(composer);
   registerAdminChannels(composer);
   registerAdminRelic(composer);
+  registerShopAdmin(composer);
+  registerRoutingAdmin(composer);
+  registerEmojiAdmin(composer);
 }

@@ -20,7 +20,7 @@ const from = (id: number) => ({ id, is_bot: false, first_name: `U${id}` });
 
 async function buy(index: number, user = U): Promise<string> {
   h.resetCalls();
-  await h.callback(user, `relic:buy:stars:${index}`);
+  await h.callback(user, `shop:b:p${index}`);
   const inv = h.of("sendInvoice", user).at(-1);
   assert.ok(inv, "invoice sent");
   return inv!.payload.payload as string;

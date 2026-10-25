@@ -16,21 +16,17 @@
 
     function paint() {
       root.innerHTML = "";
-      var top = el('<div class="topbar"><div class="ttlx">پیام‌ها</div><div class="icons"><button id="reqb" aria-label="requests" class="reqb">' + svg("user") + '<i class="dot hide"></i></button><button id="gm" aria-label="game" class="gmb">🎲</button></div></div>');
+      var top = el('<div class="topbar"><div class="ttlx">پیام‌ها</div><div class="icons"><button id="reqb" aria-label="requests" class="reqb">' + svg("user") + '<i class="dot hide"></i></button></div></div>');
       root.appendChild(top);
       var inc = data ? data.requests.incoming : 0, out = data ? data.requests.outgoing : 0;
       var dot = top.querySelector(".dot"); if (inc > 0) dot.classList.remove("hide");
       top.querySelector("#reqb").onclick = function () { NG.openDmRequests(); };
-      top.querySelector("#gm").onclick = function () { if (NG.openGame) NG.openGame(); };
       if (!data) { root.appendChild(el('<div class="more-spin"><div class="spin"></div></div>')); return; }
       if (inc > 0 || out > 0) {
         var rb = el('<button class="dmreq">' + svg("chat", "") + "<span>درخواست‌های چت" + (inc ? " · " + num(inc) + " جدید" : "") + (out ? " · " + num(out) + " ارسال‌شده" : "") + "</span></button>");
         rb.onclick = function () { NG.openDmRequests(); };
         root.appendChild(rb);
       }
-      var gb = el('<button class="dmreq" style="margin-top:6px"><span style="font-size:18px">🎲</span><span>تخته‌نرد — با XP یا دوستانه</span></button>');
-      gb.onclick = function () { if (NG.openGame) NG.openGame(); };
-      root.appendChild(gb);
       if (data.botChat) root.appendChild(el('<div class="dmbot">🕵️ یه چت ناشناس توی ربات داری؛ اون چت همون‌جا (ناشناس) ادامه پیدا می‌کنه.</div>'));
       if (!data.items.length) { root.appendChild(el(NG.emptyHtml("plane", "هنوز چتی نداری", "از پروفایل یا مچینگ برای یه نفر «درخواست چت» بفرست. اگه قبول کنه، همین‌جا چت می‌کنید."))); return; }
       data.items.forEach(function (t) {
@@ -83,7 +79,7 @@
             var s = rr.data.status;
             if (s === "accepted") { NG.haptic("ok"); NG.emit("dm:changed"); r.remove(); if (rr.data.origin === "miniapp") { scr.close(); NG.selectTab("dm"); NG.openChat(rr.data.sid, it.who); } else NG.toast("چت توی ربات شروع شد ✓"); }
             else if (s === "declined") { r.remove(); NG.emit("dm:changed"); }
-            else { NG.toast(s === "busy" ? "یکی از شما توی چت دیگه‌ای هست." : s === "blocked" ? "این کاربر در دسترس نیست." : s === "insufficient_me" ? "XP کافی نداری (۱ XP لازمه)." : s === "insufficient_other" ? "XP طرف مقابل کافی نیست." : "این درخواست دیگه معتبر نیست."); load(); }
+            else { NG.toast(s === "busy" ? "یکی از شما توی چت دیگه‌ای هست." : s === "blocked" ? "این کاربر در دسترس نیست." : s === "insufficient_me" ? "ژتون کافی نداری (۱ ژتون لازمه)." : s === "insufficient_other" ? "ژتون طرف مقابل کافی نیست." : "این درخواست دیگه معتبر نیست."); load(); }
           }).catch(function () { ok.disabled = no.disabled = false; NG.netErr(); });
         }
         ok.onclick = function () { answer(true); }; no.onclick = function () { answer(false); };
