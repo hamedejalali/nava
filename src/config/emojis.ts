@@ -1,4 +1,5 @@
 import { env } from "./env.js";
+import { BUILT_IN_EMOJI } from "./premiumEmojiDefaults.js";
 
 /**
  * Centralized Premium/Custom Emoji configuration.
@@ -13,9 +14,8 @@ import { env } from "./env.js";
  *    `icon_custom_emoji_id` field (see src/ui/keyboard.ts).
  *
  * THE ONE RULE YOU ASKED FOR:
- *  The IDs live ONLY in .env / Vercel env. To go back to a normal emoji, just
- *  empty the variable (or set PREMIUM_EMOJI_ENABLED=false to turn ALL of them
- *  off at once) and redeploy. Every place then falls back to a plain Unicode
+ *  (v1.27) The IDs are built into the code (premiumEmojiDefaults.ts) and everything is edited from the admin panel
+ *  («⚙️ تنظیمات ربات ← ✨ ایموجی‌ها»): master switch + any single emoji. Old EMOJI_PREMIUM_* env values still win if present. Every place then falls back to a plain Unicode
  *  emoji automatically — text, buttons, and even old texts stored in the DB.
  */
 
@@ -49,7 +49,7 @@ export function premiumEnabled(): boolean {
 }
 /** raw configured value for a key: panel override first, then .env */
 export function emojiRaw(key: EmojiKey): string | undefined {
-  return overrides.map[key] ?? env.emoji[key];
+  return overrides.map[key] ?? env.emoji[key] ?? BUILT_IN_EMOJI[key];
 }
 
 /** Plain Unicode emoji used whenever a premium ID is missing/disabled. */
@@ -184,7 +184,7 @@ export function allowedPremiumIds(): Set<string> {
   if (!premiumEnabled()) return new Set();
   if (!allowedIdsCache) {
     const set = new Set<string>();
-    for (const key of Object.keys(env.emoji) as EmojiKey[]) {
+    for (const key of Object.keys(DEFAULT_EMOJI) as EmojiKey[]) {
       const id = cleanEmojiId(emojiRaw(key));
       if (id) set.add(id);
     }

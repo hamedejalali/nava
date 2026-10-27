@@ -84,7 +84,7 @@ export async function acceptChatRequest(token: string, acceptorId: number, now =
         );
         await requests.updateOne({ _id: token }, { $set: { sessionId } }, { session: mongoSession });
         // durable "tell both people" work, committed together with the session (see matchDelivery.ts).
-        // A Navagram (miniapp) chat happens INSIDE the app: the bot's "you are connected + keyboard" notice is not used.
+        // A Moyagram (miniapp) chat happens INSIDE the app: the bot's "you are connected + keyboard" notice is not used.
         if (origin === "bot") await insertDeliveries(newDeliveryDocs(sessionId, [fromId, toId], "request", now), mongoSession);
         // neither user should still be waiting in the random-search queue
         await queue.deleteMany({ _id: { $in: [fromId, toId] } }, { session: mongoSession });

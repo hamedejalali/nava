@@ -26,8 +26,7 @@ export const ADMIN_MENU_LABELS = {
   moderators: "🛡️ مدیریت Moderator / Admin",
   stats: "📊 آمار ربات",
   activityLog: "🔐 لاگ فعالیت ادمین‌ها",
-  settings: "⚙️ تنظیمات ربات",
-  guidesAndChannels: "🛠 راهنما / کانال جوین / پشتیبانی",
+  maintenance: "🔌 روشن / خاموش کردن ربات",
   resetUser: "♻️ ریست اطلاعات کاربر",
   pricing: "💳 تنظیم قیمت ژتون",
   reactionGate: "🎯 تنظیم گیت ری‌اکشن",
@@ -38,18 +37,20 @@ export const ADMIN_MENU_LABELS = {
   seedBatch: "📦 ساخت دسته‌ای ممبر",
   seedList: "📋 لیست ممبرها",
   officialAdd: "🏛 ساخت اکانت حقوقی",
-  ngSettings: "📸 کانال و تنظیمات نوا گرام",
+  ngSettings: "📸 کانال و تنظیمات مویاگرام",
   ngGifts: "🎁 هدیه‌ها و قیمت‌ها",
   ngGiftAdd: "➕ هدیه‌ی جدید",
   ngEvents: "🔨 حراج و قرعه‌کشی",
   ngUserGifts: "👤 هدیه‌های یک کاربر",
   ngShortNames: "🔢 یوزرنیم کوتاه",
-  ownerProfile: "👑 اکانت مالک (Nava)",
+  ownerProfile: "👑 اکانت مالک (مویا)",
   wallet: "🔌 اتصال ولت",
   shop: "🛒 منوی خرید",
-  channels: "📡 کانال‌ها و مسیر پیام‌ها",
+  channels: "📡 کانال‌ها",
   emojis: "✨ ایموجی‌ها",
   adminAccess: "🔑 دسترسی ادمین‌ها",
+  vars: "🧩 متغیرها و تصاویر",
+  texts: "📝 متن‌ها",
   close: "❌ بستن پنل",
 } as const;
 
@@ -78,28 +79,36 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.ngShortNames,
   ADMIN_MENU_LABELS.ownerProfile,
   ADMIN_MENU_LABELS.wallet,
-  ADMIN_MENU_LABELS.channels,
   ADMIN_MENU_LABELS.emojis,
+  ADMIN_MENU_LABELS.vars,
   ADMIN_MENU_LABELS.adminAccess,
   ADMIN_MENU_LABELS.officialAdd,
 ];
 
-/** Admin panel categories (v1.17): the main keyboard shows ONE button per group instead of ~20 loose buttons.
- *  A category opens a sub-keyboard made of the very same labels as before, so every existing handler keeps working. */
+/** Admin panel (v1.27): the main keyboard is SHORT — one button per topic. A topic opens a sub-keyboard made of the very
+ *  same labels the handlers match on, so every existing handler keeps working; «⚙️ تنظیمات ربات» even contains two sub-topics. */
 export const ADMIN_CATEGORY_LABELS = {
   users: "👥 کاربر ها",
   messages: "📢 پیام و گزارش",
   economy: "🪙 ژتون‌ها",
-  nava: "📸 نوا گرام",
+  moya: "🌙 مویاگرام",
   seeds: "🎭 ممبرهای پیش‌فرض",
-  staff: "🛡️ مدیریت و لاگ",
+  settings: "⚙️ تنظیمات ربات",
   data: "💾 داده‌ها",
+  staff: "🛡️ مدیریت و لاگ",
   back: "↩️ بازگشت به پنل",
+  backSettings: "↩️ بازگشت به تنظیمات ربات",
 } as const;
 
-type CategoryId = Exclude<keyof typeof ADMIN_CATEGORY_LABELS, "back">;
+type CategoryId = Exclude<keyof typeof ADMIN_CATEGORY_LABELS, "back" | "backSettings">;
+type Entry = { label: string; icon?: () => IconInput };
 
-const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => IconInput }>> = {
+/** sub-topics → the topic they live in (their back button returns there) */
+const PARENT: Partial<Record<CategoryId, CategoryId>> = { data: "settings", staff: "settings" };
+/** top-level topics in main-panel order */
+const TOP: CategoryId[] = ["users", "messages", "economy", "moya", "seeds", "settings"];
+
+const ADMIN_CATEGORIES: Record<CategoryId, Entry[]> = {
   users: [
     { label: ADMIN_MENU_LABELS.userList, icon: () => buttonIcon("USERS") },
     { label: ADMIN_MENU_LABELS.search, icon: () => buttonIcon("SEARCH") },
@@ -108,7 +117,6 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.unban, icon: () => buttonIcon("UNBAN") },
     { label: ADMIN_MENU_LABELS.verify, icon: () => buttonIcon("VERIFIED_BADGE") },
     { label: ADMIN_MENU_LABELS.verifiedUsers, icon: () => buttonIcon("VERIFIED_BADGE") },
-    { label: ADMIN_MENU_LABELS.badges },
     { label: ADMIN_MENU_LABELS.resetUser, icon: () => buttonIcon("RESET_USER") },
   ],
   messages: [{ label: ADMIN_MENU_LABELS.broadcast, icon: () => buttonIcon("BROADCAST") }, { label: ADMIN_MENU_LABELS.reports }],
@@ -118,24 +126,40 @@ const ADMIN_CATEGORIES: Record<CategoryId, Array<{ label: string; icon?: () => I
     { label: ADMIN_MENU_LABELS.shop },
     { label: ADMIN_MENU_LABELS.level, icon: () => buttonIcon("LEVEL_LEGEND") },
   ],
-  nava: [
+  moya: [
     { label: ADMIN_MENU_LABELS.ngSettings },
     { label: ADMIN_MENU_LABELS.ngGifts },
     { label: ADMIN_MENU_LABELS.ngGiftAdd },
     { label: ADMIN_MENU_LABELS.ngEvents },
     { label: ADMIN_MENU_LABELS.ngUserGifts },
+    { label: ADMIN_MENU_LABELS.badges },
     { label: ADMIN_MENU_LABELS.ngShortNames },
     { label: ADMIN_MENU_LABELS.ownerProfile },
+    { label: ADMIN_MENU_LABELS.officialAdd },
   ],
-  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedBatch }, { label: ADMIN_MENU_LABELS.officialAdd }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
-  staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.adminAccess }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
+  seeds: [{ label: ADMIN_MENU_LABELS.seedAdd }, { label: ADMIN_MENU_LABELS.seedBatch }, { label: ADMIN_MENU_LABELS.seedList }, { label: ADMIN_MENU_LABELS.seedPanel }],
+  settings: [
+    { label: ADMIN_MENU_LABELS.maintenance, icon: () => buttonIcon("SETTINGS") },
+    { label: ADMIN_MENU_LABELS.stats, icon: () => buttonIcon("STATS") },
+    { label: ADMIN_MENU_LABELS.wallet },
+    { label: ADMIN_MENU_LABELS.reactionGate },
+    { label: ADMIN_MENU_LABELS.emojis },
+    { label: ADMIN_MENU_LABELS.vars },
+    { label: ADMIN_CATEGORY_LABELS.data },
+    { label: ADMIN_CATEGORY_LABELS.staff },
+  ],
   data: [{ label: ADMIN_MENU_LABELS.exportUsers }, { label: ADMIN_MENU_LABELS.importUsers }],
+  staff: [{ label: ADMIN_MENU_LABELS.moderators }, { label: ADMIN_MENU_LABELS.adminAccess }, { label: ADMIN_MENU_LABELS.activityLog, icon: () => buttonIcon("LOG") }],
 };
 
-function visibleEntries(ctx: NavaContext, id: CategoryId) {
+function visibleEntries(ctx: NavaContext, id: CategoryId): Entry[] {
   const owner = isOwner(ctx);
   const need = labelPermissions(ADMIN_MENU_LABELS as unknown as Record<string, string>);
-  return ADMIN_CATEGORIES[id].filter((e) => owner || (!OWNER_ONLY.includes(e.label) && (!need[e.label] || canAdmin(ctx, need[e.label]!))));
+  return ADMIN_CATEGORIES[id].filter((e) => {
+    const sub = (Object.keys(ADMIN_CATEGORIES) as CategoryId[]).find((k) => PARENT[k] === id && ADMIN_CATEGORY_LABELS[k] === e.label);
+    if (sub) return visibleEntries(ctx, sub).length > 0;
+    return owner || (!OWNER_ONLY.includes(e.label) && (!need[e.label] || canAdmin(ctx, need[e.label]!)));
+  });
 }
 
 function pairRows(items: Array<{ label: string; icon?: IconInput }>) {
@@ -146,21 +170,15 @@ function pairRows(items: Array<{ label: string; icon?: IconInput }>) {
   return rows;
 }
 
-/** v1.20: the former «تنظیمات و ابزار» group is gone — its three buttons sit directly on the main panel. */
-const MAIN_PANEL_TOOLS: Array<{ label: string; icon?: () => IconInput }> = [
-  { label: ADMIN_MENU_LABELS.settings, icon: () => buttonIcon("SETTINGS") },
-  { label: ADMIN_MENU_LABELS.guidesAndChannels },
-  { label: ADMIN_MENU_LABELS.reactionGate },
-  { label: ADMIN_MENU_LABELS.wallet },
-  { label: ADMIN_MENU_LABELS.channels },
-  { label: ADMIN_MENU_LABELS.emojis },
-];
+/** the buttons that sit directly on the main panel besides the topics (one tap each, no sub-menu) */
+const MAIN_PANEL_TOOLS: Entry[] = [{ label: ADMIN_MENU_LABELS.channels }, { label: ADMIN_MENU_LABELS.texts }];
 
 export function buildAdminReplyKeyboard(ctx: NavaContext) {
-  const cats = (Object.keys(ADMIN_CATEGORIES) as CategoryId[]).filter((id) => visibleEntries(ctx, id).length > 0);
+  const cats = TOP.filter((id) => visibleEntries(ctx, id).length > 0);
+  const need = labelPermissions(ADMIN_MENU_LABELS as unknown as Record<string, string>);
   const items: Array<{ label: string; icon?: IconInput }> = cats.map((id) => ({ label: ADMIN_CATEGORY_LABELS[id] }));
-  for (const e of MAIN_PANEL_TOOLS.filter((t) => isOwner(ctx) || !OWNER_ONLY.includes(t.label))) items.push({ label: e.label, icon: e.icon?.() });
-  items.push({ label: ADMIN_MENU_LABELS.stats, icon: buttonIcon("STATS") });
+  for (const e of MAIN_PANEL_TOOLS.filter((t) => isOwner(ctx) || (!OWNER_ONLY.includes(t.label) && (!need[t.label] || canAdmin(ctx, need[t.label]!))))) items.push({ label: e.label, icon: e.icon?.() });
+  // keep «ordered»: topics first, then channels + texts (they pair up on one row)
   const rows = pairRows(items);
   // Version button: does nothing when tapped (see registerAdminVersionButton)
   // — it only exists to show which build is deployed.
@@ -171,11 +189,12 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
 
 export function buildAdminCategoryKeyboard(ctx: NavaContext, id: CategoryId) {
   const rows = pairRows(visibleEntries(ctx, id).map((e) => ({ label: e.label, icon: e.icon?.() })));
-  rows.push([glassReplyButton(ADMIN_CATEGORY_LABELS.back, "danger")]);
+  const parent = PARENT[id];
+  rows.push([glassReplyButton(parent ? ADMIN_CATEGORY_LABELS.backSettings : ADMIN_CATEGORY_LABELS.back, "danger")]);
   return replyKeyboard(rows);
 }
 
-/** Opens a category (or goes back to the main panel). A half-finished text flow is dropped, like every other panel button does. */
+/** Opens a topic (or goes back). A half-finished text flow is dropped, like every other panel button does. */
 export function registerAdminCategories(composer: Composer<NavaContext>) {
   composer.on("message:text", async (ctx, next) => {
     if (!isAdmin(ctx)) return next();
@@ -183,6 +202,11 @@ export function registerAdminCategories(composer: Composer<NavaContext>) {
     if (text === ADMIN_CATEGORY_LABELS.back) {
       await setAdminFlow(ctx.from!.id, null);
       await ctx.reply("پنل مدیریت 👇", { reply_markup: buildAdminReplyKeyboard(ctx) });
+      return;
+    }
+    if (text === ADMIN_CATEGORY_LABELS.backSettings) {
+      await setAdminFlow(ctx.from!.id, null);
+      await ctx.reply(`${ADMIN_CATEGORY_LABELS.settings} — یکی رو انتخاب کن 👇`, { reply_markup: buildAdminCategoryKeyboard(ctx, "settings") });
       return;
     }
     const id = (Object.keys(ADMIN_CATEGORIES) as CategoryId[]).find((k) => ADMIN_CATEGORY_LABELS[k] === text);

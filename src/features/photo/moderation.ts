@@ -125,7 +125,12 @@ export function registerImageModerationDecisions(composer: Composer<NavaContext>
     await ctx.answerCallbackQuery();
     if (result.status !== "decided") return; // already decided — idempotent no-op
 
-    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    // the card lives in the management channel: show WHO decided and what, and remove the buttons
+    const who = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name ?? String(ctx.from?.id));
+    const stamp = `\n\n${decision === "approved" ? "✅ تأیید شد" : "❌ رد شد"} — توسط ${who}`;
+    const m: any = ctx.callbackQuery?.message;
+    if (m && typeof m.caption === "string") await ctx.editMessageCaption({ caption: `${m.caption}${stamp}`.slice(0, 1024), reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    else await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
 
     const { doc } = result;
     // "chat_image" records only exist from before the v1.8.0 upgrade (see

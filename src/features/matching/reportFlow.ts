@@ -4,7 +4,10 @@ import { getDb } from "../../db/connect.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { createReport, getReport, decideReportOnce } from "../../db/models/reports.js";
 import { grantReportRewardOnce } from "../../db/models/relic.js";
-import {  isOwner } from "../admin/constants.js";
+import { isAdmin, isOwner } from "../admin/constants.js";
+import { canAdmin } from "../admin/permissions.js";
+import { banUser } from "../../services/banCleanup.js";
+import { logAdminAction } from "../../db/models/adminLog.js";
 import { getRecipients } from "../../services/channelRouting.js";
 import { getContent } from "../../db/models/content.js";
 import { getUser } from "../../db/models/user.js";
@@ -38,17 +41,18 @@ async function getFlow(reporterId: number): Promise<ReportFlowDoc | null> {
 const DECISION_CB = {
   approve: "admin:report:approve:", // + reportId
   reject: "admin:report:reject:", // + reportId
+  ban: "admin:report:ban:", // + reportId
 };
 
 function reportIdentityBlock(reporterId: number, reporterAnonId: string, reporterUsername: string | undefined, target: { anonId: string; telegramId: number }, targetUsername: string | undefined) {
   return (
     `گزارش‌دهنده:\n` +
     `• یوزرنیم تلگرام: ${reporterUsername ? "@" + reporterUsername : "-"}\n` +
-    `• آیدی نوا: <code>${reporterAnonId}</code>\n` +
+    `• آیدی مویا: <code>${reporterAnonId}</code>\n` +
     `• آیدی عددی: <code>${reporterId}</code>\n\n` +
     `گزارش‌شده:\n` +
     `• یوزرنیم تلگرام: ${targetUsername ? "@" + targetUsername : "-"}\n` +
-    `• آیدی نوا: <code>${target.anonId}</code>\n` +
+    `• آیدی مویا: <code>${target.anonId}</code>\n` +
     `• آیدی عددی: <code>${target.telegramId}</code>`
   );
 }
@@ -119,6 +123,27 @@ export function registerReportFlow(composer: Composer<NavaContext>) {
 
   composer.callbackQuery(new RegExp(`^${DECISION_CB.approve}(.+)$`), async (ctx) => decide(ctx, ctx.match![1]!, "approved"));
   composer.callbackQuery(new RegExp(`^${DECISION_CB.reject}(.+)$`), async (ctx) => decide(ctx, ctx.match![1]!, "rejected"));
+  // the report cards live in the management CHANNEL: the person who taps is whoever is an admin with the right switch
+  composer.callbackQuery(new RegExp(`^${DECISION_CB.ban}(.+)$`), async (ctx) => {
+    if (!isAdmin(ctx) || !canAdmin(ctx, "ban")) {
+      await ctx.answerCallbackQuery({ text: "دسترسی «بن» برای تو فعال نیست.", show_alert: true });
+      return;
+    }
+    const report = await getReport(ctx.match![1]!);
+    if (!report) {
+      await ctx.answerCallbackQuery({ text: "این گزارش پیدا نشد." });
+      return;
+    }
+    await banUser(ctx.api, report.reportedId, "گزارش کاربران");
+    await logAdminAction(ctx.from!.id, "ban_user", `${report.reportedId} (report ${report._id})`);
+    await ctx.answerCallbackQuery({ text: "🚫 کاربر بن شد" });
+    const decided = report.status !== "open";
+    if (!decided) {
+      await ctx.editMessageReplyMarkup({
+        reply_markup: inlineKeyboard([[glassButton("✅ تایید (۵ ژتون پاداش)", `${DECISION_CB.approve}${report._id}`, "success"), glassButton("❌ رد", `${DECISION_CB.reject}${report._id}`, "danger")]]),
+      }).catch(() => {});
+    }
+  });
 }
 
 async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId: string | undefined) {
@@ -142,6 +167,7 @@ async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId
       glassButton("✅ تایید (۵ ژتون پاداش)", `${DECISION_CB.approve}${report._id}`, "success"),
       glassButton("❌ رد", `${DECISION_CB.reject}${report._id}`, "danger"),
     ],
+    [glassButton("🚫 بن کاربر گزارش‌شده", `${DECISION_CB.ban}${report._id}`, "danger")],
   ]);
 
   for (const adminId of await getRecipients("report")) {
@@ -154,10 +180,8 @@ async function finalizeReport(ctx: NavaContext, flow: ReportFlowDoc, photoFileId
 }
 
 async function decide(ctx: NavaContext, reportId: string, decision: "approved" | "rejected") {
-  if (!isOwner(ctx)) {
-    // Regular (non-owner) admins can see reports but only the owner
-    // decides — per "مالک بررسی کرد" in the spec.
-    await ctx.answerCallbackQuery({ text: "فقط مالک ربات می‌تونه این گزارش رو تایید/رد کنه." });
+  if (!isAdmin(ctx) || !canAdmin(ctx, "reports")) {
+    await ctx.answerCallbackQuery({ text: "دسترسی «گزارش‌ها» برای تو فعال نیست.", show_alert: true });
     return;
   }
 
@@ -167,8 +191,10 @@ async function decide(ctx: NavaContext, reportId: string, decision: "approved" |
     return;
   }
   await ctx.answerCallbackQuery();
+  await logAdminAction(ctx.from!.id, decision === "approved" ? "report_approve" : "report_reject", String(report._id));
 
-  const decisionLabel = decision === "approved" ? "✅ تایید شد" : "❌ رد شد";
+  const who = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name ?? String(ctx.from?.id));
+  const decisionLabel = `${decision === "approved" ? "✅ تایید شد" : "❌ رد شد"} — توسط ${who}`;
   const cbMessage = ctx.callbackQuery?.message;
   if (cbMessage && "caption" in cbMessage && cbMessage.caption) {
     await ctx.editMessageCaption({ caption: `${cbMessage.caption}\n\n${decisionLabel}` }).catch(() => {});

@@ -1,3 +1,4 @@
+import { showSearchMenu, showNearby } from "../search/userSearch.js";
 import type { Composer } from "grammy";
 import { env } from "../../config/env.js";
 import type { NavaContext } from "../../bot-context.js";
@@ -67,10 +68,10 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
         await sendMyAnonymousLink(ctx);
         return;
       case "searchUsers":
+        await showSearchMenu(ctx);
+        return;
       case "nearbyPeople":
-        // v1.26: «جستجوی کاربران» no longer jumps into the Mini App (that was never agreed) and «افراد نزدیک» is no longer
-        // a silent button: both answer with a clear "coming soon" until their bot-side behaviour is specified.
-        await ctx.reply("🚧 این بخش به‌زودی فعال میشه.");
+        await showNearby(ctx);
         return;
       default: {
         const _exhaustive: never = action;

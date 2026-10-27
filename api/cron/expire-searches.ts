@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Backstop alert evaluation (never throws); covers quiet periods with no webhook traffic.
   await maybeRunAlertCheck({ send: defaultSend });
 
-  // Navagram housekeeping: drops stories older than the 30-day archive (never throws).
+  // Moyagram housekeeping: drops stories older than the 30-day archive (never throws).
   let storiesDropped = 0;
   try {
     storiesDropped = await cleanupStories();

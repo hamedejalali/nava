@@ -16,8 +16,8 @@ import { GIFT_EVENTS_HOME, openAddGift, openUserGiftsPrompt } from "./giftsAdmin
 import { MAX_BIO_LENGTH } from "../matching/profileEdit.js";
 
 /**
- * Direct buttons of the «📸 نوا گرام» category of the admin keyboard + the owner-only tools that live there:
- *   👑 اکانت مالک — the owner's own account as the official «Nava» page (name, bio, photo, @Nava, blue tick + gold coin);
+ * Direct buttons of the «📸 مویاگرام» category of the admin keyboard + the owner-only tools that live there:
+ *   👑 اکانت مالک — the owner's own account as the official «Moya» page (name, bio, photo, @Moya, blue tick + gold coin);
  *   🔢 یوزرنیم کوتاه — numeric Telegram ids that may pick a Mini App @username of any length (everybody else: 5+).
  */
 
@@ -32,7 +32,7 @@ export const OWN_CB = {
 };
 const FLOW_OWN = "owner_profile";
 const FLOW_SHORT = "short_names";
-const OFFICIAL_USERNAME = "Nava";
+const OFFICIAL_USERNAME = "Moya";
 
 async function users() {
   return (await getDb()).collection<any>("users");
@@ -42,12 +42,12 @@ async function ownerScreen() {
   const u = env.OWNER_ID !== undefined ? await (await users()).findOne({ _id: env.OWNER_ID }) : null;
   if (!u) return { text: "❌ حساب مالک پیدا نشد (OWNER_ID تنظیم نیست یا هنوز ثبت‌نام نکرده).", reply_markup: inlineKeyboard([[glassButton("↩️ بازگشت", "admin:cancel", "primary")]]) };
   const text =
-    `👑 <b>اکانت مالک (صفحه‌ی رسمی نوا)</b>\n\n` +
+    `👑 <b>اکانت مالک (صفحه‌ی رسمی مویا)</b>\n\n` +
     `نام: <b>${escapeHtml(u.nickname ?? "-")}</b> ✅🪙\n` +
     `یوزرنیم مینی‌اپ: ${u.miniUsername ? "@" + escapeHtml(u.miniUsername) : "—"}\n` +
     `بیو: ${u.bio ? escapeHtml(u.bio) : "—"}\n` +
     `عکس: ${u.profilePhotoFileId ? "دارد" : "ندارد"}\n\n` +
-    `تیک آبی + سکه‌ی طلایی همیشه کنار نام این حساب نمایش داده میشه. همه‌ی کاربرها اولین باری که مینی‌اپ رو باز می‌کنن خودکار این صفحه رو دنبال می‌کنن.\n` +
+    `تیک آبی + ژتون طلایی همیشه کنار نام این حساب نمایش داده میشه. همه‌ی کاربرها اولین باری که مینی‌اپ رو باز می‌کنن خودکار این صفحه رو دنبال می‌کنن.\n` +
     `«تنظیم خودکار» نام و یوزرنیم رو روی <b>${OFFICIAL_USERNAME}</b> میذاره.`;
   return {
     text,
@@ -63,7 +63,7 @@ async function shortScreen() {
   const ids = (await getBotSettings()).shortUsernameIds ?? [];
   return {
     text:
-      `🔢 <b>یوزرنیم کوتاه</b>\n\nهر یوزرنیم مینی‌اپ نوا باید حداقل ۵ کاراکتر باشه. آیدی‌های عددی تلگرامی که اینجا اضافه کنی می‌تونن یوزرنیم <b>هر طولی</b> (حتی ۱ تا ۴ کاراکتر) بذارن. مالک همیشه مجازه.\n\n` +
+      `🔢 <b>یوزرنیم کوتاه</b>\n\nهر یوزرنیم مینی‌اپ مویا باید حداقل ۵ کاراکتر باشه. آیدی‌های عددی تلگرامی که اینجا اضافه کنی می‌تونن یوزرنیم <b>هر طولی</b> (حتی ۱ تا ۴ کاراکتر) بذارن. مالک همیشه مجازه.\n\n` +
       `لیست فعلی (${ids.length}): ${ids.length ? ids.map((i) => `<code>${i}</code>`).join("، ") : "خالی"}`,
     reply_markup: inlineKeyboard([
       [glassButton("➕ افزودن آیدی", OWN_CB.shortAdd, "success"), glassButton("➖ حذف آیدی", OWN_CB.shortDel, "danger")],
@@ -112,7 +112,7 @@ export function registerOwnerAdmin(composer: Composer<NavaContext>) {
     }
     await col.updateOne({ _id: env.OWNER_ID }, { $set: set });
     await logAdminAction(ctx.from!.id, "owner_account_setup", holder ? "username_taken" : "ok");
-    await ctx.answerCallbackQuery({ text: holder ? "نام و تیک تنظیم شد؛ ولی @Nava دست یه کاربر دیگه‌ست (از «یوزرنیم» عوضش کن)" : "انجام شد ✅", show_alert: !!holder });
+    await ctx.answerCallbackQuery({ text: holder ? "نام و تیک تنظیم شد؛ ولی @Moya دست یه کاربر دیگه‌ست (از «یوزرنیم» عوضش کن)" : "انجام شد ✅", show_alert: !!holder });
     await reply(ctx, await ownerScreen());
   });
 

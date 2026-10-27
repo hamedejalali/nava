@@ -1,6 +1,6 @@
 import { C, col } from "./common.js";
 
-/** Owner-controlled switches of the Navagram Mini App. Stored in MongoDB (never in env). */
+/** Owner-controlled switches of the Moyagram Mini App. Stored in MongoDB (never in env). */
 export interface MiniSettings {
   _id: "singleton";
   /** When on, a copy of every new post is sent (once) to the channel below. */

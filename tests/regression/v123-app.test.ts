@@ -66,7 +66,7 @@ test("N1. chat requests do not expire; the owner (acting as a default member) ca
 
 test("N2. Nava (owner) takes no chat requests; a legal account takes them only while the owner switched it on", async () => {
   assert.equal((await call(10, { action: "request", id: "user_OWNR" })).payload.status, "unavailable");
-  const leg: any = await createOfficialAccount("پشتیبانی نوا");
+  const leg: any = await createOfficialAccount("پشتیبانی مویا");
   assert.equal(leg.official, true);
   assert.equal((await call(10, { action: "request", id: leg.anonId })).payload.status, "unavailable");
   const on = await call(OWNER_ID, { action: "official_chat", asUser: true, actAs: leg.anonId, open: true });
@@ -126,8 +126,8 @@ test("N6. the owner's real registered name is replaced by «Nava»", async () =>
   const u: any = await col("users").findOne({ _id: OWNER_ID });
   await healOwnerIdentity(u, "حامد");
   const f: any = await col("users").findOne({ _id: OWNER_ID });
-  assert.equal(f.nickname, "Nava");
-  assert.equal(f.firstName, "Nava");
+  assert.equal(f.nickname, "Moya");
+  assert.equal(f.firstName, "Moya");
 });
 
 test("N7. backgammon XP stakes: host's chips are held, the opponent matches, the winner takes the pot; cancel refunds; no balance → no seat", async () => {

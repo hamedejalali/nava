@@ -104,7 +104,7 @@ export async function seedsScreen(): Promise<{ text: string; reply_markup: Retur
 function card(u: UserDoc): string {
   return (
     `🎭 <b>${escapeHtml(u.nickname ?? "-")}</b>${u.verified ? " ✅" : ""}\n` +
-    `کد نوا: <code>${escapeHtml(u.anonId)}</code>\n` +
+    `کد مویا: <code>${escapeHtml(u.anonId)}</code>\n` +
     `${u.gender === "female" ? "زن" : "مرد"} • ${u.age ?? "-"} ساله • ${escapeHtml(u.province ?? "-")} / ${escapeHtml(u.city ?? "-")}\n` +
     `بیو: ${u.bio ? escapeHtml(u.bio) : "—"}\n` +
     `عکس: ${u.profilePhotoFileId ? "دارد" : "ندارد"}\n` +
@@ -142,7 +142,6 @@ async function listScreen(ctx: NavaContext, page: number) {
 function genderKeyboard() {
   return inlineKeyboard([
     [glassButton("👩 زن", `${SEED_CB.gender}female`, "primary"), glassButton("👨 مرد", `${SEED_CB.gender}male`, "primary")],
-    [glassButton("❌ لغو", "flow:cancel", "danger")],
   ]);
 }
 

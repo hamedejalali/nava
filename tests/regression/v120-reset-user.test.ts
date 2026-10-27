@@ -44,11 +44,13 @@ test("R2. only the owner can reset", async () => {
   assert.equal(col("users").byId(2).miniUsername, "sarahh");
 });
 
-test("P1. admin panel: the «تنظیمات و ابزار» group is gone; its buttons are on the main panel; wallet panel is owner-only", async () => {
+test("P1. admin panel (v1.27): wallet / reaction gate live inside «⚙️ تنظیمات ربات»; wallet panel is owner-only", async () => {
   await h.text(OWNER_ID, "/start");
   const kb = JSON.stringify(h.last("sendMessage", OWNER_ID)?.payload.reply_markup ?? {});
-  assert.ok(!kb.includes("تنظیمات و ابزار"));
-  for (const label of ["⚙️ تنظیمات ربات", "🎯 تنظیم گیت ری‌اکشن", "🔌 اتصال ولت"]) assert.ok(kb.includes(label), label);
+  assert.ok(kb.includes("⚙️ تنظیمات ربات") && !kb.includes("🔌 اتصال ولت") && !kb.includes("راهنما / کانال جوین"));
+  await h.text(OWNER_ID, "⚙️ تنظیمات ربات");
+  const kb2 = JSON.stringify(h.last("sendMessage", OWNER_ID)?.payload.reply_markup ?? {});
+  for (const label of ["🎯 تنظیم گیت ری‌اکشن", "🔌 اتصال ولت", "📊 آمار ربات", "💾 داده‌ها", "🛡️ مدیریت و لاگ"]) assert.ok(kb2.includes(label), label);
   h.resetCalls();
   await h.text(OWNER_ID, "🔌 اتصال ولت");
   assert.match(String(h.last("sendMessage", OWNER_ID)?.payload.text), /اتصال ولت/);

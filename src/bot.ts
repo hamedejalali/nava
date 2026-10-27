@@ -14,6 +14,7 @@ import { registerProfile, ensureProfileViewIndexes } from "./features/matching/p
 import { registerProfileEdit } from "./features/matching/profileEdit.js";
 import { registerReportFlow } from "./features/matching/reportFlow.js";
 import { registerContacts } from "./features/matching/contacts.js";
+import { registerUserSearch } from "./features/search/userSearch.js";
 import { registerProfileLookup } from "./features/matching/profileLookup.js";
 import { registerVerifyFlow } from "./features/matching/verifyFlow.js";
 import { registerRelicTransfer } from "./features/matching/transfer.js";
@@ -55,6 +56,7 @@ import { registerMainMenuRouter } from "./features/menu/mainMenuRouter.js";
 import { escapeHtml } from "./utils/html.js";
 import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
 import { telegramRetryTransformer } from "./ui/telegramRetry.js";
+import { rememberBotUsername } from "./config/botInfo.js";
 import { loadEmojiConfig } from "./db/models/emojiConfig.js";
 import { resumeIfBroken } from "./features/onboarding/repair.js";
 import { keyboardStateTransformer, restoreKeyboardIfDone } from "./features/common/keyboardState.js";
@@ -215,6 +217,10 @@ export function createBot(): Bot<NavaContext> {
   });
 
   // ---- emoji settings from the admin panel (premium on/off + overrides), cached 20 s ----
+  bot.use(async (ctx, next) => {
+    rememberBotUsername(ctx.me?.username);
+    await next();
+  });
   bot.use(async (_ctx, next) => {
     await loadEmojiConfig();
     await next();
@@ -306,6 +312,7 @@ export function createBot(): Bot<NavaContext> {
   registerProfileEdit(features);
   registerReportFlow(features);
   registerContacts(features);
+  registerUserSearch(features); // «🔎 جستجوی کاربران» / «📍 افراد نزدیک» (v1.27) — before the id lookup
   registerProfileLookup(features);
   registerVerifyFlow(features);
   registerShop(features); // «ژتون» purchase menu: Stars / ژتون / آدرس ولت (one message, edited in place)

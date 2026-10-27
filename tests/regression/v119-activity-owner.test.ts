@@ -1,4 +1,4 @@
-/** v1.19.0 — activity (heart) notifications + comment replies/likes, official «Nava» account (gold coin, auto-follow, @Nava),
+/** v1.19.0 — activity (heart) notifications + comment replies/likes, official «Moya» account (gold coin, auto-follow, @Nava),
  *  short usernames, picture gifts, gifts to default members, one-message member creation. (mocked Mongo + Telegram) */
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -69,7 +69,7 @@ test("O2. the owner's account shows the blue tick + gold coin, wherever it appea
   assert.equal(other.gold, undefined);
 });
 
-test("U1. usernames need 5+ characters; the owner and listed ids may use any length; «Nava» belongs to the owner only", async () => {
+test("U1. usernames need 5+ characters; the owner and listed ids may use any length; «Moya» belongs to the owner only", async () => {
   assert.equal((await call(1, { action: "set_username", username: "abcd" })).payload.error, "too_short");
   assert.equal((await call(1, { action: "set_username", username: "abcde" })).status, 200);
   await setShortUsernameIds([2]);
@@ -77,11 +77,11 @@ test("U1. usernames need 5+ characters; the owner and listed ids may use any len
   assert.equal((await call(2, { action: "check_username", username: "ab12" })).payload.available, true);
   assert.equal((await call(1, { action: "check_username", username: "ab12" })).payload.reason, "too_short");
   // an admin cannot grab the official name either
-  assert.equal((await call(ADMIN_ID, { action: "set_username", username: "Nava" })).payload.error, "reserved");
-  assert.equal((await call(1, { action: "set_username", username: "Nava" })).payload.error, "reserved");
-  const r = await call(OWNER_ID, { action: "set_username", username: "Nava" });
+  assert.equal((await call(ADMIN_ID, { action: "set_username", username: "Moya" })).payload.error, "reserved");
+  assert.equal((await call(1, { action: "set_username", username: "Moya" })).payload.error, "reserved");
+  const r = await call(OWNER_ID, { action: "set_username", username: "Moya" });
   assert.equal(r.status, 200);
-  assert.equal(r.payload.username, "Nava");
+  assert.equal(r.payload.username, "Moya");
   // removing an id from the list takes the privilege away for NEW names
   await setShortUsernameIds([]);
   assert.equal((await call(2, { action: "check_username", username: "xy12" })).payload.reason, "too_short");
@@ -211,10 +211,10 @@ test("S1. one-message member: six lines parse; bad lines say which line is wrong
   assert.equal(parseQuickSeed("مریم"), null, "a lone name continues the step-by-step flow");
 });
 
-test("S2. admin keyboard: coins / Navagram / default members are direct categories", async () => {
+test("S2. admin keyboard: coins / Moyagram / default members are direct categories", async () => {
   await h.text(OWNER_ID, "/start");
   const kb = JSON.stringify(h.last("sendMessage", OWNER_ID)?.payload.reply_markup);
-  for (const t of ["🪙 ژتون‌ها", "📸 نوا گرام", "🎭 ممبرهای پیش‌فرض"]) assert.match(kb, new RegExp(t));
+  for (const t of ["🪙 ژتون‌ها", "🌙 مویاگرام", "🎭 ممبرهای پیش‌فرض"]) assert.match(kb, new RegExp(t));
   await h.text(OWNER_ID, "🎭 ممبرهای پیش‌فرض");
   assert.match(JSON.stringify(h.last("sendMessage", OWNER_ID)?.payload.reply_markup), /ساخت ممبر جدید/);
   await h.text(OWNER_ID, "➕ ساخت ممبر جدید");

@@ -17,7 +17,7 @@ import { decodeImage } from "./nava/media.js";
 import { runInTransaction, TxAbort } from "../db/tx.js";
 
 /**
- * Navagram (نوا گرام) Mini App — the parts that live on the existing `users` document so the bot's
+ * Moyagram (مویاگرام) Mini App — the parts that live on the existing `users` document so the bot's
  * profile and the Mini App always show the same data: Mini-App @username, bio, profile-photo upload
  * (same moderation pipeline as the bot) and profile likes. Posts / stories / follows / gifts are in ./nava/.
  */
@@ -29,7 +29,7 @@ export const PHOTO_COOLDOWN_MS = 30_000;
 /** Everybody needs 5+ characters; the owner and the numeric ids listed in the admin panel («یوزرنیم کوتاه») may use any length. */
 export const USERNAME_MIN = 5;
 export const USERNAME_MAX = 24;
-const RESERVED = new Set(["admin", "administrator", "nava", "support", "owner", "moderator", "official", "bot", "telegram", "null", "undefined", "root"]);
+const RESERVED = new Set(["admin", "administrator", "nava", "moya", "moyagram", "support", "owner", "moderator", "official", "bot", "telegram", "null", "undefined", "root"]);
 
 /* ---------------------------------------------------------------- indexes */
 
@@ -127,7 +127,7 @@ export async function shortUsernameAllowed(user: { _id: number }): Promise<boole
 
 /** the official account's name belongs to the owner only (even admins may not take it) */
 function officialNameBlocked(user: { _id: number }, name: string): boolean {
-  return name.toLowerCase() === "nava" && !(env.OWNER_ID !== undefined && user._id === env.OWNER_ID);
+  return ["nava", "moya", "moyagram"].includes(name.toLowerCase()) && !(env.OWNER_ID !== undefined && user._id === env.OWNER_ID);
 }
 
 export async function checkUsername(user: UserDoc, raw: unknown, isStaff = false): Promise<{ available: boolean; reason?: string }> {

@@ -109,12 +109,12 @@ export function registerAdminModerators(composer: Composer<NavaContext>) {
         await logAdminAction(ctx.from!.id, "grant_admin", String(targetId));
         await ctx.reply("✅ ادمین اضافه شد. حالا مشخص کن به چه بخش‌هایی دسترسی داشته باشه (ژتونی که ادمین می‌فرسته از موجودی خودش کم میشه؛ از «مدیریت ژتون» می‌تونی شارژش کنی):");
         await sendPerms(ctx, targetId);
-        await ctx.api.sendMessage(targetId, "🛡️ شما به عنوان ادمین ربات نوا منصوب شدید.").catch(() => {});
+        await ctx.api.sendMessage(targetId, "🛡️ شما به عنوان ادمین ربات مویا منصوب شدید.").catch(() => {});
       } else if (text === "حذف") {
         await setAdminRole(targetId, false);
         await logAdminAction(ctx.from!.id, "revoke_admin", String(targetId));
         await ctx.reply("✅ دسترسی ادمین گرفته شد.");
-        await ctx.api.sendMessage(targetId, "⚠️ دسترسی ادمین شما در ربات نوا لغو شد.").catch(() => {});
+        await ctx.api.sendMessage(targetId, "⚠️ دسترسی ادمین شما در ربات مویا لغو شد.").catch(() => {});
       } else {
         await ctx.reply('لطفاً "افزودن" یا "حذف" رو بفرست.');
         return;

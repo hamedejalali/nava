@@ -22,7 +22,7 @@ export interface ChatRequestDoc {
   expiresAt: Date;
   respondedAt?: Date;
   sessionId?: string;
-  /** where the conversation will happen: "miniapp" = inside Navagram (direct messages), absent/"bot" = the bot chat */
+  /** where the conversation will happen: "miniapp" = inside Moyagram (direct messages), absent/"bot" = the bot chat */
   origin?: "bot" | "miniapp";
 }
 

@@ -1,4 +1,5 @@
 import { InputFile, type Composer } from "grammy";
+import { getAppVarNumber } from "../../services/appVars.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -103,8 +104,9 @@ async function runExport(ctx: NavaContext, adminId: number): Promise<void> {
       console.error("[userBackup] failed to DM export to admin:", err);
     });
 
-    if (env.BACKUP_CHANNEL_ID !== undefined) {
-      await ctx.api.sendDocument(env.BACKUP_CHANNEL_ID, new InputFile(file, path.basename(file)), { caption }).catch((err) => {
+    const backupId = await getAppVarNumber("BACKUP_CHANNEL_ID");
+    if (backupId !== undefined) {
+      await ctx.api.sendDocument(backupId, new InputFile(file, path.basename(file)), { caption }).catch((err) => {
         console.error("[userBackup] failed to send export to backup channel:", err);
       });
     }

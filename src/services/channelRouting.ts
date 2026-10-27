@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { getAppVarNumber } from "./appVars.js";
 import { getBotSettings } from "../db/models/settings.js";
 
 /**
@@ -50,7 +51,7 @@ export async function getRecipients(purpose: RoutePurpose): Promise<number[]> {
   const dest = await routeOf(purpose);
   if (dest === "off") return [];
   if (dest === "mgmt") {
-    const ch = s.managementChannelId ?? env.MODERATION_LOG_CHAT_ID;
+    const ch = s.managementChannelId ?? (await getAppVarNumber("MODERATION_LOG_CHAT_ID"));
     if (ch !== undefined && ch !== null) return [ch];
   }
   return ownerOrAdmins();
@@ -62,5 +63,5 @@ export async function getLogChatId(purpose: RoutePurpose): Promise<number | unde
   const dest = await routeOf(purpose);
   if (dest === "off") return undefined;
   if (dest === "dm") return env.OWNER_ID;
-  return s.managementChannelId ?? env.MODERATION_LOG_CHAT_ID;
+  return s.managementChannelId ?? (await getAppVarNumber("MODERATION_LOG_CHAT_ID"));
 }

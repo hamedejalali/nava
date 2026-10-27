@@ -49,14 +49,14 @@ beforeEach(async () => {
   api.length = 0;
   ensureSocialIndexesOnce();
   await new Promise((r) => setTimeout(r, 20));
-  seedUser({ id: OWNER_ID, anonId: "user_OWN0", nickname: "نوا", age: 30, bio: "bio", city: "تهران", relicBalance: 0, relicInitialized: true, miniUsername: "nava", miniUsernameLower: "nava" });
+  seedUser({ id: OWNER_ID, anonId: "user_OWN0", nickname: "مویا", age: 30, bio: "bio", city: "تهران", relicBalance: 0, relicInitialized: true, miniUsername: "nava", miniUsernameLower: "nava" });
   seedUser({ id: 2, anonId: "user_AAA2", nickname: "سارا", age: 22, bio: "hi", relicBalance: 50, relicInitialized: true, miniUsername: "sara", miniUsernameLower: "sara" });
 });
 
 test("O1. owner changes name and age on his own page at once — no edit request, nobody is asked", async () => {
-  const a = await call(OWNER_ID, { action: "request_change", field: "nickname", value: "Navagram Official" });
+  const a = await call(OWNER_ID, { action: "request_change", field: "nickname", value: "Moyagram Official" });
   assert.equal(a.payload.status, "applied");
-  assert.equal(col("users").byId(OWNER_ID).nickname, "Navagram Official");
+  assert.equal(col("users").byId(OWNER_ID).nickname, "Moyagram Official");
   const b = await call(OWNER_ID, { action: "request_change", field: "age", value: "41" });
   assert.equal(b.payload.status, "applied");
   assert.equal(col("users").byId(OWNER_ID).age, 41);

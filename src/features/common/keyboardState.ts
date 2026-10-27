@@ -27,7 +27,7 @@ const col = async () => (await getDb()).collection<KbState>("kb_state");
 export function classifyKeyboard(rows: Array<Array<{ text?: string }>>): Kind {
   const texts = rows.flat().map((b) => String(b?.text ?? ""));
   if (texts.length === 1 && (texts[0] === CANCEL_LABEL || texts[0] === DONE_LABEL)) return "cancel";
-  if (texts.includes(ADMIN_MENU_LABELS.close) || texts.includes(ADMIN_CATEGORY_LABELS.back)) return "admin";
+  if (texts.includes(ADMIN_MENU_LABELS.close) || texts.includes(ADMIN_CATEGORY_LABELS.back) || texts.includes(ADMIN_CATEGORY_LABELS.backSettings)) return "admin";
   if (texts.some((t) => !!matchMainMenuAction(t))) return "main";
   return "other";
 }

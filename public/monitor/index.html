@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>مانیتورینگ نوا</title>
+<title>مانیتورینگ مویا</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{--bg:#0e1116;--card:#171b22;--line:#252b35;--tx:#e8ecf2;--mu:#8a94a6;--ok:#3ecf8e;--warn:#f5a524;--bad:#ff5c5c}
@@ -33,7 +33,7 @@ button{background:var(--card);color:var(--tx);border:1px solid var(--line);borde
 .arow b{display:block}.arow span{color:var(--mu);font-size:12px}.arow .tick{margin-inline-start:auto;color:var(--ok);font-weight:800}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
-<div class="top"><h1><span class="live" id="lv"></span>مانیتورینگ نوا</h1><div class="acc" id="acc"><div class="av" id="accav">👤</div><b id="accn">Nava</b><span class="ch">⌄</span></div></div><div class="sub" id="ts">در حال بارگذاری…</div><div class="sub"><a href="/miniapp/?as=user" style="color:#2aabee;text-decoration:none">🌐 باز کردن «نوا گرام» به‌عنوان کاربر</a></div>
+<div class="top"><h1><span class="live" id="lv"></span>مانیتورینگ مویا</h1><div class="acc" id="acc"><div class="av" id="accav">👤</div><b id="accn">Nava</b><span class="ch">⌄</span></div></div><div class="sub" id="ts">در حال بارگذاری…</div><div class="sub"><a href="/miniapp/?as=user" style="color:#2aabee;text-decoration:none">🌐 باز کردن «مویاگرام» به‌عنوان کاربر</a></div>
 <div id="err" hidden></div><div class="grid" id="g"></div>
 <p class="note">مقدارهایی که قابل اندازه‌گیری نیستند به‌جای عدد ساختگی «در دسترس نیست» نمایش داده می‌شوند. بار سیستم (٪) روی سرورلس معنا ندارد؛ به‌جای آن ترافیک، تأخیر و صف تلگرام نمایش داده می‌شود.</p>
 <button id="r">به‌روزرسانی</button>
@@ -58,7 +58,7 @@ function render(s){const T=s.thresholds;document.getElementById("lv").className=
  card("ترافیک ۶۰ دقیقه اخیر",s.traffic.last60min,win,null,true),
  card("کاربران ثبت‌نام‌شده",s.users.registered,n),card("کل کاربران",s.users.total,n),
  card("چت‌های فعال",s.activity.activeChats,n),card("صف جستجو",s.activity.searchQueue,n),
- card("درخواست چت (۲۴س)",s.activity.chatRequests24h,n),card("تراکنش XP (۱س)",s.activity.ledgerEntries1h,n),
+ card("درخواست چت (۲۴س)",s.activity.chatRequests24h,n),card("تراکنش ژتون (۱س)",s.activity.ledgerEntries1h,n),
  card("بار سیستم (٪)",s.systemLoadPercent,String,null,true),
  card("آخرین خطای وب‌هوک",s.telegramWebhook,v=>v.last_error_message?v.last_error_message.slice(0,120):"ندارد",v=>v.last_error_message?"warn":"ok",true));
  document.getElementById("ts").textContent="به‌روزرسانی: "+new Date(s.generatedAt).toLocaleTimeString("fa-IR");[...g.children].forEach((c,i)=>c.style.animationDelay=(i*45)+"ms")}

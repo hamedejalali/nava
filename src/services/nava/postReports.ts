@@ -52,7 +52,7 @@ export async function reportPost(viewer: any, pidRaw: unknown, reasonRaw: unknow
 
 async function notifyStaff(post: PostDoc, reason: ReportReason, count: number): Promise<void> {
   const text =
-    `🚩 <b>گزارش پست نوا گرام</b>\n\n` +
+    `🚩 <b>گزارش پست مویاگرام</b>\n\n` +
     `دلیل: ${REASON_FA[reason]}\nتعداد گزارش‌دهنده‌ها: ${count}\nصاحب پست: <code>${post.ownerId}</code>\n` +
     (post.caption ? `کپشن: <blockquote>${escapeHtml(post.caption.slice(0, 300))}</blockquote>` : "");
   const reply_markup = inlineKeyboard([

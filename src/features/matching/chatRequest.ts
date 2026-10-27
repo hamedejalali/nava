@@ -1,4 +1,4 @@
-import type { Composer } from "grammy";
+import type { Api, Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -20,15 +20,15 @@ function requestCaption(from: UserDoc): string {
   const age = from.age ? `، ${from.age} ساله` : "";
   return (
     `💬 <b>درخواست چت</b>\n\n` +
-    `${name}${age} از نوا گرام می‌خواد باهات چت کنه.\n` +
-    `<blockquote>با قبول کردن، از هر دو نفر ۱ ژتون کم میشه و چت داخل نوا گرام شروع میشه (می‌تونی از بخش «پیام‌ها» توی مینی‌اپ هم جواب بدی).</blockquote>`
+    `${name}${age} از مویاگرام می‌خواد باهات چت کنه.\n` +
+    `<blockquote>با قبول کردن، از هر دو نفر ۱ ژتون کم میشه و چت داخل مویاگرام شروع میشه (می‌تونی از بخش «پیام‌ها» توی مینی‌اپ هم جواب بدی).</blockquote>`
   );
 }
 
 /** Sends the request to the addressee. Returns false when it could not be
  *  delivered (e.g. the user blocked the bot) and closes the request so it
  *  does not stay pending forever. Never throws. */
-export async function sendChatRequestToTarget(request: ChatRequestDoc, from: UserDoc, target: UserDoc): Promise<boolean> {
+export async function sendChatRequestToTarget(request: ChatRequestDoc, from: UserDoc, target: UserDoc, api: Pick<Api, "sendMessage" | "sendPhoto"> = botApi()): Promise<boolean> {
   const reply_markup = inlineKeyboard([
     [
       glassButton("قبول", `${ACCEPT_PREFIX}${request._id}`, "success", buttonIcon("GREEN_CHECK")),
@@ -37,9 +37,9 @@ export async function sendChatRequestToTarget(request: ChatRequestDoc, from: Use
   ]);
   try {
     if (from.profilePhotoFileId) {
-      await botApi().sendPhoto(target._id, from.profilePhotoFileId, { caption: requestCaption(from), parse_mode: "HTML", reply_markup });
+      await api.sendPhoto(target._id, from.profilePhotoFileId, { caption: requestCaption(from), parse_mode: "HTML", reply_markup });
     } else {
-      await botApi().sendMessage(target._id, requestCaption(from), { parse_mode: "HTML", reply_markup });
+      await api.sendMessage(target._id, requestCaption(from), { parse_mode: "HTML", reply_markup });
     }
     return true;
   } catch (err) {

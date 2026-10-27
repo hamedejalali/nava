@@ -1,4 +1,4 @@
-/* نوا گرام — بازی‌ها (v1.25): صفحه‌ی «بازی‌ها»، دکمه‌ی شناور، لابی و تخته‌ی تخته‌نرد.
+/* مویاگرام — بازی‌ها (v1.25): صفحه‌ی «بازی‌ها»، دکمه‌ی شناور، لابی و تخته‌ی تخته‌نرد.
    The server (api/miniapp.ts game_* actions) owns every rule and every clock; this file only draws the board, the 3D dice and
    the animations, and sends taps. Board: SVG, tap a checker, then a glowing point. The board is turned 180° for the black player,
    so everybody's home is bottom-right. */
@@ -154,7 +154,9 @@
   }
   function orient(value, rz, extra) {
     var f = FACE[value]; extra = extra || [0, 0, 0];
-    return "rotateX(-26deg) rotateY(24deg) rotateZ(" + (rz + extra[0]) + "deg) rotateY(" + (f[0] + extra[1]) + "deg) rotateX(" + (f[1] + extra[2]) + "deg)";
+    /* a die that lies flat shows its top face almost straight on (readable pips); only a cocked die keeps the strong tilt */
+    var cocked = extra[1] !== 0 || extra[2] !== 0, tx = cocked ? -26 : 0, ty = cocked ? 24 : 0;
+    return "rotateX(" + tx + "deg) rotateY(" + ty + "deg) rotateZ(" + (rz + extra[0]) + "deg) rotateY(" + (f[0] + extra[1]) + "deg) rotateX(" + (f[1] + extra[2]) + "deg)";
   }
 
   /* ------------------------------------------------------------------ small shared UI */
@@ -315,7 +317,7 @@
       var r = v.roll; if (!r || !v.state) return null;
       var rd = rng(hash(gid) + (v.rollN || 0) * 7919), mine = r.by === v.me, cx = mine ? 265 : 91, list = [];
       for (var i = 0; i < 2; i++) {
-        var cocked = r.cocked && r.off === i, x = cx + (i === 0 ? -21 : 21) + (rd() - 0.5) * 9, y = 162 + (rd() - 0.5) * 14, rz = (rd() - 0.5) * 80;
+        var cocked = r.cocked && r.off === i, x = cx + (i === 0 ? -21 : 21) + (rd() - 0.5) * 9, y = 162 + (rd() - 0.5) * 14, rz = (rd() - 0.5) * 44;
         if (cocked) { x = cx + (i === 0 ? -26 : 26) + (rd() - 0.5) * 16; y = mine ? H + 20 : -22; rz = (rd() - 0.5) * 120; }
         list.push({ v: r.dice[i], x: x, y: y, rz: rz, cocked: !!cocked });
       }
@@ -518,14 +520,7 @@
     function loop() { if (!alive) return; if (!document.body.contains(w)) { alive = false; return; } if (!document.hidden && !busy) poll(); tm = setTimeout(loop, 1500); }
 
     $("rl").onclick = function () { $("rl").disabled = true; act("game_roll", {}); setTimeout(function () { $("rl").disabled = false; }, 600); };
-    $("shg").onclick = function () {
-      var u = NG.bot ? "https://t.me/" + NG.bot + "?start=g_" + gid : null;
-      if (!u) return NG.toast("لینک در دسترس نیست");
-      var txt = "🎲 بیا باهم تخته‌نرد بازی کنیم" + (v && v.stake ? " (" + num(v.stake) + " ژتون)" : "") + " — نوا گرام";
-      var l = "https://t.me/share/url?url=" + encodeURIComponent(u) + "&text=" + encodeURIComponent(txt);
-      try { if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) return Telegram.WebApp.openTelegramLink(l); } catch (e) {}
-      window.open(l, "_blank");
-    };
+    $("shg").onclick = function () { NG.share("game", gid); };
     $("cn").onclick = function () { NG.confirm("لغو میز؟", "میز بسته می‌شه" + (v && v.stake ? " و ژتونت برمی‌گرده." : "."), "تأیید", function () { act("game_resign", {}, true); }); };
     top.querySelector(".rt").onclick = function () {
       if (!v || v.status === "finished") return;
@@ -577,7 +572,7 @@
       if (d.mine.length) {
         body.appendChild(el('<div class="hint"><span>بازی‌های من</span><small class="gmsmall">' + num(d.mine.length) + " از " + num(d.max) + "</small></div>"));
         d.mine.forEach(function (g) { body.appendChild(rowFor(g)); });
-      } else body.appendChild(el('<div class="gmhero"><div class="gmbig">🎲</div><h3>تخته‌نرد دو نفره</h3><p>با یه کاربر دیگه‌ی نوا گرام بازی کن. هر حرکت ۲ دقیقه وقت داره.</p></div>'));
+      } else body.appendChild(el('<div class="gmhero"><div class="gmbig">🎲</div><h3>تخته‌نرد دو نفره</h3><p>با یه کاربر دیگه‌ی مویاگرام بازی کن. هر حرکت ۲ دقیقه وقت داره.</p></div>'));
       body.appendChild(el('<div class="hint"><span>بازی جدید</span></div>'));
       if (d.canCreate) {
         var stakes = d.stakes || [0, 1, 2, 5, 10, 20, 50, 100];
@@ -594,7 +589,7 @@
         n.onclick = function () {
           n.disabled = true;
           NG.api("game_create", { stake: stakeSel || 0 }).then(function (rr) {
-            if (!rr.ok) { n.disabled = false; return NG.toast(rr.data && rr.data.error === "insufficient" ? "ژتون کافی برای این مبلغ نداری." : NG.errText(rr)); }
+            if (!rr.ok) { n.disabled = false; if (guestStop(rr)) return; return NG.toast(rr.data && rr.data.error === "insufficient" ? "ژتون کافی برای این مبلغ نداری." : NG.errText(rr)); }
             enter(rr.data.gid, rr.data);
           }).catch(function () { n.disabled = false; NG.netErr(); });
         };
@@ -609,7 +604,7 @@
         r2.querySelector("button").onclick = function (e) {
           e.stopPropagation();
           NG.api("game_join", { gid: t.gid }).then(function (rr) {
-            if (!rr.ok) { var er = rr.data && rr.data.error; NG.toast(er === "not_found" ? "این میز دیگه نیست." : er === "insufficient" ? "ژتون کافی برای هم‌اندازه کردن مبلغ میز نداری." : er === "same_opponent" ? "با این بازیکن همین الان یه بازی در جریان داری." : NG.errText(rr)); sig = ""; return load(true); }
+            if (!rr.ok) { if (guestStop(rr)) { sig = ""; return; } var er = rr.data && rr.data.error; NG.toast(er === "not_found" ? "این میز دیگه نیست." : er === "insufficient" ? "ژتون کافی برای هم‌اندازه کردن مبلغ میز نداری." : er === "same_opponent" ? "با این بازیکن همین الان یه بازی در جریان داری." : NG.errText(rr)); sig = ""; return load(true); }
             enter(rr.data.gid, rr.data);
           }).catch(NG.netErr);
         };
@@ -680,8 +675,15 @@
 
   /* ------------------------------------------------------------------ the floating button + the live pulse */
   var fab = null, prevGames = null;
+  /** v1.27: a guest (registration unfinished) may sit at a shared table; creating/sharing tables and staked tables need an account → «ثبت‌نام» */
+  function guestStop(r) {
+    var e = r && r.data && r.data.error;
+    if (!NG.guest || (e !== "not_registered" && e !== "insufficient")) return false;
+    NG.haptic("err"); NG.guestGate(e === "insufficient" ? "این میز ژتون داره؛ برای شرکت توش اول در ربات ثبت نام کنید." : null);
+    return true;
+  }
   NG.mountGameFab = function () {
-    if (fab || NG.guest) return;
+    if (fab) return;
     fab = el('<button class="gfab" aria-label="games"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="10" fill="url(#gfg)"/><defs><linearGradient id="gfg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8a3d"/><stop offset=".55" stop-color="#e1306c"/><stop offset="1" stop-color="#7a3fd0"/></linearGradient></defs><g fill="#fff"><circle cx="16" cy="16" r="3.2"/><circle cx="32" cy="16" r="3.2"/><circle cx="24" cy="24" r="3.2"/><circle cx="16" cy="32" r="3.2"/><circle cx="32" cy="32" r="3.2"/></g></svg><i class="gdot hide"></i></button>');
     fab.onclick = function () { NG.haptic("sel"); NG.openGames(); };
     NG.col.appendChild(fab);
@@ -689,11 +691,10 @@
   NG.setFabAway = function (away) { if (fab) fab.classList.toggle("away", !!away); };
   /** opened from a shared game link (?go=g_<gid>): sit down at that table (or re-open it if it is already mine) */
   NG.joinGameByLink = function (gid) {
-    if (NG.guest) { NG.haptic("err"); return NG.confirm("ثبت‌نام لازمه", "ابتدا در ربات ثبت نام کنید، بعد دوباره لینک بازی رو بزن.", "ثبت‌نام در ربات", function () { if (NG.openBotForSignup) NG.openBotForSignup(); try { Telegram.WebApp.close(); } catch (e) {} }); }
     NG.api("game_state", { gid: gid }).then(function (r) {
       if (r.ok && r.data && r.data.status) return openBoard(gid, r.data);
       NG.api("game_join", { gid: gid }).then(function (rr) {
-        if (!rr.ok) { var er = rr.data && rr.data.error; return NG.toast(er === "insufficient" ? "ژتون کافی برای این میز نداری." : er === "not_found" ? "این میز دیگه نیست." : NG.errText(rr)); }
+        if (!rr.ok) { if (guestStop(rr)) return; var er = rr.data && rr.data.error; return NG.toast(er === "insufficient" ? "ژتون کافی برای این میز نداری." : er === "not_found" ? "این میز دیگه نیست." : NG.errText(rr)); }
         openBoard(rr.data.gid, rr.data);
       }).catch(NG.netErr);
     }).catch(NG.netErr);

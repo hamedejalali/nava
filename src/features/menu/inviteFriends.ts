@@ -1,4 +1,5 @@
 import type { NavaContext } from "../../bot-context.js";
+import { getAppVar } from "../../services/appVars.js";
 import { countReferralRewards } from "../../db/models/relic.js";
 import { getContent, setContent } from "../../db/models/content.js";
 import { env } from "../../config/env.js";
@@ -26,7 +27,7 @@ export function defaultInviteMessageTemplate(): string {
   const referralBonusEmoji = textEmoji("INVITE_REFERRAL_BONUS", "💬");
 
   return (
-    `${introEmoji}《نوا💬》هستم، با من میتونی👇\n\n` +
+    `${introEmoji}《مویا💬》هستم، با من میتونی👇\n\n` +
     `${anonEmoji} به صورت کاملا #ناشناس و رایگان با افرادی که اطرافتن و نزدیکن بهت آشنا بشی و #چت کنی ${anonEmoji}\n\n` +
     `${featuresEmoji} با کلی امکانات جذاب و جالب دیگه که باید بیای با چشمای خودت ببینی تا باور کنی ${featuresEmoji}\n\n` +
     `⁉️ پس چرا منتظری؟ ${ctaEmoji}\n\n` +
@@ -51,9 +52,10 @@ export async function sendInviteScreen(ctx: NavaContext): Promise<void> {
   let sentAsPhoto = false;
   // Telegram caps a photo caption at 1024 VISIBLE characters (tags don't count).
   const visibleLength = inviteText.replace(/<\/?tg-emoji[^>]*>/g, "").length;
-  if (env.INVITE_BANNER_PHOTO && visibleLength <= 1024) {
+  const banner = await getAppVar("INVITE_BANNER_PHOTO");
+  if (banner && visibleLength <= 1024) {
     try {
-      await ctx.replyWithPhoto(env.INVITE_BANNER_PHOTO, { caption: inviteText });
+      await ctx.replyWithPhoto(banner, { caption: inviteText });
       sentAsPhoto = true;
     } catch (err) {
       // eslint-disable-next-line no-console

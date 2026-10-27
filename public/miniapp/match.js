@@ -1,4 +1,4 @@
-/* نوا گرام — Matching tab (v1.23, rewritten). One person at a time: the whole photo (never cropped, rounded corners), name + tick, age • city, bio,
+/* مویاگرام — Matching tab (v1.23, rewritten). One person at a time: the whole photo (never cropped, rounded corners), name + tick, age • city, bio,
    and three round buttons: ✕ next · ❤ like (likes the person's profile-photo post) · 💬 chat request.
    Guests (not registered) see fictional members and a «ثبت‌نام کن» card at the end. Members without a photo get 6 cards, then «اول عکس پروفایلت رو بذار». */
 (function () {
@@ -13,6 +13,13 @@
     window.open(u, "_blank");
   }
   NG.openBotForSignup = openBot;
+  /** every section except the game and the Matching preview: "register in the bot first" with a «ثبت‌نام» button (opens the bot, closes the mini-app) */
+  NG.guestGate = function (text) {
+    NG.confirm("ثبت‌نام لازمه", text || "برای استفاده از این قسمت لطفاً ابتدا در ربات ثبت‌نام کنید.", "ثبت‌نام", function () {
+      openBot();
+      try { Telegram.WebApp.close(); } catch (e) {}
+    }, false);
+  };
   var I_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8.5-5.2-8.5-11.2A4.9 4.9 0 0 1 12 7.2a4.9 4.9 0 0 1 8.5 2.6C20.5 15.8 12 21 12 21Z" fill="currentColor"/></svg>';
   var I_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
   var I_MSG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l6.5 2.5L12 21l3.2-6.4L21 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m9.5 13 5.6-5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';

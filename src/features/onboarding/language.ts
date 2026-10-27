@@ -17,6 +17,7 @@ import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { requireLocked } from "../../i18n/index.js";
 import { isOwner, isAdmin } from "../admin/constants.js";
 import { sendOwnerAdminWelcome } from "../admin/ownerBypass.js";
+import { isBrokenCompleted } from "./repair.js";
 
 const LANGUAGES: Language[] = ["fa", "en", "ar"];
 
@@ -65,9 +66,9 @@ export function registerLanguageHandlers(composer: Composer<NavaContext>) {
       referredBy,
     });
 
-    // Owner/admin accounts NEVER go through gender/age/province/city/
-    // nickname onboarding — straight to the admin panel every time.
-    if (isOwner(ctx) || isAdmin(ctx)) {
+    // The OWNER goes straight to the admin panel. Other admins too — but only once their own profile is complete: an admin who
+    // never answered the questions used to get a "COMPLETED" profile with نام: - / سن: - (v1.27), so he is asked like everybody else.
+    if (isOwner(ctx) || (isAdmin(ctx) && user.onboardingStep === "COMPLETED" && !isBrokenCompleted(user))) {
       await sendOwnerAdminWelcome(ctx, user, ctx.from.first_name);
       return;
     }

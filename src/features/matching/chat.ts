@@ -1,3 +1,4 @@
+import { notifyChatEndWatchers } from "../search/userSearch.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
@@ -106,6 +107,8 @@ async function doEndChat(ctx: NavaContext) {
   // a chat with a default member: announce it to the management channel right away (nothing is sent to the member)
   if (session.seedChat) await onChatEndedBySomeone(ctx.api, session).catch(() => {});
 
+  void notifyChatEndWatchers(ctx.api, me);
+  void notifyChatEndWatchers(ctx.api, partnerId);
   const ender = ctx.dbUser!;
   const partner = await getUser(partnerId);
   const partnerLang: Language = partner?.languageCode ?? "fa";

@@ -22,12 +22,12 @@ export function firstMissingStep(u: { gender?: unknown; age?: unknown; province?
   return null;
 }
 
-/** Only the clear-cut case is repaired automatically: «completed» but with neither a name nor an age. */
+/** «completed» but a basic answer is missing (name, age, province or city) → back to the first missing question. */
 export function isBrokenCompleted(u: any): boolean {
   if (!u || u.onboardingStep !== "COMPLETED") return false;
   if (u.isSeed || isOfficial(u) || u.banned) return false;
   if (env.OWNER_ID !== undefined && u._id === env.OWNER_ID) return false;
-  return !(typeof u.nickname === "string" && u.nickname.trim()) && typeof u.age !== "number";
+  return firstMissingStep(u) !== null;
 }
 
 /** Returns true when the person was sent back into the questions (the current update must then stop). */

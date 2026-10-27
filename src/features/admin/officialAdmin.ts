@@ -16,7 +16,7 @@ export function registerOfficialAdmin(composer: Composer<NavaContext>) {
     const text = ctx.message.text.trim();
     if (text === ADMIN_MENU_LABELS.officialAdd) {
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "name" });
-      await ctx.reply("نام اکانت حقوقی رو بفرست (مثلاً «پشتیبانی نوا»). برای لغو: /cancel");
+      await ctx.reply("نام اکانت حقوقی رو بفرست (مثلاً «پشتیبانی مویا»). برای لغو: /cancel");
       return;
     }
     const flow = await getAdminFlow(ctx.from!.id);

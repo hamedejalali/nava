@@ -1,6 +1,6 @@
-/* نوا گرام — service worker: static files (js/css/fonts) open instantly from the device cache and refresh in the background.
+/* مویاگرام — service worker: static files (js/css/fonts) open instantly from the device cache and refresh in the background.
    API calls and signed media are never touched. Bumping VERSION replaces the cache. */
-var VERSION = "ng-1.26.0";
+var VERSION = "ng-1.27.0";
 self.addEventListener("install", function (e) { self.skipWaiting(); });
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== VERSION; }).map(function (k) { return caches.delete(k); })); }).then(function () { return self.clients.claim(); }));

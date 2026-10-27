@@ -11,7 +11,7 @@ export interface ChatSessionDoc {
   /** true when the partner (userB) is a default/seed member: nothing is charged, nothing is ever sent to a
    *  Telegram account for the seed side, and src/features/matching/seedMatch.ts ends it on a timer. */
   seedChat?: boolean;
-  /** "miniapp": a Navagram direct-message chat (messages live in `dm_messages`, nothing is relayed through the bot);
+  /** "miniapp": a Moyagram direct-message chat (messages live in `dm_messages`, nothing is relayed through the bot);
    *  absent/"bot": the classic anonymous bot chat. */
   origin?: "bot" | "miniapp";
   /** direct-message bookkeeping (miniapp sessions): last message number and each side's last read number */
@@ -56,7 +56,7 @@ async function sessionCollection(): Promise<Collection<ChatSessionDoc>> {
 // If a real userA/userB lookup is ever added, restore the matching index
 // alongside it.
 export async function ensureChatSessionIndexes(): Promise<void> {
-  // v1.22: the Navagram Directs tab lists a person's direct-message chats by participant
+  // v1.22: the Moyagram Directs tab lists a person's direct-message chats by participant
   const col = await sessionCollection();
   await col.createIndexes([
     { key: { userA: 1, createdAt: -1 }, name: "userA_created" },

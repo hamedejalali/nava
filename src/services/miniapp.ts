@@ -51,6 +51,18 @@ export async function authenticateViewer(initData: unknown): Promise<ViewerResul
   return { ok: true, user };
 }
 
+/** v1.27: somebody who started the bot but has NOT finished registration ("guest"). Only the game section is open to them
+ *  (they may sit at a table somebody shared with them); the caller decides which actions. Same signed-initData rule; banned = no. */
+export async function authenticateGuest(initData: unknown): Promise<ViewerResult> {
+  if (typeof initData !== "string" || !initData || initData.length > 4096) return { ok: false, status: 401, error: "unauthorized" };
+  const tg = verifyTelegramWebAppInitData(initData, env.BOT_TOKEN, MINIAPP_INITDATA_MAX_AGE_SECONDS);
+  if (!tg) return { ok: false, status: 401, error: "unauthorized" };
+  const user = await (await getDb()).collection<UserDoc>("users").findOne({ _id: tg.id });
+  if (!user || user.onboardingStep === "COMPLETED") return { ok: false, status: 403, error: "not_registered" };
+  if (user.banned) return { ok: false, status: 403, error: "banned" };
+  return { ok: true, user };
+}
+
 /** Same live force-join rule the bot applies (admin-exempt users skip it) — one shared definition, see forcejoin/membership.ts. */
 export async function viewerHasJoinedChannels(user: UserDoc): Promise<boolean> {
   return (await missingChannels(user)).length === 0;

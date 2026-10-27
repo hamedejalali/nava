@@ -247,7 +247,7 @@ export async function runAlertCheck(deps: AlertDeps, snapshot?: Snapshot): Promi
   const sent: string[] = [];
   for (const c of evaluateConditions(snap)) {
     if (!(await claimSlot(`alert:${c.key}`, t.cooldownMs, now))) continue;
-    try { await deps.send(`🚨 هشدار مانیتورینگ نوا\n${c.text}`); sent.push(c.key); }
+    try { await deps.send(`🚨 هشدار مانیتورینگ مویا\n${c.text}`); sent.push(c.key); }
     catch (err) { console.error("[monitor] alert send failed:", err instanceof Error ? err.name : "unknown"); }
   }
   return sent;

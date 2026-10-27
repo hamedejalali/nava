@@ -18,7 +18,7 @@ import { env } from "../../config/env.js";
 import { getMiniSettings } from "../../services/nava/settings.js";
 
 /**
- * Owner tools around gifts (inside «نوا گرام» ← «هدیه‌ها»):
+ * Owner tools around gifts (inside «مویاگرام» ← «هدیه‌ها»):
  *  - add a gift that looks exactly like a Telegram gift (the official gift list from the Bot API, or any sticker the owner sends);
  *  - see the gifts of any user and delete one / take it for himself (owner only);
  *  - auctions and giveaways in the channel (owner only).
@@ -73,7 +73,7 @@ export async function openUserGiftsPrompt(ctx: NavaContext) {
 }
 
 export const GIFT_EVENTS_HOME = {
-  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال حراج و قرعه‌کشی» (کانال جدا؛ از «کانال و تنظیمات نوا گرام» تنظیمش کن) منتشر میشه و همون پست ادیت میشه.\nدر حراج، ژتون پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
+  text: "🔨 <b>حراج و قرعه‌کشی هدیه</b>\n\nپست توی «کانال حراج و قرعه‌کشی» (کانال جدا؛ از «کانال و تنظیمات مویاگرام» تنظیمش کن) منتشر میشه و همون پست ادیت میشه.\nدر حراج، ژتون پیشنهاد دهنده همون لحظه نگه داشته میشه و با پیشنهاد بالاتر خودکار برمی‌گرده.",
   reply_markup: inlineKeyboard([
     [glassButton("🔨 حراج جدید", `${GF.evNew}a`, "success"), glassButton("🎉 قرعه‌کشی جدید", `${GF.evNew}g`, "success")],
     [glassButton("📋 رویدادهای باز", GF.evList, "primary")],
@@ -246,7 +246,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
   composer.callbackQuery(new RegExp(`^${GF.evNew}([ag])$`), async (ctx) => {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery({ text: "فقط مالک", show_alert: true }));
     const s = await getMiniSettings();
-    if (!s.eventsChannelId) return void (await ctx.answerCallbackQuery({ text: "اول «کانال حراج و قرعه‌کشی» رو تنظیم کن (از کانال و تنظیمات نوا گرام).", show_alert: true }));
+    if (!s.eventsChannelId) return void (await ctx.answerCallbackQuery({ text: "اول «کانال حراج و قرعه‌کشی» رو تنظیم کن (از کانال و تنظیمات مویاگرام).", show_alert: true }));
     await ctx.answerCallbackQuery();
     const kind = ctx.match![1]!;
     const cards = await giftCatalog(true);
@@ -372,7 +372,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
       const g = await addCustomGift({ name: String(flow.data?.name ?? ""), emoji: pick.emoji, price: num, sticker: { fileId: pick.fileId, uniqueId: pick.uniqueId, format: pick.format }, starCount: pick.stars, createdBy: ctx.from!.id, ...(pat ? { pattern: pat } : {}) });
       await logAdminAction(ctx.from!.id, "navagram_gift_add", `${g._id}:${num}`);
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "sticker", data: { more: true } });
-      await ctx.reply(`✅ هدیه‌ی «${escapeHtml(g.name)}» اضافه شد و همین الان توی لیست هدیه‌های نوا گرام هست.\n\nهدیه‌ی بعدی؟ عکس / استیکر / فایلش رو بفرست؛ اگه تموم شد «${DONE_LABEL}» رو بزن.`, { parse_mode: "HTML", reply_markup: replyKeyboard([[glassReplyButton(DONE_LABEL, "success")]]) });
+      await ctx.reply(`✅ هدیه‌ی «${escapeHtml(g.name)}» اضافه شد و همین الان توی لیست هدیه‌های مویاگرام هست.\n\nهدیه‌ی بعدی؟ عکس / استیکر / فایلش رو بفرست؛ اگه تموم شد «${DONE_LABEL}» رو بزن.`, { parse_mode: "HTML", reply_markup: replyKeyboard([[glassReplyButton(DONE_LABEL, "success")]]) });
       return;
     }
 

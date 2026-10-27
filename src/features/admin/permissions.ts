@@ -17,12 +17,12 @@ export const PERMS = {
   jeton: "🪙 ارسال و کسر ژتون",
   pricing: "💳 قیمت‌ها و منوی خرید",
   reactionGate: "🎯 گیت ری‌اکشن",
-  guides: "🛠 راهنما / کانال جوین / پشتیبانی",
-  settings: "⚙️ تنظیمات ربات (خاموشی)",
+  guides: "📝 متن‌ها، راهنما، پشتیبانی و کانال‌های جوین",
+  settings: "🔌 روشن / خاموش کردن ربات",
   stats: "📊 آمار ربات",
   activityLog: "🔐 لاگ فعالیت ادمین‌ها",
   seeds: "🎭 ممبرهای پیش‌فرض",
-  nava: "📸 نوا گرام (هدیه‌ها، کانال‌ها)",
+  nava: "🌙 مویاگرام (هدیه‌ها، بج‌ها، تنظیمات)",
   resetUser: "♻️ ریست اطلاعات کاربر",
   data: "💾 خروجی / ورودی اکسل",
 } as const;
@@ -84,8 +84,8 @@ export function labelPermissions(L: Record<string, string>): Record<string, Perm
   put([L.relic!], "jeton");
   put([L.pricing!, L.shop!], "pricing");
   put([L.reactionGate!], "reactionGate");
-  put([L.guidesAndChannels!], "guides");
-  put([L.settings!], "settings");
+  put([L.texts!, L.channels!], "guides");
+  put([L.maintenance!], "settings");
   put([L.stats!], "stats");
   put([L.activityLog!], "activityLog");
   put([L.seedPanel!, L.seedAdd!, L.seedBatch!, L.seedList!], "seeds");

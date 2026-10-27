@@ -74,7 +74,7 @@ async function notifyDeadUpdate(update: Update): Promise<void> {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
-    res.status(200).send(bot ? "Nava Bot webhook is alive." : "Nava Bot webhook is alive but failed to start — check server logs.");
+    res.status(200).send(bot ? "Moya Bot webhook is alive." : "Moya Bot webhook is alive but failed to start — check server logs.");
     return;
   }
 

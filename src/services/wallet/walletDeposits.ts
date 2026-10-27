@@ -180,14 +180,14 @@ export async function announceCredit(api: Pick<Api, "sendMessage">, o: Extract<C
   const d = await db();
   const claim = await d.collection<any>(DEPOSITS).updateOne({ _id: o.row._id, notifiedAt: { $exists: false } }, { $set: { notifiedAt: new Date() } });
   if (claim.modifiedCount !== 1) return;
-  await api.sendMessage(o.userId, `✅ ${o.amount} ژتون به حساب شما در نوا اضافه شد.`).catch(() => {});
+  await api.sendMessage(o.userId, `✅ ${o.amount} ژتون به حساب شما در مویا اضافه شد.`).catch(() => {});
   const logChat = await getLogChatId("wallet").catch(() => undefined);
   if (logChat !== undefined) {
     const lines = [
       "🧾 <b>رسید واریز از ولت</b>",
       `تراکنش ولت: <code>${o.row._id}</code>`,
       `کاربر: <code>${o.userId}</code>`,
-      `مبلغ واریزی به نوا: ${o.amount} ژتون`,
+      `مبلغ واریزی به مویا: ${o.amount} ژتون`,
       ...(o.row.fee !== undefined ? [`کارمزد: ${o.row.fee} ژتون`] : []),
       ...(o.row.totalCharged !== undefined ? [`کسر شده از ولت کاربر: ${o.row.totalCharged} ژتون`] : []),
       `زمان: ${o.row.walletCompletedAt ?? o.row.creditedAt.toISOString()}`,
@@ -230,7 +230,7 @@ export async function syncWalletDeposits(api: Pick<Api, "sendMessage">, opts: { 
           credited++;
           await announceCredit(api, out);
         } else if (out.reason === "user_missing" || out.reason === "invalid") {
-          await alertAdmins(api, `⚠️ واریز ولت ${tx.id} به هیچ کاربر معتبری در نوا نخورد (${out.reason}). مبلغ: ${tx.delivered_amount ?? "?"}. بررسی دستی لازم است.`);
+          await alertAdmins(api, `⚠️ واریز ولت ${tx.id} به هیچ کاربر معتبری در مویا نخورد (${out.reason}). مبلغ: ${tx.delivered_amount ?? "?"}. بررسی دستی لازم است.`);
         }
       }
       const last = list[list.length - 1];

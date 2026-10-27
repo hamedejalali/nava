@@ -1,4 +1,4 @@
-/* نوا گرام — core: Telegram bootstrap, helpers, icons, API, layers (screens / sheets). Vanilla JS, no build step. */
+/* مویاگرام — core: Telegram bootstrap, helpers, icons, API, layers (screens / sheets). Vanilla JS, no build step. */
 (function () {
   "use strict";
   var NG = (window.NG = {});
@@ -176,7 +176,7 @@
     if (e === "join_required") return NG.joinScreen((r.data && r.data.channels) || []);
     if (e === "not_registered" && NG.guest) return NG.toast("ابتدا ثبت‌نام کنید");
     if (e === "not_registered") return NG.fatal("ثبت‌نام کامل نیست", "اول ثبت‌نام رو داخل ربات کامل کن (/start).");
-    if (e === "maintenance") return NG.fatal("🛠 نوا در حال به‌روزرسانی است", (r.data && r.data.text) || "به‌زودی برمی‌گردیم.");
+    if (e === "maintenance") return NG.fatal("🛠 مویا در حال به‌روزرسانی است", (r.data && r.data.text) || "به‌زودی برمی‌گردیم.");
     if (e === "banned") return NG.fatal("شما مسدود شدید", "برای رفع مسدودیت به پشتیبانی پیام بدین.", r.data.support ? { label: "📩 پیام به پشتیبانی", url: r.data.support } : null);
     if (r && r.status === 401) return NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن.");
     NG.toast(NG.errText(r));
@@ -186,7 +186,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.26.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.27.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -273,7 +273,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('.ring[data-uid="' + uid + '"]'), function (r) { if (!r.hasAttribute("data-fixed")) NG.setRing(r, st); });
   };
   /** blue tick (+ the official account's gold coin) shown after a name */
-  NG.vb = function (u) { return u && u.verified ? NG.VERIFIED + (u.gold ? '<span class="goldc" title="Nava">🪙</span>' : "") : ""; };
+  NG.vb = function (u) { return u && u.verified ? NG.VERIFIED + (u.gold ? '<span class="goldc" title="Moya">🪙</span>' : "") : ""; };
   NG.nameOf = function (b) { return b.username || b.name; };
 
   /* ------------------------------------------------- layers / back button */
@@ -357,16 +357,17 @@
 
   NG.emptyHtml = function (icon, title, text) { return '<div class="empty"><div class="big">' + NG.svg(icon) + "</div><h3>" + title + "</h3>" + (text || "") + "</div>"; };
   NG.share = function (kind, id) {
-    var key = kind === "uid" ? "uid" : "pid";
+    var isGame = kind === "game";
+    var key = kind === "uid" ? "uid" : (isGame ? "gid" : "pid");
     var body = {}; body[key] = id;
     var code = (kind === "uid" ? "u_" : (String(id).indexOf("pp:") === 0 ? "q_" : "p_")) + String(id).replace(/^pp:/, "");
-    var link = NG.bot ? "https://t.me/" + NG.bot + "?startapp=" + code : "";
+    var link = NG.bot ? (isGame ? "https://t.me/" + NG.bot + "?start=g_" + id : "https://t.me/" + NG.bot + "?startapp=" + code) : "";
     var tg = NG.tg;
     /* the fallbacks, in order: Telegram's share sheet with the link → the phone's own share sheet → copy the link */
     function viaLink() {
       if (!link) return NG.toast("لینک اشتراک‌گذاری آماده نیست؛ چند لحظه بعد دوباره امتحان کن.");
       try {
-        if (tg && tg.openTelegramLink) { tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("نوا گرام")); return; }
+        if (tg && tg.openTelegramLink) { tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent(isGame ? "🎲 بیا باهم تخته‌نرد بازی کنیم" : "مویاگرام")); return; }
       } catch (e) {}
       try { if (navigator.share) { navigator.share({ url: link }).catch(function () {}); return; } } catch (e) {}
       try {
@@ -375,7 +376,7 @@
       NG.toast(link);
     }
     NG.haptic();
-    NG.api("share", body).then(function (r) {
+    NG.api(isGame ? "game_share" : "share", body).then(function (r) {
       if (!r.ok || !r.data || !r.data.id) return viaLink();
       if (tg && tg.shareMessage) {
         var settled = false, off = function () { try { tg.offEvent("shareMessageFailed", failed); tg.offEvent("shareMessageSent", sent); } catch (e) {} };

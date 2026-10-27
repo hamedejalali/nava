@@ -25,7 +25,14 @@ async function contentCollection(): Promise<Collection<ContentDoc>> {
 export async function getContent(key: ContentKey, fallback: string): Promise<string> {
   const col = await contentCollection();
   const doc = await col.findOne({ _id: key });
-  return doc?.text ?? fallback;
+  const text = doc?.text ?? fallback;
+  // v1.27: the bot is now «مویا» and the mini-app «مویاگرام»: a text saved from the panel before the rename shows the new names too.
+  return key === "supportId" ? text : renameBrand(text);
+}
+
+/** «نوا گرام» → «مویاگرام», «نوا» → «مویا» (whole words only). */
+export function renameBrand(text: string): string {
+  return text.replace(/نوا ?گرام/g, "مویاگرام").replace(/(?<![\u0600-\u06FF])نوا(?![\u0600-\u06FF])/g, "مویا");
 }
 
 export async function setContent(key: ContentKey, text: string, updatedBy: number): Promise<void> {

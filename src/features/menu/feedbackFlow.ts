@@ -1,3 +1,4 @@
+import { sendRestore } from "../common/keyboardState.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
@@ -58,7 +59,7 @@ export function registerFeedbackFlow(composer: Composer<NavaContext>) {
     if (isFlowCancelSignal(text)) {
       await (await flowCollection()).deleteOne({ _id: ctx.from!.id });
       if (text.startsWith("/")) return next();
-      await ctx.reply("لغو شد.");
+      await sendRestore(ctx, "لغو شد ✅");
       return;
     }
     if (text.length === 0 || text.length > 2000) {

@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { getAppVar } from "../services/appVars.js";
 
 export interface ModerationCheckResult {
   /** true when the AI could not be reached/parsed — callers must treat
@@ -18,7 +19,9 @@ export interface ModerationCheckResult {
  * ourselves and never run a heavy model inside this serverless function).
  */
 export async function checkImage(fileUrl: string): Promise<ModerationCheckResult> {
-  const { apiUser, apiSecret, threshold } = env.sightengine;
+  const { apiUser, apiSecret } = env.sightengine;
+  const thr = Number(await getAppVar("SIGHTENGINE_THRESHOLD"));
+  const threshold = Number.isFinite(thr) && thr > 0 ? thr : env.sightengine.threshold;
 
   if (!apiUser || !apiSecret) {
     // eslint-disable-next-line no-console

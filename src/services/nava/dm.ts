@@ -324,27 +324,27 @@ export async function sendPhoto(me: any, sid: unknown, image: unknown, api: Pick
 async function logPhoto(api: Pick<Api, "sendPhoto" | "getFile" | "editMessageCaption">, senderId: number, receiverId: number, sessionId: string, doc: DmDoc, buf: Buffer): Promise<void> {
   const chatIds = await getRecipients("dmLog");
   const log = await createPhotoModerationLog({ senderTelegramId: senderId, receiverTelegramId: receiverId, senderMessageId: 0, receiverMessageId: 0, chatSessionId: sessionId, fileId: "", dmMessageId: doc._id });
-  const head = `📸 عکس ارسالی در چت نوا گرام (تحویل داده شد)\n\nفرستنده (آیدی تلگرام): ${senderId}\nگیرنده (آیدی تلگرام): ${receiverId}\nشناسه‌ی چت: ${sessionId}`;
+  const head = `📸 عکس ارسالی در چت مویاگرام (تحویل داده شد)\n\nفرستنده (آیدی تلگرام): ${senderId}\nگیرنده (آیدی تلگرام): ${receiverId}\nشناسه‌ی چت: ${sessionId}`;
   const kb = { inline_keyboard: [[{ text: "🗑 حذف", callback_data: `photomod:delete:${log._id}` }, { text: "🚫 بن فرستنده", callback_data: `photomod:ban:${log._id}` }]] };
   const sent: Array<{ chat: number; msg: number }> = [];
   let fileId = "";
   for (const chat of chatIds) {
     try {
-      const m = await api.sendPhoto(chat, fileId || new InputFile(buf, "dm.jpg"), { caption: head + "\nسیستم نظارت نوا: در حال بررسی…", reply_markup: kb as any });
+      const m = await api.sendPhoto(chat, fileId || new InputFile(buf, "dm.jpg"), { caption: head + "\nسیستم نظارت مویا: در حال بررسی…", reply_markup: kb as any });
       if (!fileId) fileId = m.photo[m.photo.length - 1]!.file_id;
       sent.push({ chat, msg: m.message_id });
     } catch {
       /* one log chat failing must not stop the others */
     }
   }
-  let flag = "سیستم نظارت نوا: بررسی ناموفق (سرویس در دسترس نبود)";
+  let flag = "سیستم نظارت مویا: بررسی ناموفق (سرویس در دسترس نبود)";
   let ai: { flagged?: boolean; score?: number; classification?: string } = {};
   if (fileId) {
     try {
       const f = await api.getFile(fileId);
       const check = await checkImage(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${f.file_path}`);
       ai = { flagged: check.flagged, score: check.score, classification: check.classification };
-      flag = check.serviceUnavailable ? flag : check.flagged ? `سیستم نظارت نوا: مشکوک (امتیاز ${check.score?.toFixed(2) ?? "?"} / ${check.classification ?? "?"})` : `سیستم نظارت نوا: بدون مورد مشکوک (امتیاز ${check.score?.toFixed(2) ?? "?"})`;
+      flag = check.serviceUnavailable ? flag : check.flagged ? `سیستم نظارت مویا: مشکوک (امتیاز ${check.score?.toFixed(2) ?? "?"} / ${check.classification ?? "?"})` : `سیستم نظارت مویا: بدون مورد مشکوک (امتیاز ${check.score?.toFixed(2) ?? "?"})`;
     } catch {
       /* no AI verdict — honest caption stays */
     }
@@ -366,7 +366,7 @@ export async function removeDmMessage(messageId: string): Promise<{ senderId: nu
 
 function appKeyboard(): any {
   const url = env.NAVA_MINIAPP_URL;
-  return url ? { inline_keyboard: [[{ text: "💬 باز کردن نوا گرام", web_app: { url } }]] } : undefined;
+  return url ? { inline_keyboard: [[{ text: "💬 باز کردن مویاگرام", web_app: { url } }]] } : undefined;
 }
 
 async function pushIfAway(api: Pick<Api, "sendMessage">, s: ChatSessionDoc, partnerId: number, me: any, photo = false): Promise<void> {
@@ -382,7 +382,7 @@ async function pushIfAway(api: Pick<Api, "sendMessage">, s: ChatSessionDoc, part
     const claim = await (await sessionsCol()).updateOne({ _id: s._id, [`push${partnerSide}`]: { $in: [null, pushed] } } as any, { $set: { [`push${partnerSide}`]: Date.now() } });
     if (claim.modifiedCount !== 1) return;
     const name = me.nickname ? String(me.nickname).slice(0, 32) : "یک نفر";
-    await api.sendMessage(partnerId, `💬 ${name} ${photo ? "یه عکس" : "یه پیام"} برات فرستاد.\nبرای جواب دادن نوا گرام رو باز کن.`, { reply_markup: appKeyboard() }).catch(() => {});
+    await api.sendMessage(partnerId, `💬 ${name} ${photo ? "یه عکس" : "یه پیام"} برات فرستاد.\nبرای جواب دادن مویاگرام رو باز کن.`, { reply_markup: appKeyboard() }).catch(() => {});
   } catch {
     /* best effort */
   }
@@ -401,7 +401,7 @@ export async function deleteThreadForMe(me: any, sid: unknown): Promise<boolean>
 
 /* ------------------------------------------------------------ official notices */
 
-/** A message FROM an official ("حقوقی") account — Nava itself or a legal account — to one user. It appears in the user's Directs as an
+/** A message FROM an official ("حقوقی") account — Moya itself or a legal account — to one user. It appears in the user's Directs as an
  *  ordinary thread (tick, profile, everything) but is read-only: the user cannot answer. Never touches `activeChatSessionId`,
  *  never costs XP and never blocks another chat. */
 export async function sendOfficialMessage(api: Pick<Api, "sendMessage">, officialId: number, toId: number, rawText: string): Promise<void> {
@@ -420,17 +420,17 @@ export async function sendOfficialMessage(api: Pick<Api, "sendMessage">, officia
   await col.updateOne({ _id: s._id }, { $set: { readA: s.dmSeq ?? 0 } });
   const o: any = await (await usersCol()).findOne({ _id: officialId });
   // notices are important: the text itself also goes to the user's bot chat (with a button into the thread)
-  await api.sendMessage(toId, `📩 ${String(o?.nickname ?? "Nava").slice(0, 32)}:\n\n${text}`, { reply_markup: appKeyboard() }).catch(() => {});
+  await api.sendMessage(toId, `📩 ${String(o?.nickname ?? "Moya").slice(0, 32)}:\n\n${text}`, { reply_markup: appKeyboard() }).catch(() => {});
 }
 
 /* ------------------------------------------------------------ lifecycle */
 
-/** Both people are told that the chat is open inside Navagram (+ a system line in the thread). */
+/** Both people are told that the chat is open inside Moyagram (+ a system line in the thread). */
 export async function announceDmStarted(api: Pick<Api, "sendMessage">, sid: string, a: number, b: number): Promise<void> {
   await ensureDmIndexes();
   const s = await (await sessionsCol()).findOne({ _id: sid });
   if (s) await insertMsg(s, 0, "system", { text: "چت شروع شد 🎉 با رعایت ادب گپ بزنید. ارسال آیدی/لینک تلگرام ممنوعه." }).catch(() => {});
-  for (const id of [a, b]) await api.sendMessage(id, "✅ درخواست چت قبول شد؛ چتتون الان داخل نوا گرام (بخش «پیام‌ها») فعاله.", { reply_markup: appKeyboard() }).catch(() => {});
+  for (const id of [a, b]) await api.sendMessage(id, "✅ درخواست چت قبول شد؛ چتتون الان داخل مویاگرام (بخش «پیام‌ها») فعاله.", { reply_markup: appKeyboard() }).catch(() => {});
 }
 
 export async function endThread(me: any, sid: unknown, api: Pick<Api, "sendMessage">): Promise<{ refundedOther: boolean }> {
@@ -440,7 +440,7 @@ export async function endThread(me: any, sid: unknown, api: Pick<Api, "sendMessa
   const r = await closeSessionAtomic(s._id, me._id, (sess) => ((sess.messageCount ?? 0) < 4 ? [other] : []));
   if (r.status !== "ended") return { refundedOther: false };
   await insertMsg(s, 0, "system", { text: "این چت پایان یافت." }).catch(() => {});
-  await api.sendMessage(other, `🚫 چتت در نوا گرام پایان یافت — ${me.nickname ? String(me.nickname).slice(0, 32) : "مخاطبت"} چت رو بست.` + (r.refunded.includes(other) ? "\n💰 چون چت خیلی کوتاه بود، ژتونت برگشت داده شد." : "")).catch(() => {});
+  await api.sendMessage(other, `🚫 چتت در مویاگرام پایان یافت — ${me.nickname ? String(me.nickname).slice(0, 32) : "مخاطبت"} چت رو بست.` + (r.refunded.includes(other) ? "\n💰 چون چت خیلی کوتاه بود، ژتونت برگشت داده شد." : "")).catch(() => {});
   return { refundedOther: r.refunded.includes(other) };
 }
 

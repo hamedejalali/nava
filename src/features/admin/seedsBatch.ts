@@ -108,7 +108,6 @@ export function registerSeedsBatch(composer: Composer<NavaContext>) {
         reply_markup: inlineKeyboard([
           [glassButton("👩 همه زن", `${BATCH_CB.gender}female`, "primary"), glassButton("👨 همه مرد", `${BATCH_CB.gender}male`, "primary")],
           [glassButton("🎲 ترکیبی (تصادفی)", `${BATCH_CB.gender}mix`, "success")],
-          [glassButton("❌ لغو", "flow:cancel", "danger")],
         ]),
       });
       return;

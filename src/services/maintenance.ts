@@ -3,7 +3,7 @@ import { getBotSettings } from "../db/models/settings.js";
 import { getContent } from "../db/models/content.js";
 
 /** Default text shown to everybody else while the bot is switched off (editable: ویرایش متن‌ها → متن خاموشی). */
-export const DEFAULT_MAINTENANCE_TEXT = "🛠 نوا موقتاً در حال به‌روزرسانی است و به‌زودی با امکانات جدید برمی‌گردیم. ممنون از صبوری‌ت 🌐";
+export const DEFAULT_MAINTENANCE_TEXT = "🛠 مویا موقتاً در حال به‌روزرسانی است و به‌زودی با امکانات جدید برمی‌گردیم. ممنون از صبوری‌ت 🌐";
 
 export interface MaintenanceState {
   on: boolean;

@@ -5,7 +5,7 @@ import { getBlockedCounterparts } from "../../db/models/blocks.js";
 import type { UserDoc } from "../../db/models/user.js";
 import { env } from "../../config/env.js";
 
-/** Shared helpers of the Navagram (نوا گرام) Mini App backend. */
+/** Shared helpers of the Moyagram (مویاگرام) Mini App backend. */
 
 export class SocialError extends Error {
   constructor(public code: string) {
@@ -137,7 +137,7 @@ export interface Brief {
   username: string | null;
   name: string;
   verified: boolean;
-  /** the official account (the owner's «Nava»): a gold coin next to the blue tick */
+  /** the official account (the owner's «Moya»): a gold coin next to the blue tick */
   gold?: true;
   /** the coin glyph shown next to the tick (default 🪙; the owner can change it or remove it) */
   coin?: string;
@@ -165,7 +165,7 @@ export async function activeStoryOwners(viewerId: number, ownerIds: number[], no
   return out;
 }
 
-/** The official «Nava» account (the owner's page) and every legal-entity ("حقوقی") account created in the admin panel.
+/** The official «Moya» account (the owner's page) and every legal-entity ("حقوقی") account created in the admin panel.
  *  Pass the user document when you have it (needed for the legal accounts); a bare id only recognises the owner's page. */
 export function isOfficial(x: number | { _id: number; official?: boolean } | null | undefined): boolean {
   if (x == null) return false;
@@ -203,16 +203,17 @@ export function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** The owner's page is the official «Nava» account: if the nickname / first name still carries the owner's real registered name
- *  (or is empty), it is replaced by «Nava». A deliberately chosen different nickname is left alone. */
+/** The owner's page is the official «Moya» account: if the nickname / first name still carries the owner's real registered name
+ *  (or is empty), it is replaced by «Moya». A deliberately chosen different nickname is left alone. */
 export async function healOwnerIdentity(user: any, realFirstName?: string): Promise<void> {
   if (!user || (env.OWNER_ID !== undefined && user._id !== env.OWNER_ID)) return;
   const real = (realFirstName ?? "").trim();
   const nick = typeof user.nickname === "string" ? user.nickname.trim() : "";
   const first = typeof user.firstName === "string" ? user.firstName.trim() : "";
   const set: Record<string, unknown> = {};
-  if (!nick || (real && nick === real) || (first && nick === first && first !== "Nava")) set.nickname = "Nava";
-  if (first !== "Nava") set.firstName = "Nava";
+  // v1.27: the app was renamed «مویا»: the official page is called "Moya" (an old "Nava" name is renamed too)
+  if (!nick || nick === "Nava" || (real && nick === real) || (first && nick === first && first !== "Moya")) set.nickname = "Moya";
+  if (first !== "Moya") set.firstName = "Moya";
   if (!Object.keys(set).length) return;
   await (await usersCol()).updateOne({ _id: user._id }, { $set: set });
   Object.assign(user, set);

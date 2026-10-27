@@ -43,7 +43,7 @@ beforeEach(async () => {
   ensureSocialIndexesOnce();
   await ensureChatRequestIndexes();
   await new Promise((r) => setTimeout(r, 20));
-  seedUser({ id: OWNER_ID, anonId: "user_OWNR", nickname: "نوا", age: 33, city: "تهران", bio: "رسمی", profilePhotoFileId: "FO", onboardingStep: "COMPLETED", relicBalance: 0 } as any);
+  seedUser({ id: OWNER_ID, anonId: "user_OWNR", nickname: "مویا", age: 33, city: "تهران", bio: "رسمی", profilePhotoFileId: "FO", onboardingStep: "COMPLETED", relicBalance: 0 } as any);
   seedUser({ id: 10, anonId: "user_AAAA", nickname: "الف", profilePhotoFileId: "FA", onboardingStep: "COMPLETED", relicBalance: 5, miniUsername: "alef" } as any);
   seedUser({ id: 11, anonId: "user_BBBB", nickname: "ب", profilePhotoFileId: "FB", onboardingStep: "COMPLETED", relicBalance: 5, miniUsername: "bee" } as any);
   seedUser({ id: 12, anonId: "user_CCCC", nickname: "ج", profilePhotoFileId: "FC", onboardingStep: "COMPLETED", relicBalance: 5, miniUsername: "cee" } as any);

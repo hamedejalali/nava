@@ -22,7 +22,7 @@ async function screen(ctx: NavaContext) {
     `⚙️ تنظیمات ربات\n\n` +
       `ربات: ${settings.maintenanceMode ? "🔴 خاموش (کاربران عادی متن خاموشی را می‌بینند)" : "🟢 روشن"}\n` +
       `آیدی‌های مجاز در زمان خاموشی: ${allow.length}\n\n` +
-      `متن خاموشی از «🛠 راهنما / کانال جوین / پشتیبانی ← ویرایش راهنما ها ← متن خاموشی ربات» قابل ویرایش است.`,
+      `متن خاموشی از «📝 متن‌ها ← متن خاموشی ربات» قابل ویرایش است.`,
     {
       reply_markup: inlineKeyboard([
         [glassButton(settings.maintenanceMode ? "🟢 روشن کردن ربات" : "🔴 خاموش کردن ربات", CB.toggleMaintenance, "primary")],
@@ -47,7 +47,7 @@ export function parseIdList(text: string): { ids: number[]; bad: string[] } {
 export function registerAdminSettings(composer: Composer<NavaContext>) {
   composer.on("message:text", async (ctx, next) => {
     if (!isAdmin(ctx)) return next();
-    if (ctx.message.text.trim() !== ADMIN_MENU_LABELS.settings) return next();
+    if (ctx.message.text.trim() !== ADMIN_MENU_LABELS.maintenance) return next();
     await screen(ctx);
   });
 

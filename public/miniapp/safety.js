@@ -1,4 +1,4 @@
-/* نوا گرام — safety + staff tools: block / unblock / report (synced with the bot), blocked list, and the owner/admin moderation menu on a profile. */
+/* مویاگرام — safety + staff tools: block / unblock / report (synced with the bot), blocked list, and the owner/admin moderation menu on a profile. */
 (function () {
   "use strict";
   var NG = window.NG, el = NG.el, esc = NG.esc, num = NG.num;

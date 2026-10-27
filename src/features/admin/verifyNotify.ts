@@ -1,4 +1,5 @@
 import type { Api } from "grammy";
+import { getAppVar } from "../../services/appVars.js";
 import { env } from "../../config/env.js";
 import { textEmoji } from "../../config/emojis.js";
 import { getContent } from "../../db/models/content.js";
@@ -37,11 +38,11 @@ export async function notifyVerificationChange(api: Api, userId: number, nowVeri
     const html =
       `${tick} شما توسط ادمین تایید شدید!\n\n` +
       `از این به بعد کاربران اعتماد بیشتری به شما خواهند داشت، تیک سبز کنار اسمتون توی پروفایل نمایش داده میشه و شانس بیشتری برای آشنا شدن با بقیه دارید 🎉`;
-    return sendPhotoOrText(api, userId, env.VERIFY_APPROVED_PHOTO, html);
+    return sendPhotoOrText(api, userId, await getAppVar("VERIFY_APPROVED_PHOTO"), html);
   }
 
   const supportId = await getContent("supportId", "");
   const supportLine = supportId ? `\n\nاگر اعتراض داری، به آیدی پشتیبانی پیام بده: ${escapeHtml(supportId)}` : "";
   const html = `❌ وریفای پروفایل شما لغو شد و تیک سبز از پروفایلتون برداشته شد.${supportLine}`;
-  return sendPhotoOrText(api, userId, env.VERIFY_REVOKED_PHOTO, html);
+  return sendPhotoOrText(api, userId, (await getAppVar("VERIFY_REVOKED_PHOTO")) ?? (await getAppVar("VERIFY_REJECTED_PHOTO")), html);
 }

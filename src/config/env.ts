@@ -116,8 +116,8 @@ export const env = {
    *  to instantly fall back to normal emoji everywhere without touching
    *  the individual EMOJI_PREMIUM_* values. Default: on. */
   get PREMIUM_EMOJI_ENABLED(): boolean {
-    const raw = (optional("PREMIUM_EMOJI_ENABLED") ?? "true").toLowerCase();
-    return !["false", "0", "off", "no"].includes(raw);
+    const raw = (optional("PREMIUM_EMOJI_ENABLED") ?? "false").toLowerCase();
+    return ["true", "1", "on", "yes"].includes(raw);
   },
 
   sightengine: {

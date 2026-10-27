@@ -1,4 +1,4 @@
-/* نوا گرام — compose: image cropper (pan / pinch / zoom), new-post flow, profile photo change, "+" menu. */
+/* مویاگرام — compose: image cropper (pan / pinch / zoom), new-post flow, profile photo change, "+" menu. */
 (function () {
   "use strict";
   var NG = window.NG, el = NG.el, esc = NG.esc, svg = NG.svg;

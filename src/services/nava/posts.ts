@@ -210,7 +210,7 @@ async function copyToChannel(api: ApiLike, owner: any, post: PostDoc, buf: Buffe
   try {
     const name = escapeHtml(owner.nickname ?? "-");
     const un = owner.miniUsername ? ` (@${escapeHtml(owner.miniUsername)})` : "";
-    const head = `📸 <b>پست جدید — نوا گرام</b>\n👤 ${name}${un}\n🆔 <code>${escapeHtml(owner.anonId)}</code>`;
+    const head = `📸 <b>پست جدید — مویاگرام</b>\n👤 ${name}${un}\n🆔 <code>${escapeHtml(owner.anonId)}</code>`;
     let caption = post.caption ? `${head}\n\n${escapeHtml(post.caption)}` : head;
     if (caption.length > 1000) caption = caption.slice(0, 997) + "…";
     const sent = await api.sendPhoto(s.postsChannelId, new InputFile(buf, "post.jpg"), { caption, parse_mode: "HTML" });

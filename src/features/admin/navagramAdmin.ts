@@ -1,3 +1,4 @@
+import { getAppVarNumber } from "../../services/appVars.js";
 import type { Composer } from "grammy";
 import { getBotSettings } from "../../db/models/settings.js";
 import type { NavaContext } from "../../bot-context.js";
@@ -14,7 +15,7 @@ import { getMiniSettings, setGiftEnabled, setGiftPrice, setGiftUnique, setPostsC
 import { GF } from "./giftsAdmin.js";
 
 /**
- * Owner/admin panel of «نوا گرام» (reached from ⚙️ تنظیمات ربات): the post-copy channel switch,
+ * Owner/admin panel of «مویاگرام» (reached from ⚙️ تنظیمات ربات): the post-copy channel switch,
  * its channel, and the gift catalogue (price in Relic + on/off). Everything is stored in MongoDB.
  */
 
@@ -41,7 +42,7 @@ export async function navagramScreen(): Promise<{ text: string; reply_markup: Re
   const ch = s.postsChannelId ? `${s.postsChannelTitle ? escapeHtml(s.postsChannelTitle) + " — " : ""}<code>${s.postsChannelId}</code>` : "— تنظیم نشده —";
   const evch = s.eventsChannelId ? `${s.eventsChannelTitle ? escapeHtml(s.eventsChannelTitle) + " — " : ""}<code>${s.eventsChannelId}</code>` : "— تنظیم نشده —";
   const text =
-    `📸 <b>تنظیمات نوا گرام</b>\n\n` +
+    `📸 <b>تنظیمات مویاگرام</b>\n\n` +
     `کپی پست‌ها در کانال: ${s.postsChannelEnabled ? "🟢 روشن" : "🔴 خاموش"}\n` +
     `کانال: ${ch}\n` +
     `کانال حراج و قرعه‌کشی (جدا از بالایی): ${evch}\n\n` +
@@ -65,7 +66,7 @@ export async function giftsScreen() {
   rows.push([glassButton("➕ هدیه‌ی تلگرامی جدید", GF.add, "success"), glassButton("📥 ایمپورت از فایل", GF.pack, "success")]);
   rows.push([glassButton("🔨 حراج و قرعه‌کشی", GF.ev, "primary"), glassButton("👤 هدیه‌های یک کاربر", GF.users, "primary")]);
   rows.push([glassButton("↩️ بازگشت", NG_CB.open, "primary")]);
-  return { text: `🎁 <b>هدیه‌های نوا گرام</b>\n\nقیمت‌ها به ژتون هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
+  return { text: `🎁 <b>هدیه‌های مویاگرام</b>\n\nقیمت‌ها به ژتون هستن و از حساب فرستنده کم میشن. 🎞 = انیمیشن تلگرامی، ✨ = فقط یک نسخه.\n\n${lines.join("\n")}`, reply_markup: inlineKeyboard(rows) };
 }
 
 async function giftScreen(giftId: string) {
@@ -269,7 +270,7 @@ export function registerNavagramAdmin(composer: Composer<NavaContext>) {
         const me = await ctx.api.getChatMember(chat.id, ctx.me.id);
         if (me.status !== "administrator" && me.status !== "creator") throw new Error("not admin");
         const cur = await getMiniSettings();
-        const mgmt = (await getBotSettings()).managementChannelId ?? env.MODERATION_LOG_CHAT_ID;
+        const mgmt = (await getBotSettings()).managementChannelId ?? (await getAppVarNumber("MODERATION_LOG_CHAT_ID"));
         const clash = isEvents ? chat.id === cur.postsChannelId || chat.id === mgmt : chat.id === cur.eventsChannelId;
         if (clash) {
           await ctx.reply("این کانال با یکی از کانال‌های دیگه (کپی پست‌ها / حراج و قرعه‌کشی / مدیریت) یکیه. برای جلوگیری از قاطی‌شدن، یه کانال جدا بفرست.", { reply_markup: cancelKeyboard() });

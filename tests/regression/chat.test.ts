@@ -219,7 +219,7 @@ test("h. photo in chat: delivered immediately, copy logged to the owner with sen
   assert.equal(log.length, 1, "falls back to the owner when MODERATION_LOG_CHAT_ID is unset");
   const caption: string = log[0]!.payload.caption;
   assert.ok(caption.includes(String(A)) && caption.includes(String(B)) && caption.includes(SESSION));
-  assert.ok(caption.includes("سیستم نظارت نوا"));
+  assert.ok(caption.includes("سیستم نظارت مویا"));
   assert.ok(!/هوش مصنوعی|AI/.test(caption.split("\n").slice(-1)[0]!) || true);
   const data = inlineData(log[0]!);
   assert.ok(data.some((d) => d.startsWith("photomod:delete:")) && data.some((d) => d.startsWith("photomod:ban:")));

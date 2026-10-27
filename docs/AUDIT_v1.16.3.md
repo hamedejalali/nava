@@ -288,7 +288,7 @@ Behaviour that **changed on purpose**: (1) a failed "found partner" notice is re
 longer transfers twice; (4) webhook may answer 200 for a dead-lettered or duplicate update and 503 if the inbox is
 unavailable; (5) `/end` command exists; (6) Mini App returns 429 beyond 300 calls/min/person.
 Unchanged and covered by the original 144 tests (all still pass unmodified): onboarding, matching, relay, admin, Stars,
-Navagram.
+Moyagram.
 Residual risks: real-MongoDB behaviour untested here; inbox adds ~2 small writes per update (latency impact not measured);
 retry timing on Hobby depends on traffic/external scheduler; Telegram retry window is a hard external limit.
 

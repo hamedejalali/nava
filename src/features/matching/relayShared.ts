@@ -26,7 +26,7 @@ export async function getActiveSessionAndPartner(
     return null;
   }
 
-  // A Navagram (Mini App) direct-message chat is NOT relayed through the bot: its messages live in the app.
+  // A Moyagram (Mini App) direct-message chat is NOT relayed through the bot: its messages live in the app.
   if (session.origin === "miniapp") return null;
 
   const partnerId = otherParticipant(session, ctx.from!.id);
@@ -35,9 +35,9 @@ export async function getActiveSessionAndPartner(
   return { session, partnerId };
 }
 
-export const MINIAPP_CHAT_HINT = "💬 چتت داخل نوا گرام (بخش «پیام‌ها» توی مینی‌اپ) جریان داره؛ پیام‌ها رو از اونجا بفرست.\nبرای پایان دادن به چت هم /end رو بفرست.";
+export const MINIAPP_CHAT_HINT = "💬 چتت داخل مویاگرام (بخش «پیام‌ها» توی مینی‌اپ) جریان داره؛ پیام‌ها رو از اونجا بفرست.\nبرای پایان دادن به چت هم /end رو بفرست.";
 
-/** True when this person is in a Navagram direct-message chat (so a bot message must not be treated as chat text). */
+/** True when this person is in a Moyagram direct-message chat (so a bot message must not be treated as chat text). */
 export async function inMiniappChat(ctx: NavaContext): Promise<boolean> {
   const sessionId = ctx.dbUser?.activeChatSessionId;
   if (!sessionId) return false;

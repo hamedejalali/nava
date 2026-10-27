@@ -1,5 +1,5 @@
-/* نوا گرام — badges: original SVG artwork (same ids as src/config/badges.ts) drawn next to a name, plus the verification tick.
-   The blue tick = the `verified` flag. Any `tick-*` badge is a coloured tick of its own. All art here is drawn for Nava (no brand logos). */
+/* مویاگرام — badges: original SVG artwork (same ids as src/config/badges.ts) drawn next to a name, plus the verification tick.
+   The blue tick = the `verified` flag. Any `tick-*` badge is a coloured tick of its own. All art here is drawn for Moya (no brand logos). */
 (function () {
   "use strict";
   var NG = window.NG;
@@ -35,9 +35,9 @@
   NG.BADGE_LABEL = LABEL;
 
 
-  /* v1.24 emoji badges: real emoji artwork (Noto Color Emoji), shown as small images */
-  var EM = {"crown": "تاج", "gem": "الماس", "fire": "آتش", "bolt": "صاعقه", "rocket": "موشک", "sparkles": "درخشش", "star": "ستاره", "star2": "ستاره‌ی درخشان", "dizzy": "ستاره‌باران", "heartfire": "قلب آتشین", "sparkheart": "قلب درخشان", "trophy": "جام", "medal": "مدال", "gold1": "رتبه‌ی یک", "camera": "دوربین", "rainbow": "رنگین‌کمان", "unicorn": "اسب تک‌شاخ", "crystal": "گوی جادویی", "shield": "سپر", "money": "کیسه‌ی طلا", "gift": "هدیه", "party": "جشن", "clover": "شبدر", "blossom": "شکوفه", "butterfly": "پروانه", "eagle": "عقاب", "lion": "شیر", "dragon": "اژدها", "ring": "حلقه", "hundred": "صد", "rose": "رز", "moon": "ماه", "sun": "خورشید", "alien": "فضایی", "diamondblue": "الماس آبی", "cool": "خفن", "navacoin": "سکه‌ی نوا", "wolf": "گرگ", "fox": "روباه", "trident": "نیزه‌ی سه‌شاخ", "swords": "شمشیرها", "target": "هدف", "masks": "نقاب", "art": "پالت رنگ", "mic": "میکروفون", "headphones": "هدفون", "gamepad": "گیم", "heart": "قلب قرمز", "blueheart": "قلب آبی", "blackheart": "قلب مشکی", "nazar": "چشم‌نظر", "coffee": "قهوه", "leopard": "پلنگ", "dove": "کبوتر", "eye": "چشم", "tophat": "کلاه", "key": "کلید", "brain": "مغز", "glowstar": "ستاره‌ی تابان", "comet": "ستاره‌دنباله‌دار", "ghost": "روح", "skull": "جمجمه", "cat": "گربه"};
-  Object.keys(EM).forEach(function (k) { ART["em-" + k] = '<img class="bdg bdi" src="emoji/' + k + '.png" alt="" draggable="false">'; LABEL["em-" + k] = EM[k]; });
+  /* v1.27 badges: original glossy vector artwork (tools/build-badges.mjs → badges/<id>.svg), shown as small images */
+  var EM = {"crown": "تاج", "gem": "الماس", "fire": "آتش", "bolt": "صاعقه", "rocket": "موشک", "sparkles": "درخشش", "star": "ستاره", "star2": "ستاره‌ی درخشان", "dizzy": "ستاره‌باران", "heartfire": "قلب آتشین", "sparkheart": "قلب درخشان", "trophy": "جام", "medal": "مدال", "gold1": "رتبه‌ی یک", "camera": "دوربین", "rainbow": "رنگین‌کمان", "unicorn": "اسب تک‌شاخ", "crystal": "گوی جادویی", "shield": "سپر", "money": "کیسه‌ی طلا", "gift": "هدیه", "party": "جشن", "clover": "شبدر", "blossom": "شکوفه", "butterfly": "پروانه", "eagle": "عقاب", "lion": "شیر", "dragon": "اژدها", "ring": "حلقه", "hundred": "صد", "rose": "رز", "moon": "ماه", "sun": "خورشید", "alien": "فضایی", "diamondblue": "الماس آبی", "cool": "خفن", "navacoin": "ژتون", "wolf": "گرگ", "fox": "روباه", "trident": "نیزه‌ی سه‌شاخ", "swords": "شمشیرها", "target": "هدف", "masks": "نقاب", "art": "پالت رنگ", "mic": "میکروفون", "headphones": "هدفون", "gamepad": "گیم", "heart": "قلب قرمز", "blueheart": "قلب آبی", "blackheart": "قلب مشکی", "nazar": "چشم‌نظر", "coffee": "قهوه", "leopard": "پلنگ", "dove": "کبوتر", "eye": "چشم", "tophat": "کلاه", "key": "کلید", "brain": "مغز", "glowstar": "ستاره‌ی تابان", "comet": "ستاره‌دنباله‌دار", "ghost": "روح", "skull": "جمجمه", "cat": "گربه", "planet": "سیاره", "wings": "بال", "lotus": "نیلوفر", "anchor": "لنگر", "compass": "قطب‌نما", "music": "موسیقی", "bell": "زنگ", "mountain": "کوه", "snowflake": "دانه‌ی برف", "cherry": "گیلاس", "balloon": "بادکنک", "lantern": "فانوس"};
+  Object.keys(EM).forEach(function (k) { ART["em-" + k] = '<img class="bdg bdi" src="badges/' + k + '.svg" alt="" draggable="false" decoding="async">'; LABEL["em-" + k] = EM[k]; });
   NG.BADGE_IDS = Object.keys(ART).filter(function (id) { return id.indexOf("tick-") === 0 || id.indexOf("em-") === 0; });
 
   /* shared gradient definitions (referenced by url(#id) from every badge) */
@@ -63,7 +63,7 @@
     bd.forEach(function (id) { if (!ART[id]) return; if (id.indexOf("tick-") === 0) { if (!tickId) tickId = id; } else rest.push(id); });
     var h = "";
     if (tickId) h += ART[tickId]; else if (u.verified) h += DEFAULT_TICK;
-    if (u.verified && u.gold) h += '<span class="goldc" title="Nava">' + NG.esc(u.coin || "🪙") + "</span>";
+    if (u.verified && u.gold) h += '<span class="goldc" title="Moya">' + NG.esc(u.coin || "🪙") + "</span>";
     rest.forEach(function (id) { h += '<span class="bdw" title="' + (LABEL[id] || "") + '">' + ART[id] + "</span>"; });
     return h;
   };

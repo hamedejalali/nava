@@ -16,7 +16,7 @@ import { decodeImage, loadMedia } from "./media.js";
  * Block / report from INSIDE the Mini App — the very same records the bot uses (`blocks`, `reports`), so a block made
  * here hides the person in the bot and vice-versa, and a report lands in the admins' chat exactly like a bot report
  * (same buttons, same decision flow) — now with evidence: the reason, an optional photo and, when the two were chatting
- * in Navagram, the last messages of that chat.
+ * in Moyagram, the last messages of that chat.
  */
 
 async function target(anonId: unknown): Promise<any> {
@@ -86,7 +86,7 @@ export async function reportInApp(me: any, anonId: unknown, input: { reason?: un
   const sid = me.activeChatSessionId && (await getSession(me.activeChatSessionId))?.userA !== undefined ? me.activeChatSessionId : undefined;
   const report = await createReport(me._id, t._id, sid, reason);
 
-  // evidence from a Navagram direct-message chat between the two of them (last 12 text lines, newest last)
+  // evidence from a Moyagram direct-message chat between the two of them (last 12 text lines, newest last)
   let chatLines = "";
   const dmSession = await (await getDb()).collection<any>("chat_sessions").findOne({ origin: "miniapp", $or: [{ userA: me._id, userB: t._id }, { userA: t._id, userB: me._id }] }, { sort: { createdAt: -1 } } as any);
   let evidencePhoto: Buffer | null = buf;
@@ -100,9 +100,9 @@ export async function reportInApp(me: any, anonId: unknown, input: { reason?: un
   }
   const [mu] = [me.miniUsername ? `@${me.miniUsername}` : "-"];
   const caption =
-    `⚠️ گزارش جدید (از مینی‌اپ نوا گرام)\n\n` +
-    `گزارش‌دهنده:\n• آیدی نوا: <code>${me.anonId}</code>\n• آیدی عددی: <code>${me._id}</code>\n• یوزرنیم نوا گرام: ${mu}\n\n` +
-    `گزارش‌شده:\n• آیدی نوا: <code>${t.anonId}</code>\n• آیدی عددی: <code>${t._id}</code>\n• یوزرنیم نوا گرام: ${t.miniUsername ? "@" + t.miniUsername : "-"}\n\n` +
+    `⚠️ گزارش جدید (از مینی‌اپ مویاگرام)\n\n` +
+    `گزارش‌دهنده:\n• آیدی مویا: <code>${me.anonId}</code>\n• آیدی عددی: <code>${me._id}</code>\n• یوزرنیم مویاگرام: ${mu}\n\n` +
+    `گزارش‌شده:\n• آیدی مویا: <code>${t.anonId}</code>\n• آیدی عددی: <code>${t._id}</code>\n• یوزرنیم مویاگرام: ${t.miniUsername ? "@" + t.miniUsername : "-"}\n\n` +
     `دلیل: ${escapeHtml(reason)}\n` +
     (chatLines ? `\nمستندات (آخرین پیام‌های چت):\n<blockquote>${chatLines}</blockquote>\n` : "") +
     `شناسه گزارش: <code>${report._id}</code>`;

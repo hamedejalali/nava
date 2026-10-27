@@ -399,7 +399,7 @@ export async function create(me: any, stakeRaw?: unknown): Promise<GameView> {
   return view(me, g);
 }
 
-export async function join(me: any, gid: unknown): Promise<GameView> {
+export async function join(me: any, gid: unknown, guest = false): Promise<GameView> {
   await ensureIdx();
   if (typeof gid !== "string" || gid.length > 16) throw new SocialError("not_found");
   const c = await games();
@@ -412,6 +412,8 @@ export async function join(me: any, gid: unknown): Promise<GameView> {
   if (mine.some((g) => g.status === "active" && g.players.includes(g0.players[0]))) throw new SocialError("same_opponent");
   const starter: Player = Math.random() < 0.5 ? 0 : 1;
   const stake = g0.stake ?? 0;
+  // a person who has not finished registration plays only free tables; a staked table needs an account (the app then offers «ثبت‌نام»)
+  if (guest && stake > 0) throw new SocialError("insufficient");
   let updated: BgGameDoc | null = null;
   try {
     await runInTransaction(async (session) => {
@@ -509,4 +511,30 @@ export async function resign(me: any, gid: unknown): Promise<GameView> {
   await settle(g._id);
   await announceEnd(g._id, me._id);
   return view(me, (await c.findOne({ _id: g._id }))!);
+}
+
+/* ------------------------------------------------------------------ invite links (v1.27) */
+
+export type InviteInfo =
+  | { kind: "missing" }
+  | { kind: "mine"; status: BgGameDoc["status"]; stake: number }
+  | { kind: "open"; stake: number; hostName: string }
+  | { kind: "taken" };
+
+/** What a person who opened the shared link  ?start=g_<gid>  should see: their own table / a free seat / nothing. */
+export async function inviteInfo(gid: string, userId: number): Promise<InviteInfo> {
+  const c = await games();
+  const g = await c.findOne({ _id: gid });
+  if (!g) return { kind: "missing" };
+  if (g.players.includes(userId)) return { kind: "mine", status: g.status, stake: g.stake ?? 0 };
+  if (g.status === "waiting" && Date.now() - g.updatedAt.getTime() <= WAIT_MS) return { kind: "open", stake: g.stake ?? 0, hostName: await nameOfUser(g.players[0]) };
+  return g.status === "finished" ? { kind: "missing" } : { kind: "taken" };
+}
+
+/** Table data the share card needs — only a player of that table may share it. */
+export async function shareInfo(me: any, gid: unknown): Promise<{ gid: string; stake: number; status: BgGameDoc["status"] }> {
+  if (typeof gid !== "string" || gid.length > 16) throw new SocialError("not_found");
+  const g = await (await games()).findOne({ _id: gid });
+  if (!g || !g.players.includes(me._id) || g.status !== "waiting") throw new SocialError("not_found");
+  return { gid: g._id, stake: g.stake ?? 0, status: g.status };
 }

@@ -1,4 +1,4 @@
-/* نوا گرام — feed: post card, likes, comments, post viewer, home (stories tray + posts). */
+/* مویاگرام — feed: post card, likes, comments, post viewer, home (stories tray + posts). */
 (function () {
   "use strict";
   var NG = window.NG, $ = NG.$, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;
@@ -141,7 +141,7 @@
   }
   /** owner / admins: remove somebody's photo from Home / Explore; the person gets a message from Nava (a read-only direct thread) */
   function staffRemove(it) {
-    NG.sheet('<div class="shd">حذف توسط مدیریت</div><div class="ctx">این مورد برای همیشه حذف می‌شه و از طرف نوا یک پیام به صاحبش در بخش پیام‌ها می‌رسه. دلیل (اختیاری):</div><div class="pad"><input class="inp" id="why" maxlength="200" placeholder="مثلاً: نقض قوانین"></div><div class="pad" style="margin-top:10px"><button class="btn tall" id="go" style="width:100%;background:var(--red);color:#fff">حذف و ارسال پیام</button></div>', function (sh, close) {
+    NG.sheet('<div class="shd">حذف توسط مدیریت</div><div class="ctx">این مورد برای همیشه حذف می‌شه و از طرف مویا یک پیام به صاحبش در بخش پیام‌ها می‌رسه. دلیل (اختیاری):</div><div class="pad"><input class="inp" id="why" maxlength="200" placeholder="مثلاً: نقض قوانین"></div><div class="pad" style="margin-top:10px"><button class="btn tall" id="go" style="width:100%;background:var(--red);color:#fff">حذف و ارسال پیام</button></div>', function (sh, close) {
       sh.querySelector("#go").onclick = function () {
         var why = sh.querySelector("#why").value.trim();
         close(function () {
@@ -396,7 +396,7 @@
 
   NG.renderHome = function (page) {
     pgHome = page; page.innerHTML = "";
-    var top = el('<div class="topbar"><div class="wordmark en">Navagram</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
+    var top = el('<div class="topbar"><div class="wordmark en">Moyagram</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
     top.querySelector("#addp").onclick = function () { NG.composeMenu(); };
     if (NG.bindHeart) NG.bindHeart(top);
     page.appendChild(top);

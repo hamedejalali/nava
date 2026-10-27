@@ -30,7 +30,7 @@ export const BADGES: readonly BadgeDef[] = [
   { id: "ig-spark", label: "درخشش", group: "ig" },
   { id: "ig-ring", label: "حلقه‌ی گرادیان", group: "ig" },
   { id: "ig-camera", label: "دوربین", group: "ig" },
-  // v1.24: emoji-style badges (Noto Color Emoji artwork in public/miniapp/emoji/)
+  // v1.24 ids, v1.27 artwork: original glossy vector badges (public/miniapp/badges/<id>.svg, built by tools/build-badges.mjs)
   { id: "em-crown", label: "تاج", group: "em" },
   { id: "em-gem", label: "الماس", group: "em" },
   { id: "em-fire", label: "آتش", group: "em" },
@@ -67,8 +67,8 @@ export const BADGES: readonly BadgeDef[] = [
   { id: "em-alien", label: "فضایی", group: "em" },
   { id: "em-diamondblue", label: "الماس آبی", group: "em" },
   { id: "em-cool", label: "خفن", group: "em" },
-  // v1.26: more emoji badges + the Nava coin
-  { id: "em-navacoin", label: "سکه‌ی نوا", group: "em" },
+  // v1.26: more badges + the ژتون coin
+  { id: "em-navacoin", label: "ژتون", group: "em" },
   { id: "em-wolf", label: "گرگ", group: "em" },
   { id: "em-fox", label: "روباه", group: "em" },
   { id: "em-trident", label: "نیزه‌ی سه‌شاخ", group: "em" },
@@ -95,6 +95,19 @@ export const BADGES: readonly BadgeDef[] = [
   { id: "em-ghost", label: "روح", group: "em" },
   { id: "em-skull", label: "جمجمه", group: "em" },
   { id: "em-cat", label: "گربه", group: "em" },
+  // v1.27: more badges
+  { id: "em-planet", label: "سیاره", group: "em" },
+  { id: "em-wings", label: "بال", group: "em" },
+  { id: "em-lotus", label: "نیلوفر", group: "em" },
+  { id: "em-anchor", label: "لنگر", group: "em" },
+  { id: "em-compass", label: "قطب‌نما", group: "em" },
+  { id: "em-music", label: "موسیقی", group: "em" },
+  { id: "em-bell", label: "زنگ", group: "em" },
+  { id: "em-mountain", label: "کوه", group: "em" },
+  { id: "em-snowflake", label: "دانه‌ی برف", group: "em" },
+  { id: "em-cherry", label: "گیلاس", group: "em" },
+  { id: "em-balloon", label: "بادکنک", group: "em" },
+  { id: "em-lantern", label: "فانوس", group: "em" },
 ] as const;
 
 export const MAX_BADGES = 8;

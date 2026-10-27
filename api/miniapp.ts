@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { hasUnlimitedXp } from "../src/db/models/relic.js";
 import {
   authenticateViewer,
+  authenticateGuest,
   botApi,
   downloadTelegramFile,
   ensureMiniappIndexesOnce,
@@ -42,14 +43,14 @@ import { hasPendingProfilePhoto } from "../src/db/models/imageModeration.js";
 import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople } from "../src/services/nava/search.js";
 import { prepareShare } from "../src/services/nava/share.js";
 import { waitUntil } from "@vercel/functions";
-import { GAME_ACTIONS, GAME_ACTING_NEVER, GAME_ERRORS, gamePulse, handleGameAction } from "../src/services/games/index.js";
+import { GAME_ACTIONS, GAME_ACTING_NEVER, GAME_GUEST_ACTIONS, GAME_ERRORS, gamePulse, handleGameAction } from "../src/services/games/index.js";
 import { deleteThreadForMe, cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
 import { blockInApp, listBlocked, reportInApp, unblockInApp } from "../src/services/nava/safety.js";
 import { sendOfficialMessage } from "../src/services/nava/dm.js";
 import { staffModerate, type StaffOp } from "../src/services/nava/staffMod.js";
 
 /**
- * Navagram (نوا گرام) Mini App backend — ONE serverless function with an `action`
+ * Moyagram (مویاگرام) Mini App backend — ONE serverless function with an `action`
  * (Vercel's Hobby plan caps a deployment at 12 functions, so related endpoints are grouped).
  *
  *   POST /api/miniapp  { action, initData, ...args }  -> JSON
@@ -103,7 +104,7 @@ const ACTIONS = new Set([
   "highlight", "highlight_create", "highlight_edit", "highlight_delete",
   // gifts / share / chat request
   "gift_catalog", "gift_send", "gift_regift", "gifts", "share", "request",
-  // direct messages (Navagram chat) + chat requests inbox
+  // direct messages (Moyagram chat) + chat requests inbox
   "dm_overview", "dm_open", "dm_send", "dm_photo", "dm_end", "dm_delete", "official_send", "gift_remove", "set_coin", "dm_requests", "dm_respond", "dm_cancel",
   // safety: block / report (synced with the bot) and staff moderation from a profile's ⋮ menu
   "block", "unblock", "blocked_list", "report", "mod",
@@ -251,7 +252,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return void res.status(200).json({ status: r.status });
     }
 
-    const viewer = await authenticateViewer(body.initData);
+    let viewer = await authenticateViewer(body.initData);
+    // v1.27: a guest (started the bot, registration unfinished) may sit at a shared table and play — nothing else.
+    let guestGame = false;
+    if (!viewer.ok && viewer.error === "not_registered" && GAME_GUEST_ACTIONS.includes(action)) {
+      const g = await authenticateGuest(body.initData);
+      if (g.ok) { viewer = g; guestGame = true; } else if (g.error === "banned") viewer = g;
+    }
     if (!viewer.ok) {
       // A banned person is told how to reach support (a link, never the support id as text) — same ban as in the bot.
       if (viewer.error === "banned") return void res.status(viewer.status).json({ error: "banned", support: await getSupportLink().catch(() => null) });
@@ -593,7 +600,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "game_roll":
         case "game_move":
         case "game_resign":
-          return send(await handleGameAction(action, me, body));
+        case "game_share":
+          return send(await handleGameAction(action, me, body, guestGame));
 
         /* ---------------------------------------------------------- legacy */
         case "feed": {

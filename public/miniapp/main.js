@@ -1,4 +1,4 @@
-/* نوا گرام — main: shell, floating tab bar, explore (all users), search, own profile tab, deep links, boot. */
+/* مویاگرام — main: shell, floating tab bar, explore (all users), search, own profile tab, deep links, boot. */
 (function () {
   "use strict";
   var NG = window.NG, $ = NG.$, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;
@@ -47,7 +47,7 @@
 
   NG.selectTab = function (t, user) {
     // not registered in the bot yet: only the Matching preview is open; everything else says "register first"
-    if (NG.guest && t !== "match") { NG.haptic("err"); NG.toast("ابتدا ثبت‌نام کنید"); return; }
+    if (NG.guest && t !== "match") { NG.haptic("err"); NG.guestGate(); return; }
     if (user) NG.haptic("sel");
     var pg = pages[t];
     if (t === current && user) {

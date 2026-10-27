@@ -89,7 +89,7 @@ async function walletScreen(ctx: NavaContext) {
   }
   await show(
     ctx,
-    `${escapeHtml(cfg.wallet.text)}\n\n<b>آدرس ولت تو در نوا:</b>\n<code>${r.address}</code>\n\n` +
+    `${escapeHtml(cfg.wallet.text)}\n\n<b>آدرس ولت تو در مویا:</b>\n<code>${r.address}</code>\n\n` +
       "توی ربات ولت: 📤 ارسال ← این آدرس رو بچسبون ← مبلغ رو بنویس ← «✅ تایید انتقال» رو بزن.\n" +
       "<blockquote>بعد از تایید توی ولت، ژتون خودکار به حسابت اضافه میشه و همین‌جا بهت خبر میدم.</blockquote>",
     inlineKeyboard([[glassButton("🔄 بررسی واریز", SHOP_CB.check, "success")], back()]),
@@ -149,6 +149,6 @@ export function registerShop(composer: Composer<NavaContext>) {
     if (!b || b.kind !== "stars" || !b.price || !b.relic) return void (await ctx.answerCallbackQuery({ text: "این گزینه دیگه معتبر نیست." }));
     await ctx.answerCallbackQuery();
     const order = await getOrCreateStarsOrder(ctx.from!.id, idx, { price: b.price, relic: b.relic });
-    await ctx.api.sendInvoice(ctx.chat!.id, `${order.relic} ژتون`, `خرید ${order.relic} ژتون برای نوا`, `relic:o:${order._id}`, "XTR", [{ label: `${order.relic} ژتون`, amount: order.price }], { provider_token: "" });
+    await ctx.api.sendInvoice(ctx.chat!.id, `${order.relic} ژتون`, `خرید ${order.relic} ژتون برای مویا`, `relic:o:${order._id}`, "XTR", [{ label: `${order.relic} ژتون`, amount: order.price }], { provider_token: "" });
   });
 }

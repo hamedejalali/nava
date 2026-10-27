@@ -1,4 +1,4 @@
-/* نوا گرام — stories (24h), story viewer, archive, highlights (create / edit name + cover / play). */
+/* مویاگرام — stories (24h), story viewer, archive, highlights (create / edit name + cover / play). */
 (function () {
   "use strict";
   var NG = window.NG, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;

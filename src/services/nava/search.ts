@@ -1,7 +1,7 @@
 import { C, SocialError, col, escapeRegex, findVisibleUser, hiddenOwnerIds, isAnonId, lockedAmong, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
 import type { PostDoc } from "./posts.js";
 
-/** Explore (everybody), precise search and "recent searches" of the Navagram Mini App. */
+/** Explore (everybody), precise search and "recent searches" of the Moyagram Mini App. */
 
 export const EXPLORE_PAGE = 24;
 export const SEARCH_LIMIT = 30;

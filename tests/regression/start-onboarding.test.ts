@@ -201,7 +201,7 @@ test("11. an ordinary user can not use owner/admin commands or admin keyboard la
   await h.text(NEW, "/admin");
   await h.text(NEW, "/monitor");
   const out = texts(NEW).join("\n");
-  assert.ok(!/ادمین پنل|پنل مدیریت|مانیتور نوا/.test(out), "no admin/monitor content may be shown to an ordinary user");
+  assert.ok(!/ادمین پنل|پنل مدیریت|مانیتور مویا/.test(out), "no admin/monitor content may be shown to an ordinary user");
   // the decisive checks: no admin keyboard was handed out, and no privileged state changed
   const adminKb = h.of("sendMessage", NEW).some((c) => JSON.stringify(c.payload.reply_markup ?? {}).includes("مدیریت کاربران"));
   assert.equal(adminKb, false);
@@ -209,6 +209,7 @@ test("11. an ordinary user can not use owner/admin commands or admin keyboard la
 });
 
 test("12. a legitimate admin keeps the permissions they were given (static ADMIN_IDS and DB-granted)", async () => {
+  seedUser({ id: ADMIN_ID }); // v1.27: an admin with a finished profile gets the panel; one without goes through onboarding first
   await h.text(ADMIN_ID, "/start");
   assert.ok(texts(ADMIN_ID).some((t) => /ادمین/.test(t)));
   seedUser({ id: NEW2, isAdmin: true });

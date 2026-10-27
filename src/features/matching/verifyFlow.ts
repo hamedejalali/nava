@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { getAppVar } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
 import { glassButton, inlineKeyboard, contactReplyButton, glassReplyButton, replyKeyboard } from "../../ui/keyboard.js";
@@ -7,7 +8,9 @@ import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 import { env } from "../../config/env.js";
 import { textEmoji } from "../../config/emojis.js";
 import { getUser, setVerified } from "../../db/models/user.js";
-import {  isOwner } from "../admin/constants.js";
+import { isAdmin } from "../admin/constants.js";
+import { canAdmin } from "../admin/permissions.js";
+import { logAdminAction } from "../../db/models/adminLog.js";
 import { getRecipients } from "../../services/channelRouting.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
 import { getContent } from "../../db/models/content.js";
@@ -79,7 +82,7 @@ export async function startVerifyRequest(ctx: NavaContext): Promise<void> {
     return;
   }
 
-  const photos = env.VERIFY_PHOTOS;
+  const photos = (await Promise.all([1, 2, 3, 4, 5].map((n) => getAppVar(`VERIFY_PHOTO_${n}`)))).filter((v): v is string => !!v);
   const kb = inlineKeyboard([
     [
       glassButton("✅ موافقم", CB.agree, "success"),
@@ -222,7 +225,7 @@ export function registerVerifyFlow(composer: Composer<NavaContext>) {
   // Owner's free-text reason for a rejection, captured right after tapping
   // "❌ رد" above.
   composer.on("message:text", async (ctx, next) => {
-    if (!isOwner(ctx)) return next();
+    if (!isAdmin(ctx) || ctx.chat?.type !== "private") return next();
     const db = await getDb();
     const col = db.collection<{ _id: number; stage: string; targetId: number }>("verify_reject_flow");
     const flow = await col.findOne({ _id: ctx.from!.id });
@@ -240,7 +243,7 @@ export function registerVerifyFlow(composer: Composer<NavaContext>) {
     const supportId = await getContent("supportId", "");
     const supportLine = supportId ? `\n\nاگر اعتراض داری، به آیدی پشتیبانی پیام بده: ${escapeHtml(supportId)}` : "";
     const rejectionHtml = `❌ درخواست وریفای شما رد شد.\n\nدلیل: ${escapeHtml(text)}${supportLine}`;
-    await sendPhotoOrText(ctx.api, flow.targetId, env.VERIFY_REJECTED_PHOTO, rejectionHtml);
+    await sendPhotoOrText(ctx.api, flow.targetId, await getAppVar("VERIFY_REJECTED_PHOTO"), rejectionHtml);
     await ctx.reply("✅ دلیل رد برای کاربر ارسال شد.");
   });
 }
@@ -275,23 +278,40 @@ async function finalizeVerify(ctx: NavaContext, flow: VerifyFlowDoc, phone: stri
 }
 
 async function decide(ctx: NavaContext, userId: number, decision: "approved" | "rejected") {
-  if (!isOwner(ctx)) {
-    await ctx.answerCallbackQuery({ text: "فقط مالک ربات می‌تونه وریفای رو تایید/رد کنه." });
+  if (!isAdmin(ctx) || !canAdmin(ctx, "verify")) {
+    await ctx.answerCallbackQuery({ text: "دسترسی «وریفای» برای تو فعال نیست.", show_alert: true });
+    return;
+  }
+  // The request card sits in the management CHANNEL: answer the tap, never write into the channel with ctx.reply.
+  const who = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name ?? String(ctx.from?.id));
+  const m: any = ctx.callbackQuery?.message;
+  const current = typeof m?.caption === "string" ? m.caption : typeof m?.text === "string" ? m.text : "";
+  // idempotent: the buttons disappear on the first decision, a second tap on a stale card does nothing
+  if (current.includes("— توسط ")) {
+    await ctx.answerCallbackQuery({ text: "این درخواست قبلاً بررسی شده." });
     return;
   }
   await ctx.answerCallbackQuery();
+  const stamp = async (line: string) => {
+    const caption = `${current}\n\n${line} — توسط ${who}`.slice(0, 1024);
+    if (typeof m?.caption === "string") await ctx.editMessageCaption({ caption, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    else await ctx.editMessageText(caption, { reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  };
 
   if (decision === "approved") {
     await setVerified(userId, true);
     await notifyVerificationChange(ctx.api, userId, true);
-    await ctx.editMessageCaption({ caption: "✅ وریفای تایید شد." }).catch(() => {});
+    await logAdminAction(ctx.from!.id, "verify_approve", String(userId));
+    await stamp("✅ وریفای تایید شد");
   } else {
     await setVerified(userId, false);
-    await ctx.reply("دلیل رد وریفای رو بنویس (برای کاربر ارسال میشه):");
+    await logAdminAction(ctx.from!.id, "verify_reject", String(userId));
     const db = await getDb();
     await db
       .collection<{ _id: number; stage: string; targetId: number }>("verify_reject_flow")
       .updateOne({ _id: ctx.from!.id }, { $set: { stage: "await_reason", targetId: userId } }, { upsert: true });
-    await ctx.editMessageCaption({ caption: "❌ وریفای رد شد — منتظر دلیل رد..." }).catch(() => {});
+    // the reason is typed in the admin's private chat with the bot
+    await ctx.api.sendMessage(ctx.from!.id, "دلیل رد وریفای رو بنویس (برای کاربر ارسال میشه):", { reply_markup: cancelKeyboard() }).catch(() => {});
+    await stamp("❌ وریفای رد شد (دلیل در چت خصوصی ادمین نوشته میشه)");
   }
 }

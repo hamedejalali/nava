@@ -1,3 +1,5 @@
+import { sendRestore } from "../common/keyboardState.js";
+import { isAdmin } from "../admin/constants.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
@@ -149,7 +151,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
     if (isFlowCancelSignal(raw)) {
       await setAwaiting(ctx.from!.id, null);
       if (raw.startsWith("/")) return next();
-      await ctx.reply("لغو شد.");
+      await sendRestore(ctx, "لغو شد ✅");
       return;
     }
 
@@ -282,6 +284,10 @@ export async function notifyRecipientsOfEditRequest(
 }
 
 async function handleAdminDecision(ctx: NavaContext, requestId: string, decision: "approved" | "rejected"): Promise<void> {
+  if (!isAdmin(ctx)) {
+    await ctx.answerCallbackQuery().catch(() => {});
+    return;
+  }
   await ctx.answerCallbackQuery();
   const request = await decideEditRequest(requestId, decision, ctx.from!.id);
   if (!request) {
@@ -302,5 +308,6 @@ async function handleAdminDecision(ctx: NavaContext, requestId: string, decision
 
   const fieldFa = request.field === "nickname" ? "نام مستعار" : "سن";
   const decisionFa = decision === "approved" ? "✅ تایید شد" : "❌ رد شد";
-  await ctx.editMessageText(`📝 درخواست تغییر ${fieldFa} — ${decisionFa}`).catch(() => {});
+  const who = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name ?? String(ctx.from?.id));
+  await ctx.editMessageText(`📝 درخواست تغییر ${fieldFa} — ${decisionFa}\nتوسط ${who}`).catch(() => {});
 }

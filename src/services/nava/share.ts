@@ -25,7 +25,7 @@ function origin(): string | null {
 
 function openButton(deepLink: string) {
   const bot = env.BOT_USERNAME?.replace(/^@/, "");
-  return bot ? { inline_keyboard: [[{ text: "باز کردن در نوا گرام", url: `https://t.me/${bot}?startapp=${deepLink}` }]] } : undefined;
+  return bot ? { inline_keyboard: [[{ text: "باز کردن در مویاگرام", url: `https://t.me/${bot}?startapp=${deepLink}` }]] } : undefined;
 }
 
 export async function prepareShare(viewer: any, input: { pid?: unknown; uid?: unknown }, deps: { api?: ShareApi } = {}): Promise<{ id: string }> {

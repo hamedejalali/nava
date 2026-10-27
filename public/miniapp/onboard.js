@@ -1,4 +1,4 @@
-/* نوا گرام — registration inside the app (same questions / same result as the bot): gender → age → province → city → name.
+/* مویاگرام — registration inside the app (same questions / same result as the bot): gender → age → province → city → name.
    Saved in ONE server call; the bot then shows its normal "profile complete" message + main menu. */
 (function () {
   "use strict";
@@ -104,7 +104,7 @@
   };
 })();
 
-/* ---- setup gate: everybody inside the app needs a profile photo and a Navagram username ---- */
+/* ---- setup gate: everybody inside the app needs a profile photo and a Moyagram username ---- */
 (function () {
   "use strict";
   var NG = window.NG, el = NG.el, esc = NG.esc;
@@ -133,7 +133,7 @@
       if (!needU && !needP && !uploading) { box.remove(); if (done) done(); return; }
       var typed = box.querySelector("#gu") ? box.querySelector("#gu").value : "";
       box.innerHTML = '<div class="gbg"><i></i><i></i><i></i></div><div class="gcard">' +
-        '<div class="glogo">' + (NG.LOGO || "") + '</div><h2>به نوا گرام خوش اومدی</h2><p class="gsub">فقط دو قدم تا شروع: یه عکس پروفایل و یه یوزرنیم</p>' +
+        '<div class="glogo">' + (NG.LOGO || "") + '</div><h2>به مویاگرام خوش اومدی</h2><p class="gsub">فقط دو قدم تا شروع: یه عکس پروفایل و یه یوزرنیم</p>' +
         '<div class="gstep' + (!needP ? " ok" : "") + '"><b>۱</b><span>عکس پروفایل</span></div>' + ringHtml() +
         '<button class="gpick" id="gpick">' + (preview || m.hasPhoto || m.photoPending ? "تغییر عکس" : "انتخاب عکس پروفایل") + "</button>" +
         '<div class="gstep' + (!needU ? " ok" : "") + '"><b>۲</b><span>یوزرنیم</span></div>' +

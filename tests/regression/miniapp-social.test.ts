@@ -1,4 +1,4 @@
-/** Navagram Mini App backend: username claim, explore/search, profile likes, bio, photo upload, staff gate. */
+/** Moyagram Mini App backend: username claim, explore/search, profile likes, bio, photo upload, staff gate. */
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";

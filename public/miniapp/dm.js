@@ -1,4 +1,4 @@
-/* نوا گرام — Directs: the messages tab (chats + requests inbox) and the chat screen. Chats started inside the app stay inside the app;
+/* مویاگرام — Directs: the messages tab (chats + requests inbox) and the chat screen. Chats started inside the app stay inside the app;
    anonymous bot chats are only announced here (they stay anonymous). Polling keeps everything in sync within ~2 seconds. */
 (function () {
   "use strict";

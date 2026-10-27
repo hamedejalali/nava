@@ -1,4 +1,4 @@
-/* نوا گرام — activity (heart): live badge + pill on the home header, and the Activity screen
+/* مویاگرام — activity (heart): live badge + pill on the home header, and the Activity screen
    (likes, follows, comments, replies). Everything shown here comes from the server; polling keeps it in sync. */
 (function () {
   "use strict";

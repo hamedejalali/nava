@@ -284,6 +284,14 @@ function applyFieldOps(res: Resolved, ops: Record<string, any>): boolean {
         if (!ok) return false;
         break;
       }
+      case "$options":
+        break; // consumed together with $regex
+      case "$regex": {
+        const rx = arg instanceof RegExp ? arg : new RegExp(String(arg), String((ops as any).$options ?? ""));
+        const ok = res.values.some((v) => (Array.isArray(v) ? v : [v]).some((c) => typeof c === "string" && rx.test(c)));
+        if (!ok) return false;
+        break;
+      }
       case "$not":
         if (isOperatorObject(arg)) {
           if (applyFieldOps(res, arg)) return false;

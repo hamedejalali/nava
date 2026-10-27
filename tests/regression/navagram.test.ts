@@ -1,4 +1,4 @@
-/** Navagram (نوا گرام) Mini App backend: posts, profile-photo post, comments, follow, stories, highlights,
+/** Moyagram (مویاگرام) Mini App backend: posts, profile-photo post, comments, follow, stories, highlights,
  *  gifts (Relic), share, explore/search, owner-approved profile changes, channel copy, admin panel. */
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -519,7 +519,7 @@ test("chat request from the Mini App works for a target WITHOUT a profile photo,
 
 /* ===================================================== admin panel */
 
-test("admin panel «نوا گرام»: owner toggles channel copy, sets the channel, edits gift price; a normal user cannot", async () => {
+test("admin panel «مویاگرام»: owner toggles channel copy, sets the channel, edits gift price; a normal user cannot", async () => {
   await h.callback(1, "admin:ng:tch");
   assert.equal((await getMiniSettings()).postsChannelEnabled, false); // ignored for non-admins
 
@@ -548,13 +548,13 @@ test("admin panel «نوا گرام»: owner toggles channel copy, sets the chan
   assert.deepEqual([cleared.postsChannelId, cleared.postsChannelEnabled], [null, false]);
 });
 
-test("admin keyboard: «📸 نوا گرام» is ONE direct category; its button opens the Navagram screen (no nested settings)", async () => {
+test("admin keyboard: «🌙 مویاگرام» is ONE category; its button opens the mini-app settings screen", async () => {
   await h.text(900, "/start");
-  await h.text(900, "📸 نوا گرام");
+  await h.text(900, "🌙 مویاگرام");
   const kb = JSON.stringify(h.last("sendMessage", 900)?.payload.reply_markup);
   assert.match(kb, /هدیه‌ها و قیمت‌ها/);
   assert.match(kb, /ساخت|هدیه‌ی جدید/);
-  await h.text(900, "📸 کانال و تنظیمات نوا گرام");
+  await h.text(900, "📸 کانال و تنظیمات مویاگرام");
   assert.match(JSON.stringify(h.last("sendMessage", 900)?.payload.reply_markup), /admin:ng:tch/);
 });
 

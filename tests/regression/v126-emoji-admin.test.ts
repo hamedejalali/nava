@@ -16,12 +16,12 @@ beforeEach(() => {
 });
 
 test("E1. override gives a premium id; removing it falls back", async () => {
-  assert.equal(premiumId("HOME"), undefined);
-  assert.ok(await setEmojiOverride("HOME", "5416041192905265756 🏠"));
-  assert.equal(premiumId("HOME"), "5416041192905265756");
+  const baked = premiumId("HOME"); // v1.27: a built-in premium id ships for every key
+  assert.ok(await setEmojiOverride("HOME", "5000000000000000001 🏠"));
+  assert.equal(premiumId("HOME"), "5000000000000000001");
   assert.equal(buttonIcon("HOME").fallback, "🏠");
   await setEmojiOverride("HOME", null);
-  assert.equal(premiumId("HOME"), undefined);
+  assert.equal(premiumId("HOME"), baked);
 });
 
 test("E2. master switch from the panel beats the env default", async () => {

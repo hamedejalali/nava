@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { getAppVar } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { getUserByAnonId } from "../../db/models/user.js";
 import { env } from "../../config/env.js";
@@ -33,12 +34,12 @@ export function registerProfileLookup(composer: Composer<NavaContext>) {
 
     // Admins/owner looking users up (moderation) never trigger anything on
     // the other side — no notice, no charge.
-    if (isAdmin(ctx) && !env.PROFILE_VIEW_NOTIFY_ADMIN_LOOKUPS) return;
+    if (isAdmin(ctx) && !["true", "1", "on", "yes"].includes(((await getAppVar("PROFILE_VIEW_NOTIFY_ADMIN_LOOKUPS")) ?? "").toLowerCase())) return;
 
     // NEW behaviour (only when the viewer is NOT in a chat): the profile
     // owner gets an ANONYMOUS notice with a "پرداخت" button; paying
     // PROFILE_VIEW_REVEAL_COST Relic reveals who looked. The old
-    // "مخاطب شما پروفایلِ نوا شما را مشاهده کرد" text is only for the
+    // "مخاطب شما پروفایلِ مویا شما را مشاهده کرد" text is only for the
     // in-chat "پروفایل مخاطب" button (see profile.ts).
     if (!(await shouldNotifyProfileView(ctx.dbUser._id, target._id, "lookup"))) return;
     await sendRevealNotification(ctx.api, ctx.dbUser._id, target);

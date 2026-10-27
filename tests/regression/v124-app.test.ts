@@ -51,7 +51,7 @@ beforeEach(async () => {
 
 
 test("V1. Nava sends without XP or request: lands in the user's Directs, read-only, user cannot answer; both sides can delete for themselves", async () => {
-  const r = await call(OWNER_ID, { action: "official_send", id: "user_AAAA", text: "سلام از نوا" });
+  const r = await call(OWNER_ID, { action: "official_send", id: "user_AAAA", text: "سلام از مویا" });
   assert.equal(r.status, 200); assert.equal(r.payload.ok, true);
   assert.equal(((await col("users").findOne({ _id: 10 })) as any).relicBalance, 5, "no XP taken");
   assert.equal(await col("chat_requests").countDocuments({}), 0, "no request created");

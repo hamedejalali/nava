@@ -1,4 +1,5 @@
 import type { Api, Composer } from "grammy";
+import { getAppVarNumber } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { env } from "../../config/env.js";
 import { buttonIcon, textEmoji } from "../../config/emojis.js";
@@ -31,19 +32,25 @@ function notificationText(cost: number): string {
   const nava = textEmoji("NAVA", "🌐");
   return (
     "پیام ربات 👇\n\n" +
-    `کاربری پروفایلِ ${nava}نوا${nava}  شما را مشاهده کرد.\n\n` +
-    "<blockquote>⚠️ توجه: پروفایل نوا اطلاعاتی است که در بخش پروفایل ربات ثبت کرده اید!</blockquote>\n" +
+    `کاربری پروفایلِ ${nava}مویا${nava}  شما را مشاهده کرد.\n\n` +
+    "<blockquote>⚠️ توجه: پروفایل مویا اطلاعاتی است که در بخش پروفایل ربات ثبت کرده اید!</blockquote>\n" +
     `شما میتوانید با پرداخت ${toPersianDigits(cost)} ژتون اطلاعات کاربری که پروفایل شما را مشاهده کرده را ببینید`
   );
 }
 
 /** Sends the anonymous "someone viewed you" notice with the pay button to
  *  `target`. Never throws (the target may have blocked the bot). */
+/** price of seeing who looked at your profile (panel variable, default 10) */
+async function getRevealCost(): Promise<number> {
+  const n = await getAppVarNumber("PROFILE_VIEW_REVEAL_COST");
+  return n !== undefined && Number.isInteger(n) && n > 0 ? n : 10;
+}
+
 export async function sendRevealNotification(api: Api, viewerId: number, target: UserDoc): Promise<void> {
   if (target.isSeed) return; // a default member has nobody to pay: no reveal record, no notice
   try {
     const revealId = await createReveal(viewerId, target._id);
-    await api.sendMessage(target._id, notificationText(env.PROFILE_VIEW_REVEAL_COST), {
+    await api.sendMessage(target._id, notificationText(await getRevealCost()), {
       parse_mode: "HTML",
       reply_markup: inlineKeyboard([[glassButton("پرداخت", `${REVEAL_CB_PREFIX}${revealId}`, "success", buttonIcon("RELIC"))]]),
     });
@@ -57,7 +64,7 @@ export function registerProfileReveal(composer: Composer<NavaContext>) {
   composer.callbackQuery(new RegExp(`^${REVEAL_CB_PREFIX}([A-Za-z0-9_-]{6,40})$`), async (ctx) => {
     const revealId = ctx.match![1]!;
     const payerId = ctx.from!.id;
-    const cost = env.PROFILE_VIEW_REVEAL_COST;
+    const cost = await getRevealCost();
 
     const reveal = await getReveal(revealId);
     if (!reveal || reveal.targetId !== payerId) {

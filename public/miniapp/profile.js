@@ -1,4 +1,4 @@
-/* نوا گرام — profile (self + others), follow lists, gifts (Telegram-gifts look), edit profile, chat request. */
+/* مویاگرام — profile (self + others), follow lists, gifts (Telegram-gifts look), edit profile, chat request. */
 (function () {
   "use strict";
   var NG = window.NG, $ = NG.$, el = NG.el, esc = NG.esc, num = NG.num, svg = NG.svg;
@@ -566,7 +566,7 @@
         { label: "کاربران مسدود‌شده", fn: function () { NG.openBlocked(); } },
         { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } },
         ].concat(p.isOwnerPage ? [
-          { label: "🪙 سکه‌ی کنار تیک (تغییر / حذف)", fn: function () { coinSheet(p, function () { reload(); }); } }
+          { label: "🪙 ژتونِ کنار تیک (تغییر / حذف)", fn: function () { coinSheet(p, function () { reload(); }); } }
         ].concat(NG.staff && !NG.actAs ? [{ label: "🏅 بج‌های این اکانت", fn: function () { NG.badgeSheet({ id: p.id, name: p.name, bd: p.bd, mod: { badges: p.bd || [] } }, function () { PCACHE[p.id] && delete PCACHE[p.id]; NG.refreshMe().then(function () { reload(); }); }); } }] : []) : []).concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
         { label: "ژتون: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
       ]));
@@ -633,7 +633,7 @@
 
   var COINS = ["🪙", "💰", "👑", "💎", "⭐", "🌟", "🔥", "❤️", "✨", "🏆", "🛡️", "⚡"];
   function coinSheet(p, after) {
-    NG.sheet('<div class="shd">سکه‌ی کنار تیک</div><div class="ctx">یک اموجی انتخاب کن یا سکه رو حذف کن.</div><div class="bgsr" id="cg" style="padding:6px 16px;justify-content:center"></div><div class="pad" style="margin-top:10px"><input class="inp" id="ci" maxlength="8" placeholder="اموجی دلخواه"></div><div class="pad" style="margin-top:10px;display:flex;gap:8px"><button class="btn blue tall" id="cs" style="flex:1">ذخیره</button><button class="btn tall" id="cx" style="flex:1;color:var(--red)">حذف سکه</button></div>', function (sh, close) {
+    NG.sheet('<div class="shd">ژتونِ کنار تیک</div><div class="ctx">یک اموجی انتخاب کن یا ژتون رو حذف کن.</div><div class="bgsr" id="cg" style="padding:6px 16px;justify-content:center"></div><div class="pad" style="margin-top:10px"><input class="inp" id="ci" maxlength="8" placeholder="اموجی دلخواه"></div><div class="pad" style="margin-top:10px;display:flex;gap:8px"><button class="btn blue tall" id="cs" style="flex:1">ذخیره</button><button class="btn tall" id="cx" style="flex:1;color:var(--red)">حذف سکه</button></div>', function (sh, close) {
       var cg = sh.querySelector("#cg"), ci = sh.querySelector("#ci");
       COINS.forEach(function (c) { var b = el('<button class="bgchip" style="font-size:22px">' + c + "</button>"); b.onclick = function () { ci.value = c; }; cg.appendChild(b); });
       function save(v) {
@@ -719,7 +719,7 @@
       oci.onchange = function () { var want = oci.checked; NG.api("official_chat", { open: want }).then(function (x) { if (!x.ok) { oci.checked = !want; return NG.toast(NG.errText(x)); } m.officialChat = !!x.data.open; NG.haptic("ok"); }).catch(function () { oci.checked = !want; NG.netErr(); }); };
       w.appendChild(oc);
     }
-    w.appendChild(el('<div class="note">' + (m.isOwnerPage ? "اینجا همه‌چیز فوری و بدون تأیید اعمال می‌شه؛ از بخش «نمایش برای دیگران» هر چیزی رو که نمی‌خوای کسی ببینه خاموش کن." : "عکس پروفایل و تغییر نام یا سن بعد از تأیید مالک اعمال می‌شن. یوزرنیم و بیوگرافی فوری ذخیره می‌شن. یوزرنیم مخصوص نوا گرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.") + '</div>'));
+    w.appendChild(el('<div class="note">' + (m.isOwnerPage ? "اینجا همه‌چیز فوری و بدون تأیید اعمال می‌شه؛ از بخش «نمایش برای دیگران» هر چیزی رو که نمی‌خوای کسی ببینه خاموش کن." : "عکس پروفایل و تغییر نام یا سن بعد از تأیید مالک اعمال می‌شن. یوزرنیم و بیوگرافی فوری ذخیره می‌شن. یوزرنیم مخصوص مویاگرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.") + '</div>'));
     var ui = f2.querySelector("input"), um = f2.querySelector(".msg"), bi = f4.querySelector("textarea"), bc = f4.querySelector(".cnt"), dn = top.querySelector(".done");
     var okName = true, seq = 0, t;
     function cnt() { bc.textContent = [].concat(bi.value).join("").length + " / 300"; }

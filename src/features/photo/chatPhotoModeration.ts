@@ -35,7 +35,7 @@ const MOD_CALLBACKS = {
  * blocks delivery either.
  *
  * We deliberately never claim an "AI moderation" system to end users —
- * the log caption uses the honest, generic "سیستم نظارت نوا" wording.
+ * the log caption uses the honest, generic "سیستم نظارت مویا" wording.
  *
  * Must be registered in the same relative position as the old
  * registerChatImageModeration: before the profile-photo upload handler, so
@@ -98,10 +98,10 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
     const logChatIds = await getRecipients("chatPhoto");
     const flagLine =
       aiFlagged === undefined
-        ? "سیستم نظارت نوا: بررسی ناموفق (سرویس در دسترس نبود)"
+        ? "سیستم نظارت مویا: بررسی ناموفق (سرویس در دسترس نبود)"
         : aiFlagged
-          ? `سیستم نظارت نوا: مشکوک (امتیاز ${aiScore?.toFixed(2) ?? "?"} / ${aiClassification ?? "?"})`
-          : `سیستم نظارت نوا: بدون مورد مشکوک (امتیاز ${aiScore?.toFixed(2) ?? "?"})`;
+          ? `سیستم نظارت مویا: مشکوک (امتیاز ${aiScore?.toFixed(2) ?? "?"} / ${aiClassification ?? "?"})`
+          : `سیستم نظارت مویا: بدون مورد مشکوک (امتیاز ${aiScore?.toFixed(2) ?? "?"})`;
 
     const caption =
       `📸 عکس ارسالی در چت ناشناس (تحویل داده شد)\n\n` +
@@ -141,7 +141,7 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
     const doc = result.doc;
 
     if (result.status === "decided" && doc.dmMessageId) {
-      // a Navagram direct-message photo: there is no Telegram copy, the message itself is removed in the app
+      // a Moyagram direct-message photo: there is no Telegram copy, the message itself is removed in the app
       await removeDmMessage(doc.dmMessageId).catch(() => {});
       await ctx.api.sendMessage(doc.senderTelegramId, "🚫 عکسی که فرستادی به دلیل نقض قوانین ربات حذف شد.").catch(() => {});
     } else if (result.status === "decided") {

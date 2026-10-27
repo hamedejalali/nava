@@ -10,7 +10,10 @@ import { ROUTE_PURPOSES, isRoutePurpose, routeOf, type RouteDest } from "../../s
 import { cancelKeyboard } from "../common/userFlows.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
-import { isOwner } from "./constants.js";
+import { isOwner, isAdmin } from "./constants.js";
+import { CHANNEL_ADMIN_CALLBACKS } from "./channels.js";
+import { NG_CB } from "./navagramAdmin.js";
+import { getAppVar, setAppVar } from "../../services/appVars.js";
 
 /** «📡 کانال‌ها و مسیر پیام‌ها» — one screen: the management channel + where every kind of staff message goes. */
 const P = "adm:route:";
@@ -21,7 +24,8 @@ const NEXT: Record<RouteDest, RouteDest> = { mgmt: "dm", dm: "off", off: "mgmt" 
 async function view() {
   const s = await getBotSettings();
   const mini = await getMiniSettings().catch(() => ({} as any));
-  const mgmt = s.managementChannelId ?? env.MODERATION_LOG_CHAT_ID;
+  const mgmt = s.managementChannelId ?? (await getAppVar("MODERATION_LOG_CHAT_ID").then((x) => (x ? Number(x) : undefined)));
+  const backup = await getAppVar("BACKUP_CHANNEL_ID");
   const rows = [];
   let lines = "";
   for (const k of Object.keys(ROUTE_PURPOSES) as Array<keyof typeof ROUTE_PURPOSES>) {
@@ -30,15 +34,22 @@ async function view() {
     rows.push([glassButton(`${ROUTE_PURPOSES[k]} · ${DEST_LABEL[d]}`, `${P}t:${k}`, d === "mgmt" ? "success" : d === "dm" ? "primary" : "danger")]);
   }
   const text =
-    "📡 <b>کانال‌ها و مسیر پیام‌ها</b>\n\n" +
+    "📡 <b>کانال‌ها</b> — همه‌ی کانال‌های ربات از همین‌جا تنظیم میشن\n\n" +
     `<b>کانال مدیریت:</b> ${mgmt !== undefined ? `<code>${mgmt}</code>${s.managementChannelTitle ? " — " + escapeHtml(s.managementChannelTitle) : ""}${s.managementChannelId === undefined ? " (از متغیر قدیمی MODERATION_LOG_CHAT_ID)" : ""}` : "تنظیم نشده (پیام‌ها به چت مالک میرن)"}\n` +
-    `<b>کانال اصلی (کپی پست‌ها):</b> ${mini.postsChannelId ? `<code>${mini.postsChannelId}</code>` : "تنظیم نشده"} — پست‌های نوا گرام\n` +
+    `<b>کانال اصلی (کپی پست‌ها):</b> ${mini.postsChannelId ? `<code>${mini.postsChannelId}</code>` : "تنظیم نشده"} — پست‌های مویاگرام\n` +
+    `<b>کانال بک‌آپ (خروجی اکسل):</b> ${backup ? `<code>${backup}</code>` : "تنظیم نشده"}\n` +
     `<b>کانال حراج و قرعه‌کشی:</b> ${mini.eventsChannelId ? `<code>${mini.eventsChannelId}</code>` : "تنظیم نشده"}\n` +
-    "(کانال اصلی و حراج از «📸 کانال و تنظیمات نوا گرام» تنظیم میشن.)\n\n" +
+    "\n" +
     "هر نوع پیام رو بزن تا بین «کانال مدیریت ← چت مالک ← خاموش» عوض بشه:\n\n" + lines;
   return {
     text,
-    kb: inlineKeyboard([[glassButton("📡 تنظیم کانال مدیریت", `${P}set`, "primary"), glassButton("🧹 حذف کانال", `${P}clr`, "danger")], ...rows]),
+    kb: inlineKeyboard([
+      [glassButton("📢 کانال‌های جوین اجباری", CHANNEL_ADMIN_CALLBACKS.open, "primary")],
+      [glassButton("📸 کانال پست‌ها و حراج (مویاگرام)", NG_CB.open, "primary")],
+      [glassButton("📡 تنظیم کانال مدیریت", `${P}set`, "primary"), glassButton("🧹 حذف", `${P}clr`, "danger")],
+      [glassButton("💾 تنظیم کانال بک‌آپ", `${P}bk`, "primary"), glassButton("🧹 حذف", `${P}bkc`, "danger")],
+      ...rows,
+    ]),
   };
 }
 
@@ -58,8 +69,13 @@ async function show(ctx: NavaContext, edit: boolean) {
 
 export function registerRoutingAdmin(composer: Composer<NavaContext>) {
   composer.on("message:text", async (ctx, next) => {
-    if (!isOwner(ctx)) return next();
     const text = ctx.message.text.trim();
+    if (text === ADMIN_MENU_LABELS.channels && isAdmin(ctx) && !isOwner(ctx)) {
+      await setAdminFlow(ctx.from!.id, null);
+      await ctx.reply("📡 کانال‌ها", { reply_markup: inlineKeyboard([[glassButton("📢 کانال‌های جوین اجباری", CHANNEL_ADMIN_CALLBACKS.open, "primary")]]) });
+      return;
+    }
+    if (!isOwner(ctx)) return next();
     if (text === ADMIN_MENU_LABELS.channels) {
       await setAdminFlow(ctx.from!.id, null);
       await show(ctx, false);
@@ -71,6 +87,23 @@ export function registerRoutingAdmin(composer: Composer<NavaContext>) {
       await setAdminFlow(ctx.from!.id, null);
       if (text.startsWith("/")) return next();
       await ctx.reply("لغو شد.");
+      return;
+    }
+    if (flow.stage === "backup") {
+      const bref = /^-?\d{5,20}$/.test(text) ? text : /^@[A-Za-z0-9_]{4,}$/.test(text) ? text : null;
+      if (!bref) return void (await ctx.reply("آیدی معتبر نیست. مثل -1001234567890 یا @mychannel بفرست.", { reply_markup: cancelKeyboard() }));
+      try {
+        const chat = await ctx.api.getChat(bref);
+        const me = await ctx.api.getChatMember(chat.id, ctx.me.id);
+        if (me.status !== "administrator" && me.status !== "creator") throw new Error("not admin");
+        await setAppVar("BACKUP_CHANNEL_ID", String(chat.id));
+        await logAdminAction(ctx.from!.id, "backup_channel_set", String(chat.id));
+        await setAdminFlow(ctx.from!.id, null);
+        await ctx.reply("✅ کانال بک‌آپ ذخیره شد.");
+        await show(ctx, false);
+      } catch {
+        await ctx.reply("نتونستم به این کانال دسترسی پیدا کنم. ربات باید داخلش ادمین باشه؛ بعد دوباره بفرست.", { reply_markup: cancelKeyboard() });
+      }
       return;
     }
     const ref = /^-?\d{5,20}$/.test(text) ? text : /^@[A-Za-z0-9_]{4,}$/.test(text) ? text : null;
@@ -104,6 +137,21 @@ export function registerRoutingAdmin(composer: Composer<NavaContext>) {
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "channel" });
     await ctx.reply("آیدی عددی کانال مدیریت (مثل -1001234567890) یا @یوزرنیمش رو بفرست. ربات باید داخلش ادمین باشه.", { reply_markup: cancelKeyboard() });
+  });
+
+  composer.callbackQuery(`${P}bk`, async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await ctx.answerCallbackQuery();
+    await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "backup" });
+    await ctx.reply("آیدی عددی کانال بک‌آپ (مثل -1001234567890) یا @یوزرنیمش رو بفرست. ربات باید داخلش ادمین باشه.", { reply_markup: cancelKeyboard() });
+  });
+
+  composer.callbackQuery(`${P}bkc`, async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await setAppVar("BACKUP_CHANNEL_ID", null);
+    await logAdminAction(ctx.from!.id, "backup_channel_clear");
+    await ctx.answerCallbackQuery({ text: "حذف شد" });
+    await show(ctx, true);
   });
 
   composer.callbackQuery(`${P}clr`, async (ctx) => {

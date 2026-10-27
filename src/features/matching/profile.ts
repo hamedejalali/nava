@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { getAppVar } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -41,10 +42,10 @@ export async function ensureProfileViewIndexes(): Promise<void> {
  *  default if they haven't uploaded one and a default has been configured
  *  (see DEFAULT_PHOTO_MALE/FEMALE in .env) — never crashes if neither is
  *  set, the profile just renders with no photo, same as before. */
-export function resolveProfilePhoto(target: UserDoc): string | undefined {
+export async function resolveProfilePhoto(target: UserDoc): Promise<string | undefined> {
   if (target.profilePhotoFileId) return target.profilePhotoFileId;
-  if (target.gender === "male") return env.DEFAULT_PHOTO_MALE;
-  if (target.gender === "female") return env.DEFAULT_PHOTO_FEMALE;
+  if (target.gender === "male") return getAppVar("DEFAULT_PHOTO_MALE");
+  if (target.gender === "female") return getAppVar("DEFAULT_PHOTO_FEMALE");
   return undefined;
 }
 
@@ -149,12 +150,12 @@ export function buildProfileKeyboard(lang: Language, target: UserDoc, viewContex
     likeRow,
     transferRow,
     [
-      glassButton(chatRequest, CHAT_CALLBACKS.chatRequest, "primary", buttonIcon("MESSAGE")),
-      glassButton(directMessage, CHAT_CALLBACKS.directMessage, "primary", buttonIcon("LETTER")),
+      glassButton(chatRequest, `${CHAT_CALLBACKS.chatRequest}:${target._id}`, "primary", buttonIcon("MESSAGE")),
+      glassButton(directMessage, `${CHAT_CALLBACKS.directMessage}:${target._id}`, "primary", buttonIcon("LETTER")),
     ],
     contactRow,
     moderationRow,
-    [glassButton(notifyOnEnd, CHAT_CALLBACKS.notifyOnEnd, "primary", buttonIcon("NOTIFICATION"))],
+    [glassButton(notifyOnEnd, `${CHAT_CALLBACKS.notifyOnEnd}:${target._id}`, "primary", buttonIcon("NOTIFICATION"))],
   ]);
 }
 
@@ -164,7 +165,7 @@ export function buildProfileKeyboard(lang: Language, target: UserDoc, viewContex
  *  sent as plain text instead of the whole screen failing. */
 export async function replyWithProfile(ctx: NavaContext, target: UserDoc, viewer: UserDoc | undefined, kb: ReturnType<typeof buildProfileKeyboard> | ReturnType<typeof inlineKeyboard>): Promise<void> {
   const text = buildProfileText(ctx.userLang, target, viewer);
-  const photo = resolveProfilePhoto(target);
+  const photo = await resolveProfilePhoto(target);
   if (photo) {
     try {
       await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });

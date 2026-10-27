@@ -14,24 +14,24 @@ import { DEFAULT_MAINTENANCE_TEXT } from "../../services/maintenance.js";
 // button in a future prompt). Exact wording was not specified by the
 // project owner, so this is a placeholder functional default — freely
 // editable by the admin at any time via "متن راهنما".
-const DEFAULT_GUIDE_TEXT = "به نوا خوش اومدی! هر سوالی داشتی از همینجا یا با ادمین در میون بذار.";
+const DEFAULT_GUIDE_TEXT = "به مویا خوش اومدی! هر سوالی داشتی از همینجا یا با ادمین در میون بذار.";
 
-// LOCKED default (Feature 05) — "هایپر گپ" replaced with "نوا" per owner
+// LOCKED default (Feature 05) — "هایپر گپ" replaced with "مویا" per owner
 // request (Feature 05 of the second feature batch). Admin may edit it
 // afterward via the same "ویرایش راهنما ها" workflow regardless.
 import { DEFAULT_PINNED_PROMO } from "../../config/defaultTexts.js";
 
-// LOCKED default (Feature "RULES") — "هایپر گپ" replaced with "نوا" per
+// LOCKED default (Feature "RULES") — "هایپر گپ" replaced with "مویا" per
 // owner request (Feature 05 of the second feature batch).
 export const DEFAULT_RULES =
-  "ربات چت ناشناس نوا:\n" +
-  "🚦🚧 قوانين استفاده از ربات نوا 🚧🚦\n\n" +
+  "ربات چت ناشناس مویا:\n" +
+  "🚦🚧 قوانين استفاده از ربات مویا 🚧🚦\n\n" +
   "موارد زیر باعث مسدود شدن دائمی کاربر خواهد شد.\n\n" +
   "1️⃣ تبلیغات سایت ها ربات ها و کانال ها\n\n" +
   "2️⃣ ارسال هرگونه محتوای غیر اخلاقی\n\n" +
   "3️⃣ ایجاد مزاحمت برای کاربران\n\n" +
   "4️⃣ پخش شماره موبایل یا اطلاعات شخصی دیگران\n\n" +
-  "5️⃣ محتوای غیر اخلاقی و یا توهین آمیز در پروفایل نوا\n\n" +
+  "5️⃣ محتوای غیر اخلاقی و یا توهین آمیز در پروفایل مویا\n\n" +
   "6️⃣ ثبت جنسیت اشتباه در پروفایل\n\n" +
   "7️⃣ تهدید و جا زدن خود بعنوان مدیر ربات یا پلیس فتا !\n\n" +
   "برای گزارش عدم رعایت قوانین می توانید با لمس 《 🚫 گزارش کاربر 》 در پروفایل، کاربر را گزارش کنید.\n\n" +
@@ -59,20 +59,12 @@ function defaultFor(key: ContentKey): string {
 }
 
 export function registerAdminGuides(composer: Composer<NavaContext>) {
+  // the list of editable texts is the «📝 متن‌ها» screen (panel.ts); the old callback still opens it
   composer.callbackQuery(ADMIN_CALLBACKS.openGuideMenu, async (ctx) => {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
-    await ctx.reply("کدوم بخش رو ویرایش می‌کنی؟", {
-      reply_markup: inlineKeyboard([
-        [glassButton(LABELS.guideText, ADMIN_CALLBACKS.editGuideText, "primary")],
-        [glassButton(LABELS.guide1, ADMIN_CALLBACKS.editGuide1, "primary")],
-        [glassButton(LABELS.pinnedPromo, ADMIN_CALLBACKS.editPinnedPromo, "primary")],
-        [glassButton(LABELS.rules, ADMIN_CALLBACKS.editRules, "primary")],
-        [glassButton(LABELS.supportId, ADMIN_CALLBACKS.editSupportId, "primary")],
-        [glassButton(LABELS.inviteMessage, ADMIN_CALLBACKS.editInviteMessage, "primary")],
-        [glassButton(LABELS.maintenanceText, ADMIN_CALLBACKS.editMaintenanceText, "primary")],
-      ]),
-    });
+    const { textsMenu } = await import("./panel.js");
+    await ctx.reply("📝 کدوم متن رو ویرایش می‌کنی؟", { reply_markup: textsMenu() });
   });
 
   const beginEdit = async (ctx: NavaContext, key: ContentKey) => {

@@ -15,12 +15,15 @@ beforeEach(() => {
 });
 
 test("G1. /start g_<gid> answers with one web_app button that opens the table", async () => {
-  await h.text(7, "/start g_abc12345");
+  seedUser({ id: 8, anonId: "user_H8", nickname: "حامد", age: 30, relicBalance: 0, relicInitialized: true, onboardingStep: "COMPLETED" } as any);
+  const bg = await import("../../src/services/games/backgammonGames.js");
+  const view = await bg.create({ _id: 8 }, 0);
+  await h.text(7, `/start g_${view.gid}`);
   await h.settle();
   const m = h.of("sendMessage", 7).find((c) => c.payload.reply_markup?.inline_keyboard?.[0]?.[0]?.web_app);
   assert.ok(m, "web_app button sent");
   const url = m!.payload.reply_markup.inline_keyboard[0][0].web_app.url as string;
-  assert.match(url, /go=g_abc12345/);
+  assert.ok(url.includes(`go=g_${view.gid}`));
 });
 
 test("G2. start-payload shape and url builder", () => {
@@ -31,7 +34,7 @@ test("G2. start-payload shape and url builder", () => {
 });
 
 test("G3. games façade owns the game actions", () => {
-  for (const a of ["game_lobby", "game_create", "game_join", "game_state", "game_roll", "game_move", "game_resign"]) assert.ok(g.isGameAction(a));
+  for (const a of ["game_lobby", "game_create", "game_join", "game_state", "game_roll", "game_move", "game_resign", "game_share"]) assert.ok(g.isGameAction(a));
   assert.ok(!g.isGameAction("feed"));
   assert.ok(g.GAME_ACTING_NEVER.includes("game_move"));
 });

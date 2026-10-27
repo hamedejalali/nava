@@ -18,7 +18,7 @@ export async function sendOwnerAdminWelcome(ctx: NavaContext, user: UserDoc, fir
 
   // Ensure onboarding is marked complete for this account so no other part
   // of the bot ever tries to route it back through the user-facing flow.
-  if (user.onboardingStep !== "COMPLETED") {
+  if (owner && user.onboardingStep !== "COMPLETED") {
     await usersCollectionDirectSet(user._id, { onboardingStep: "COMPLETED" });
   }
 
