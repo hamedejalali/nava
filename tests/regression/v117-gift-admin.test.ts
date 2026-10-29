@@ -89,7 +89,7 @@ test("T1. owner lists a user's gifts, takes one for himself and deletes another;
 
   await h.callback(OWNER_ID, "admin:gf:ug");
   await h.text(OWNER_ID, "2");
-  const view = h.last("sendMessage", OWNER_ID)!.payload;
+  const view = h.of("sendMessage", OWNER_ID).filter((c) => c.payload.reply_markup?.inline_keyboard).at(-1)!.payload; // (the red cancel keyboard is restored after the view)
   assert.match(String(view.text), /تاج/);
   assert.ok(view.reply_markup.inline_keyboard.flat().some((b: any) => b.callback_data === "admin:gf:ut:PUBCROWN1"));
 

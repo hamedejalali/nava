@@ -324,7 +324,9 @@ export function createBot(): Bot<NavaContext> {
   // Must be registered last so every recognized command/callback above
   // takes priority. Never lets an update pass through silently unhandled.
   bot.on("callback_query:data", async (ctx) => {
-    await ctx.answerCallbackQuery();
+    // an inline button of an OLD release (its handler no longer exists): say so instead of a silent spinner; the keyboard refresh follows
+    const stale = !/noop/.test(ctx.callbackQuery.data);
+    await ctx.answerCallbackQuery(stale ? { text: "این دکمه مربوط به نسخه‌ی قدیمیه؛ منو رو تازه کردم 🔄" } : undefined);
   });
 
   bot.on("message:text", async (ctx) => {

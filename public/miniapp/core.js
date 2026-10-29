@@ -2,6 +2,8 @@
 (function () {
   "use strict";
   var NG = (window.NG = {});
+  /** this build's version — the server tells the app its current one (whoami / pulse); a mismatch means an update was released while the app was open */
+  NG.VER = "1.27.1";
   var tg = (NG.tg = window.Telegram && window.Telegram.WebApp);
   NG.initData = (tg && tg.initData) || "";
   var qs = (NG.qs = new URLSearchParams(location.search));
@@ -186,7 +188,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.27.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.27.1";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -403,5 +405,29 @@
         document.body.appendChild(c); setTimeout(function () { c.remove(); }, 3200);
       })(i);
     }
+  };
+})();
+
+/* v1.27: a release while the app is open (or a stale cached page) → reload to the new build, never a stuck old version */
+(function () {
+  var NG = window.NG, flagged = false;
+  NG.reloadNew = function () {
+    try { var u = new URL(location.href); u.searchParams.set("_r", String(Date.now())); location.replace(u.toString()); } catch (e) { location.reload(); }
+  };
+  /** called with the server's version; true = this page is out of date */
+  NG.checkVersion = function (ver, boot) {
+    if (!ver || ver === NG.VER) return false;
+    if (boot) {
+      // a stale page was opened (cached HTML): reload once; if it is still stale after that, stop (no loops)
+      var k = "ng_reloaded_" + ver, done = false;
+      try { done = sessionStorage.getItem(k) === "1"; sessionStorage.setItem(k, "1"); } catch (e) {}
+      if (!done) { NG.reloadNew(); return true; }
+      return false;
+    }
+    if (flagged) return true;
+    flagged = true;
+    if (NG.cornerNote) NG.cornerNote({ icon: "🔄", title: "نسخه‌ی جدید مویاگرام آماده است", text: "بزن تا بروزرسانی بشه", ms: 15000, onTap: NG.reloadNew });
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) NG.reloadNew(); }); // back from the background → silently take the new build
+    return true;
   };
 })();

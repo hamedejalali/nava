@@ -204,6 +204,7 @@
   }
   function applyPulse(d) {
     var m = NG.me; if (!m) return;
+    if (d.ver) NG.checkVersion(d.ver, false);
     if (d.sig != null) { if (NG.sigSeen != null && NG.sigSeen !== d.sig) NG.refreshMe(); NG.sigSeen = d.sig; }
     if (d.relic != null && d.relic !== m.relic) { m.relic = d.relic; if (profileV) profileV.setRelic(d.relic); }
     if ((d.requests || 0) !== (m.requests || 0) || !!d.isPrivate !== !!m.isPrivate) {
@@ -270,6 +271,7 @@
         NG.fail(r); return;
       }
       if (r.data.role === "staff") { location.replace("/monitor/"); return; }
+      if (NG.checkVersion(r.data.ver, true)) return;
       NG.me = r.data.me; NG.bot = r.data.bot || null; NG.staff = !!r.data.staff; NG.staffOwner = !!r.data.staffOwner; // owner / admins may remove any post, story or comment
       buildShell(); renderExploreShell();
       if (NG.needsSetup && NG.needsSetup(NG.me) && !r.data.acting) NG.setupGate();

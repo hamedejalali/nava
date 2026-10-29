@@ -2,7 +2,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHarness, resetState, OWNER_ID, ADMIN_ID } from "../harness/fakeTelegram.js";
-import { seedUser } from "../harness/fakeMongo.js";
+import { seedUser, col } from "../harness/fakeMongo.js";
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com/miniapp/" });
 const menu = await import("../../src/features/admin/menu.js");
@@ -43,6 +43,8 @@ test("A2. settings holds stats / wallet / data / staff; sub-topics return to set
 });
 
 test("A3. «📝 متن‌ها» lists every editable text; «📡 کانال‌ها» gathers all channel settings", async () => {
+  const { KEYBOARD_REV } = await import("../../src/config/version.js");
+  await col("kb_state").updateOne({ _id: OWNER_ID } as any, { $set: { kind: "admin", rev: KEYBOARD_REV } }, { upsert: true }); // already on the current keyboard (no one-time refresh message)
   await h.text(OWNER_ID, "📝 متن‌ها");
   const t = texts(h.last("sendMessage", OWNER_ID));
   for (const x of ["📖 متن راهنما", "⚖️ قوانین", "🛟 آیدی پشتیبانی", "🛠 متن خاموشی ربات", "🛒 متن‌ها و دکمه‌های منوی خرید"]) assert.ok(t.includes(x), x);

@@ -146,7 +146,7 @@ test("W8. not configured / switched off → no call at all", async () => {
 test("W9. shop: «ژتون» menu is ONE message edited in place; wallet screen shows the JTX address; back returns", async () => {
   h.resetCalls();
   await h.text(7, "👑 ژتون");
-  const first = h.last("sendMessage", 7);
+  const first = h.of("sendMessage", 7).find((c) => c.payload.reply_markup?.inline_keyboard);
   assert.match(JSON.stringify(first?.payload.reply_markup), /shop:stars/);
   assert.match(JSON.stringify(first?.payload.reply_markup), /shop:wallet/);
   const sentBefore = h.of("sendMessage", 7).length;

@@ -133,6 +133,9 @@ export async function createHarness(extraEnv: Record<string, string | undefined>
     if (stubs.has(method)) result = stubs.get(method);
     return { ok: true, result } as any;
   });
+  // as in production: remembers which reply keyboard each chat shows (wraps the fake, so it sees every send)
+  const { keyboardStateTransformer } = await import("../../src/features/common/keyboardState.js");
+  bot.api.config.use(keyboardStateTransformer);
 
   const baseMessage = (userId: number) => ({
     message_id: userMessageId(userId),

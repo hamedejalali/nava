@@ -15,5 +15,34 @@
       "path": "/api/cron/process-broadcasts",
       "schedule": "0 1 * * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/miniapp/(index\\.html)?",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/miniapp/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/monitor/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    }
   ]
 }

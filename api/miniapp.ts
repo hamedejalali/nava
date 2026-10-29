@@ -43,6 +43,7 @@ import { hasPendingProfilePhoto } from "../src/db/models/imageModeration.js";
 import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople } from "../src/services/nava/search.js";
 import { prepareShare } from "../src/services/nava/share.js";
 import { waitUntil } from "@vercel/functions";
+import { BOT_VERSION } from "../src/config/version.js";
 import { GAME_ACTIONS, GAME_ACTING_NEVER, GAME_GUEST_ACTIONS, GAME_ERRORS, gamePulse, handleGameAction } from "../src/services/games/index.js";
 import { deleteThreadForMe, cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
 import { blockInApp, listBlocked, reportInApp, unblockInApp } from "../src/services/nava/safety.js";
@@ -301,7 +302,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const miss = await joinMissing(me);
       if (miss.length) return void res.status(403).json({ error: "join_required", channels: miss });
       if (!acting) await ensureOfficialFollow(me).catch((err) => console.error("[miniapp] official follow failed:", err instanceof Error ? err.name : "unknown"));
-      return send({ role: "user", me: await getProfile(me, me.anonId), bot: await botUsername(), staff: !!staff?.ok, staffOwner: !!staff?.ok && env.OWNER_ID !== undefined && staff.id === env.OWNER_ID, acting: acting ? me.anonId : null });
+      return send({ role: "user", ver: BOT_VERSION, me: await getProfile(me, me.anonId), bot: await botUsername(), staff: !!staff?.ok, staffOwner: !!staff?.ok && env.OWNER_ID !== undefined && staff.id === env.OWNER_ID, acting: acting ? me.anonId : null });
     }
 
     if (action === "photo") {
@@ -429,6 +430,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // the bot, an admin, or another device) the app refreshes the page at once instead of waiting for a reopen
           const sig = [u?.miniUsername ?? "", u?.nickname ?? "", u?.age ?? "", u?.bio ?? "", u?.profilePhotoAt ? new Date(u.profilePhotoAt).getTime() : "", u?.profilePhotoFileId ? 1 : 0, JSON.stringify(u ? effectiveHide({ ...u, _id: me._id }) : {}), (await hasPendingProfilePhoto(me._id)) ? "P" : ""].join("|");
           return void res.status(200).json({
+            ver: BOT_VERSION,
             sig,
             relic: u?.relicBalance ?? 0,
             isPrivate: !!u?.isPrivate,
