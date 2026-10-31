@@ -21,7 +21,7 @@ export const MIN_AGE = 9;
 export const MAX_AGE = 99;
 export const MAX_BIO_LENGTH = 300;
 
-type AwaitingField = "bio" | "province" | "city" | "location" | "nickname_request" | "age_request";
+type AwaitingField = "photo" | "bio" | "province" | "city" | "location" | "nickname_request" | "age_request";
 
 interface EditFlowDoc {
   _id: number;
@@ -99,7 +99,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
 
   composer.callbackQuery(EDIT_CALLBACKS.photo, async (ctx) => {
     await ctx.answerCallbackQuery();
-    await clearAllUserFlows(ctx.from!.id);
+    await setAwaiting(ctx.from!.id, "photo"); // marks the step as pending so the red cancel keyboard is not swapped back at once
     await ctx.reply("عکس جدید پروفایلت رو همینجا بفرست، بعد از تایید ادمین جایگزین میشه.", { reply_markup: cancelKeyboard() });
   });
 
@@ -152,6 +152,11 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
       await setAwaiting(ctx.from!.id, null);
       if (raw.startsWith("/")) return next();
       await sendRestore(ctx, "لغو شد ✅");
+      return;
+    }
+
+    if (awaiting === "photo") {
+      await ctx.reply("الان منتظر عکس پروفایل جدیدتم 🖼 (یا ❌ لغو رو بزن).", { reply_markup: cancelKeyboard() });
       return;
     }
 

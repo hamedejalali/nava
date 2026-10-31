@@ -8,6 +8,7 @@ import { checkImage } from "../../services/sightengine.js";
 import { buildSupportButton } from "../support/index.js";
 import {  isAdmin } from "../admin/constants.js";
 import { getRecipients } from "../../services/channelRouting.js";
+import { getDb } from "../../db/connect.js";
 import { hasPendingPhotoFlow } from "../common/userFlows.js";
 import { resolveFileUrl } from "../../services/telegramFiles.js";
 
@@ -36,6 +37,8 @@ export function registerPhotoUpload(composer: Composer<NavaContext>) {
     }
     // Verification selfie / report evidence are handled by their own flows.
     if (await hasPendingPhotoFlow(user._id)) return next();
+    // the «🖼 عکس پروفایل» step of the edit menu is over once the photo arrives
+    await (await getDb()).collection("profile_edit_flow").deleteOne({ _id: user._id as never, awaiting: "photo" } as never).catch(() => {});
     // Owner + ADMIN_IDS + admins granted from the panel (was: ADMIN_IDS
     // only — with just OWNER_ID set every photo upload failed).
     const adminIds = await getRecipients("photo");

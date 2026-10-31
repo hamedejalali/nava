@@ -3,7 +3,7 @@
   "use strict";
   var NG = (window.NG = {});
   /** this build's version — the server tells the app its current one (whoami / pulse); a mismatch means an update was released while the app was open */
-  NG.VER = "1.27.1";
+  NG.VER = "1.27.2";
   var tg = (NG.tg = window.Telegram && window.Telegram.WebApp);
   NG.initData = (tg && tg.initData) || "";
   var qs = (NG.qs = new URLSearchParams(location.search));
@@ -188,7 +188,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.27.1";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.27.2";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

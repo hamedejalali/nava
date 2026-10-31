@@ -91,11 +91,13 @@ export function keyboardIsStale(st: KbState | null): boolean {
  *     (no more «کاربر باید /start بزنه تا آپدیت بیاد»).
  */
 export async function restoreKeyboardIfDone(ctx: NavaContext, next: () => Promise<void>): Promise<void> {
+  const startedAt = Date.now();
   await next();
   try {
     if (!ctx.from || ctx.chat?.type !== "private" || !(ctx.message || ctx.callbackQuery)) return;
     const st = await (await col()).findOne({ _id: ctx.from.id });
     if (st?.kind === "cancel") {
+      if (st.at && new Date(st.at).getTime() >= startedAt) return; // this very update just showed the red cancel keyboard = a prompt is waiting for an answer
       if (await hasPendingInput(ctx.from.id)) return;
       await sendRestore(ctx, st.prev === "admin" ? "🛡 پنل مدیریت" : "🏠 منوی اصلی");
       return;
