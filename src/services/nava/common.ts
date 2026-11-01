@@ -1,3 +1,4 @@
+import { ageBandFilter } from "../ageBand.js";
 import { cleanBadges } from "../../config/badges.js";
 import { createHash, randomBytes } from "node:crypto";
 import { getDb } from "../../db/connect.js";
@@ -130,6 +131,14 @@ export async function lockedAmong(viewerId: number, docs: Array<{ _id: number; i
 export function visibleUserFilter(viewerId: number, hidden: number[], opts: { includeSelf?: boolean } = {}): Record<string, unknown> {
   const nin = opts.includeSelf ? hidden : [viewerId, ...hidden];
   return { _id: { $nin: nin }, onboardingStep: "COMPLETED", banned: { $ne: true } };
+}
+
+/** v1.28 AGE SEPARATION for people discovery (Explore / search / suggestions): only the viewer's own band (+ the official account).
+ *  Staff are exempt (moderation). A viewer whose age cannot be classified discovers nobody. */
+export async function ageBandDiscoveryFilter(viewerId: number): Promise<Record<string, unknown>> {
+  if (isStaffId(viewerId)) return {};
+  const me = await (await usersCol()).findOne({ _id: viewerId }, { projection: { age: 1 } });
+  return { $and: [{ $or: [ageBandFilter((me as any)?.age), { official: true }] }] };
 }
 
 export interface Brief {

@@ -1,3 +1,4 @@
+import { ageBandFilter, ageBandOf } from "../../services/ageBand.js";
 import type { ClientSession } from "mongodb";
 import { getClient, getDb } from "../../db/connect.js";
 import { buildCandidateQuery, SEARCH_TIMEOUT_MS, type MatchQueueDoc, type SearchType } from "../../db/models/matchQueue.js";
@@ -85,9 +86,10 @@ async function tryMatchOnce(user: UserDoc, searchType: SearchType, excludeIds: n
         const sessionId = newSessionId();
         // Both people must be free (and not banned) RIGHT NOW. This guard — not the earlier read — is what
         // makes it impossible for two concurrent matches to put one person into two active chats.
-        const selfMarked = await usersCol.updateOne({ _id: user._id, banned: { $ne: true }, activeChatSessionId: null as any }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
+        const selfMarked = await usersCol.updateOne({ _id: user._id, banned: { $ne: true }, ...ageBandFilter(user.age), activeChatSessionId: null as any }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
         if (selfMarked.matchedCount !== 1) throw new SelfBusy();
-        const candMarked = await usersCol.updateOne({ _id: candidate._id, banned: { $ne: true }, activeChatSessionId: null as any }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
+        // the candidate's CURRENT age (not just the queue snapshot) must be in the same band
+        const candMarked = await usersCol.updateOne({ _id: candidate._id, banned: { $ne: true }, ...ageBandFilter(user.age), activeChatSessionId: null as any }, { $set: { activeChatSessionId: sessionId } }, { session: mongoSession });
         if (candMarked.matchedCount !== 1) throw new BrokenCandidate(candidate._id);
         try {
           await chargeChatCost(user._id, sessionId, usersCol, mongoSession);
@@ -163,6 +165,8 @@ async function enqueue(user: UserDoc, searchType: SearchType, statusMessageId: n
  * the ordered deletes in tryMatchOnce guarantee exactly one of them creates the session.
  */
 export async function attemptMatchOrQueue(user: UserDoc, searchType: SearchType, statusMessageId: number | undefined): Promise<MatchAttemptResult> {
+  // an account whose age cannot be classified never enters a stranger pool (the bot also tells them; this is the backend guarantee)
+  if (!ageBandOf(user.age)) return { status: "queued" };
   let first: MatchAttemptResult | "none" | "gone" = "none";
   try {
     first = await matchLoop(user, searchType, false);

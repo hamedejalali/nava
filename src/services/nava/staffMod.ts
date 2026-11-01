@@ -23,7 +23,8 @@ export interface StaffResult {
 }
 
 export async function staffModerate(staffId: number, anonId: unknown, op: StaffOp, api: Pick<Api, "sendMessage">, extra: { badges?: unknown; reason?: unknown } = {}): Promise<StaffResult> {
-  if (!isStaffId(staffId) && !(await isDbAdmin(staffId))) throw new SocialError("forbidden");
+  // defence in depth: even a static (env) admin who has been banned loses staff rights
+  if (!(await isActiveStaff(staffId))) throw new SocialError("forbidden");
   if (!isAnonId(anonId)) throw new SocialError("not_found");
   const users = await usersCol();
   const target: any = await users.findOne({ anonId });
@@ -80,6 +81,12 @@ export async function staffModerate(staffId: number, anonId: unknown, op: StaffO
   }
   const fresh: any = await users.findOne({ _id: id });
   return { banned: !!fresh?.banned, verified: !!fresh?.verified, badges: cleanBadges(fresh?.badges), hasPhoto: !!fresh?.profilePhotoFileId };
+}
+
+async function isActiveStaff(id: number): Promise<boolean> {
+  const u: any = await (await usersCol()).findOne({ _id: id }, { projection: { isAdmin: 1, banned: 1 } });
+  if (u?.banned) return false;
+  return isStaffId(id) || u?.isAdmin === true;
 }
 
 async function isDbAdmin(id: number): Promise<boolean> {

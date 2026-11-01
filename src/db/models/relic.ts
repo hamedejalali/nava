@@ -1,3 +1,4 @@
+import { runInTransaction, TxAbort } from "../tx.js";
 import type { ClientSession, Collection } from "mongodb";
 import { isSeedId } from "../../services/seeds/ids.js";
 import { randomUUID } from "node:crypto";
@@ -403,6 +404,49 @@ export async function creditPurchaseOnce(
     reference: telegramChargeId,
     metadata: { starsAmount },
   });
+}
+
+export type StarsCreditResult = "credited" | "duplicate" | "order_consumed";
+
+/**
+ * v1.28 — the ONE place a Stars payment becomes ژتون. In a single transaction:
+ *   1. the order is claimed pending → fulfilled (conditional update: only ONE payment can ever win an order),
+ *   2. the ledger row `purchase:<chargeId>` is inserted (unique → a redelivered charge is a no-op),
+ *   3. the balance is credited.
+ * "duplicate"      = this very charge was already processed (Telegram retry) → nothing happens;
+ * "order_consumed" = a DIFFERENT charge already fulfilled this order (forwarded / reused invoice) → nothing is credited (rolled back);
+ *                    the caller keeps a durable exception record of the real payment for manual reconciliation.
+ * Legacy payloads without an order (`orderId` undefined) keep the old per-charge idempotency.
+ */
+export async function creditStarsPaymentOnce(args: { orderId?: string; userId: number; chargeId: string; relic: number; stars: number }): Promise<StarsCreditResult> {
+  const { orderId, userId, chargeId, relic, stars } = args;
+  const db = await getDb();
+  const orders = db.collection<any>("stars_orders");
+  const usersCol = db.collection<any>("users");
+  const ledger = await ledgerCollection();
+  try {
+    return await runInTransaction(async (session) => {
+      if (orderId) {
+        const claimed = await orders.findOneAndUpdate({ _id: orderId, status: "pending" }, { $set: { status: "fulfilled", fulfilledAt: new Date(), chargeId, payerId: userId } }, { session });
+        if (!claimed) {
+          const cur = await orders.findOne({ _id: orderId }, { session });
+          if (cur?.chargeId === chargeId) return "duplicate" as const;
+          throw new TxAbort("order_consumed");
+        }
+      }
+      try {
+        await ledger.insertOne({ _id: `purchase:${chargeId}`, userId, amount: relic, type: "PURCHASE", status: "completed", sourceApp: "nava", createdAt: new Date(), completedAt: new Date(), reference: chargeId, metadata: { starsAmount: stars, ...(orderId ? { orderId } : {}) } } as any, { session });
+      } catch (err: any) {
+        if (err?.code === 11000) throw new TxAbort("duplicate");
+        throw err;
+      }
+      await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: relic } }, { session });
+      return "credited" as const;
+    });
+  } catch (err) {
+    if (err instanceof TxAbort) return err.outcome as StarsCreditResult;
+    throw err;
+  }
 }
 
 export async function getRelicBalance(userId: number): Promise<number> {

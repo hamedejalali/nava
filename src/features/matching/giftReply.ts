@@ -1,3 +1,4 @@
+import { AGE_BLOCK_TEXT } from "../../services/ageBand.js";
 import { isOfficial } from "../../services/nava/common.js";
 import type { Composer } from "grammy";
 import { hasUnlimitedXp } from "../../db/models/relic.js";
@@ -73,6 +74,7 @@ export function registerGiftReply(composer: Composer<NavaContext>) {
     }
     const created = await createChatRequest(me, target._id);
     if (created.status === "already_pending") return void (await ctx.answerCallbackQuery({ text: "قبلاً درخواست دادی؛ منتظر جواب باش.", show_alert: true }));
+    if (created.status === "age_blocked") return void (await ctx.answerCallbackQuery({ text: AGE_BLOCK_TEXT, show_alert: true }));
     if (created.status === "rate_limited") return void (await ctx.answerCallbackQuery({ text: "تعداد درخواست‌هات زیاد شده؛ کمی بعد امتحان کن.", show_alert: true }));
     const delivered = await sendChatRequestToTarget(created.request, from, target);
     await ctx.answerCallbackQuery();

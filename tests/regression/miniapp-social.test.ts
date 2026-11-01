@@ -127,7 +127,7 @@ test("photo upload: safe image auto-approved, flagged goes to admins as pending,
 });
 
 test("whoami: staff -> monitor role; normal user -> social app; unregistered / forged -> rejected", async () => {
-  assert.deepEqual((await call(900, { action: "whoami" })).payload, { role: "staff" });
+  assert.deepEqual((await call(900, { action: "whoami", asStaff: true })).payload, { role: "staff" });
   const u = await call(1, { action: "whoami" });
   assert.equal(u.payload.role, "user"); assert.equal(u.payload.me.id, "user_AAA1");
   assert.equal((await call(999, { action: "whoami" })).status, 403);

@@ -1,3 +1,4 @@
+import { AGE_BLOCK_TEXT, ageBandFilter, canContact } from "../../services/ageBand.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { buttonIcon } from "../../config/emojis.js";
@@ -52,8 +53,9 @@ const usersCol = async () => (await getDb()).collection<UserDoc>("users");
 const flowCol = async () => (await getDb()).collection<{ _id: number; stage: string }>(FLOW);
 
 /** Who may appear in the lists: finished profile, not banned, not a hidden default member, not an official account, not me. */
-function visibleFilter(meId: number): Record<string, unknown> {
+function visibleFilter(meId: number, meAge: unknown): Record<string, unknown> {
   return {
+    ...ageBandFilter(meAge), // AGE SEPARATION: only people of the same band (under 18 / 18+) are ever listed
     _id: { $ne: meId },
     onboardingStep: "COMPLETED",
     banned: { $ne: true },
@@ -100,7 +102,7 @@ export async function showSearchMenu(ctx: NavaContext): Promise<void> {
 }
 
 async function runList(meId: number, mode: Mode, page: number): Promise<{ users: UserDoc[]; hasMore: boolean }> {
-  const filter: Record<string, unknown> = visibleFilter(meId);
+  const filter: Record<string, unknown> = visibleFilter(meId, (await getUser(meId))?.age);
   if (mode === "f") filter.gender = "female";
   if (mode === "m") filter.gender = "male";
   const col = await usersCol();
@@ -120,7 +122,7 @@ function escapeRegex(s: string): string {
 async function runQuery(meId: number, raw: string): Promise<UserDoc[]> {
   const q = raw.trim().replace(/^[@/]/, "");
   const col = await usersCol();
-  const base = visibleFilter(meId);
+  const base = visibleFilter(meId, (await getUser(meId))?.age);
   if (/^user_[A-Za-z0-9]{6}$/.test(q)) {
     const one = await col.find({ ...base, anonId: q } as any).limit(1).toArray();
     return one;
@@ -138,7 +140,7 @@ export async function showNearby(ctx: NavaContext, page = 0, edit = false): Prom
   const me = ctx.dbUser ?? (ctx.from ? await getUser(ctx.from.id) : null);
   if (!me) return;
   const col = await usersCol();
-  const base = visibleFilter(me._id);
+  const base = visibleFilter(me._id, me.age);
   let list: Array<{ u: UserDoc; km?: number }> = [];
   let title = "";
 
@@ -182,6 +184,7 @@ async function openProfile(ctx: NavaContext, targetId: number): Promise<void> {
     await ctx.reply("این کاربر دیگه در دسترس نیست.");
     return;
   }
+  if (!isAdmin(ctx) && !canContact(me, target)) return void (await ctx.reply(AGE_BLOCK_TEXT));
   await replyWithProfile(ctx, target, me, buildProfileKeyboard(ctx.userLang, target, "lookup"));
   if (isAdmin(ctx)) return; // moderation looks never notify the other side
   if (await shouldNotifyProfileView(me._id, target._id, "lookup")) await sendRevealNotification(ctx.api, me._id, target);
@@ -296,6 +299,7 @@ export function registerUserSearch(composer: Composer<NavaContext>) {
     if (block) return void (await ctx.answerCallbackQuery({ text: block, show_alert: true }));
     const created = await createChatRequest(me, target!._id, new Date(), origin);
     if (created.status === "already_pending") return void (await ctx.answerCallbackQuery({ text: "قبلاً درخواست دادی؛ منتظر جواب باش.", show_alert: true }));
+    if (created.status === "age_blocked") return void (await ctx.answerCallbackQuery({ text: AGE_BLOCK_TEXT, show_alert: true }));
     if (created.status === "rate_limited") return void (await ctx.answerCallbackQuery({ text: "تعداد درخواست‌هات زیاد شده؛ کمی بعد امتحان کن.", show_alert: true }));
     const delivered = await sendChatRequestToTarget(created.request, from!, target!, ctx.api);
     await ctx.answerCallbackQuery();
@@ -317,6 +321,7 @@ function checkCanRequest(from: UserDoc | null, target: UserDoc | null): string |
   if (!from || !target || target.banned) return "الان نمیشه به این کاربر درخواست داد.";
   if (from._id === target._id) return "این خودتی 🙂";
   if (isOfficial(target) && (target as any).officialChatOpen !== true) return "این اکانت رسمیه و درخواست چت نمی‌گیره.";
+  if (!canContact(from, target)) return AGE_BLOCK_TEXT;
   if (from.activeChatSessionId) return "الان توی یه چت هستی. اول اون رو تموم کن.";
   if (!hasUnlimitedXp(from._id) && (from.relicBalance ?? 0) < 1) return "موجودی ژتونت برای شروع چت کافی نیست.";
   return null;

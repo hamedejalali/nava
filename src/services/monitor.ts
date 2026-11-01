@@ -1,3 +1,4 @@
+import { effectivePerms, PERMS, type PermKey } from "../features/admin/permissions.js";
 import { env } from "../config/env.js";
 import { getDb } from "../db/connect.js";
 import type { UserDoc } from "../db/models/user.js";
@@ -36,17 +37,28 @@ export function thresholds() {
 }
 
 // ---------- staff gate ----------
-export type StaffResult = { ok: true; id: number } | { ok: false; status: number; error: string };
+export type StaffResult = { ok: true; id: number; owner: boolean; perms: Record<PermKey, boolean> } | { ok: false; status: number; error: string };
 
+/** v1.28: staff = owner / env admins / admins granted from the panel — and NOT banned (static admins used to skip this check).
+ *  Returns the person's EFFECTIVE per-feature permissions, read fresh from the database on every request (no cached rights). */
 export async function authenticateStaff(initData: unknown): Promise<StaffResult> {
   if (typeof initData !== "string" || !initData || initData.length > 4096) return { ok: false, status: 401, error: "unauthorized" };
   const tg = verifyTelegramWebAppInitData(initData, env.BOT_TOKEN, MONITOR_INITDATA_MAX_AGE_SECONDS);
   if (!tg) return { ok: false, status: 401, error: "unauthorized" };
-  if (env.OWNER_ID === tg.id || env.ADMIN_IDS.includes(tg.id)) return { ok: true, id: tg.id };
   const db = await getDb();
-  const u = await db.collection<UserDoc>("users").findOne({ _id: tg.id }, { projection: { isAdmin: 1, banned: 1 } });
-  if (u && u.isAdmin === true && !u.banned) return { ok: true, id: tg.id };
-  return { ok: false, status: 403, error: "forbidden" };
+  const u = await db.collection<UserDoc>("users").findOne({ _id: tg.id }, { projection: { isAdmin: 1, banned: 1, adminPerms: 1 } });
+  if (u?.banned) return { ok: false, status: 403, error: "forbidden" };
+  const owner = env.OWNER_ID === tg.id;
+  const isStatic = env.ADMIN_IDS.includes(tg.id);
+  if (!owner && !isStatic && u?.isAdmin !== true) return { ok: false, status: 403, error: "forbidden" };
+  const perms = owner ? (Object.fromEntries((Object.keys(PERMS) as PermKey[]).map((k) => [k, true])) as Record<PermKey, boolean>) : effectivePerms(u as any);
+  return { ok: true, id: tg.id, owner, perms };
+}
+
+/** one permission of an authenticated staff member (false when not staff at all) */
+export function staffCan(staff: StaffResult | null | undefined, perm: PermKey | "owner"): boolean {
+  if (!staff?.ok) return false;
+  return perm === "owner" ? staff.owner : staff.perms[perm] === true;
 }
 
 // ---------- webhook metrics (per-minute buckets) ----------

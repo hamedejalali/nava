@@ -6,6 +6,8 @@ import { createHarness, resetState } from "../harness/fakeTelegram.js";
 import { seedUser, col } from "../harness/fakeMongo.js";
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com", BOT_USERNAME: "NavaTestBot" });
+// these tests cover the settlement code of staked games (tables opened before stakes were switched off in v1.28.0)
+(await import("../../src/services/games/backgammonGames.js")).STAKE_SWITCH.enabled = true;
 const { default: handler } = await import("../../api/miniapp.js");
 const { botApi } = await import("../../src/services/miniapp.js");
 const { ensureSocialIndexesOnce } = await import("../../src/services/miniappSocial.js");

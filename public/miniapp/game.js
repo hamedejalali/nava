@@ -585,11 +585,11 @@
           c.onclick = function () { stakeSel = s; Array.prototype.forEach.call(chips.querySelectorAll(".gmchip"), function (x) { x.classList.remove("on"); }); c.classList.add("on"); NG.haptic("sel"); lab(); };
           chips.querySelector(".gmsr").appendChild(c);
         });
-        lab(); body.appendChild(chips);
+        lab(); if (stakes.length > 1) body.appendChild(chips);
         n.onclick = function () {
           n.disabled = true;
           NG.api("game_create", { stake: stakeSel || 0 }).then(function (rr) {
-            if (!rr.ok) { n.disabled = false; if (guestStop(rr)) return; return NG.toast(rr.data && rr.data.error === "insufficient" ? "ژتون کافی برای این مبلغ نداری." : NG.errText(rr)); }
+            if (!rr.ok) { n.disabled = false; if (guestStop(rr)) return; return NG.toast(rr.data && rr.data.error === "stakes_disabled" ? "بازی با ژتون فعلاً غیرفعاله؛ بازی دوستانه بساز." : rr.data && rr.data.error === "insufficient" ? "ژتون کافی برای این مبلغ نداری." : NG.errText(rr)); }
             enter(rr.data.gid, rr.data);
           }).catch(function () { n.disabled = false; NG.netErr(); });
         };

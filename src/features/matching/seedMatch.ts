@@ -1,3 +1,4 @@
+import { ageBandFilter, ageBandOf } from "../../services/ageBand.js";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
@@ -102,6 +103,7 @@ export interface SeedMatchOptions {
 /** Atomically turns a queued real searcher into a chat with a default member. Never throws for "normal" outcomes. */
 export async function trySeedMatch(api: Api, user: UserDoc, searchType: SearchType, status: { chatId: number; messageId: number } | undefined, opts: SeedMatchOptions = {}): Promise<SeedMatchResult> {
   const rnd = opts.rnd ?? Math.random;
+  if (!ageBandOf(user.age)) return { status: "none" };
   // a default member is connected to a given real person ONLY ONCE, ever (not just "not within 24 h")
   const exclude = new Set<number>([user._id, ...(await getBlockedCounterparts(user._id)), ...(await seedIdsEverMatched(user._id))]);
   const db = await getDb();
@@ -120,7 +122,7 @@ export async function trySeedMatch(api: Api, user: UserDoc, searchType: SearchTy
         if (del.deletedCount !== 1) throw new TxAbort("gone"); // matched with a real person / cancelled meanwhile
         const me = await usersCol.updateOne({ _id: user._id, banned: { $ne: true }, activeChatSessionId: null }, { $set: { activeChatSessionId: sessionId } }, { session });
         if (me.matchedCount !== 1) throw new TxAbort("busy");
-        const sd = await usersCol.updateOne({ _id: seed!._id, isSeed: true, seedChatEnabled: true, banned: { $ne: true }, activeChatSessionId: null }, { $set: { activeChatSessionId: sessionId } }, { session });
+        const sd = await usersCol.updateOne({ _id: seed!._id, isSeed: true, seedChatEnabled: true, banned: { $ne: true }, ...ageBandFilter(user.age), activeChatSessionId: null }, { $set: { activeChatSessionId: sessionId } }, { session });
         if (sd.matchedCount !== 1) throw new TxAbort("seed_taken");
         // the unique pair id is what makes "only once" hold even for two parallel searches of the same person
         try {

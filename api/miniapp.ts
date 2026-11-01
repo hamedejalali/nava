@@ -12,7 +12,7 @@ import {
   missingChannels,
   MINIAPP_INITDATA_MAX_AGE_SECONDS,
 } from "../src/services/miniapp.js";
-import { authenticateStaff } from "../src/services/monitor.js";
+import { authenticateStaff, staffCan } from "../src/services/monitor.js";
 import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setCoin, setLike, setLocation, setMiniUsername, setOfficialChatOpen, uploadProfilePhoto } from "../src/services/miniappSocial.js";
 import { createChatRequest } from "../src/db/models/chatRequest.js";
 import { sendChatRequestToTarget } from "../src/features/matching/chatRequest.js";
@@ -123,7 +123,7 @@ const SOCIAL_ERRORS: Record<string, number> = {
   bad_bio: 400, bio_too_long: 400, bad_image: 400, bad_text: 400, text_too_long: 400, bad_input: 400, bad_gift: 400,
   bad_name: 400, bad_age: 400, same_value: 400, pending_request: 409, self: 400,
   too_fast: 429, too_many: 429, insufficient: 402, forbidden: 403, comments_off: 403, not_found: 404,
-  unavailable: 503, share_unavailable: 503, sold_out: 409, busy: 409, ...GAME_ERRORS, chat_ended: 409, contact_forbidden: 400, need_photo: 403, bad_input2: 400,
+  age_blocked: 403, stakes_disabled: 400, unavailable: 503, share_unavailable: 503, sold_out: 409, busy: 409, ...GAME_ERRORS, chat_ended: 409, contact_forbidden: 400, need_photo: 403, bad_input2: 400,
 };
 
 function readBody(req: VercelRequest): Record<string, unknown> {
@@ -213,7 +213,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Owner / admins get the monitoring panel instead of the social app (unless they ask for user mode).
     const wantsActAs = typeof body.actAs === "string" && body.actAs.length > 0;
     const staff = action === "whoami" || action === "accounts" || wantsActAs || action === "check_username" || action === "set_username" || action === "post_delete" || action === "comment_delete" || action === "story_delete" || action === "mod" || action === "gift_remove" ? await authenticateStaff(body.initData) : null;
-    if (action === "whoami" && staff?.ok && body.asUser !== true) return void res.status(200).json({ role: "staff" });
+    // v1.28: the owner / admins open MoyaGram by default; the monitoring panel only on request (?as=staff, or its own /monitor/ page)
+    if (action === "whoami" && staff?.ok && body.asStaff === true) return void res.status(200).json({ role: "staff" });
 
     // Guest preview: somebody who opened the mini-app WITHOUT finishing registration in the bot sees 5 fictional
     // member cards in the Matching tab. Signed initData is still required; nothing else is reachable.
@@ -275,7 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // every action below then runs AS that default member.
     let acting = false;
     if (wantsActAs && body.actAs !== me.anonId) {
-      if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
+      if (!staffCan(staff, "seeds")) return void res.status(403).json({ error: "forbidden" });
       const seed = await getSeedByAnonId(String(body.actAs).slice(0, 32));
       if (!seed) return void res.status(404).json({ error: "not_found" });
       me = seed;
@@ -302,7 +303,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const miss = await joinMissing(me);
       if (miss.length) return void res.status(403).json({ error: "join_required", channels: miss });
       if (!acting) await ensureOfficialFollow(me).catch((err) => console.error("[miniapp] official follow failed:", err instanceof Error ? err.name : "unknown"));
-      return send({ role: "user", ver: BOT_VERSION, me: await getProfile(me, me.anonId), bot: await botUsername(), staff: !!staff?.ok, staffOwner: !!staff?.ok && env.OWNER_ID !== undefined && staff.id === env.OWNER_ID, acting: acting ? me.anonId : null });
+      return send({ role: "user", ver: BOT_VERSION, me: await getProfile(me, me.anonId), bot: await botUsername(), staff: !!staff?.ok, staffOwner: staffCan(staff, "owner"), staffPerms: staff?.ok ? staff.perms : undefined, acting: acting ? me.anonId : null });
     }
 
     if (action === "photo") {
@@ -335,9 +336,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "match_seen":
           return void res.status(200).json({ ok: await markMatchSeen(me, body.id) });
         case "check_username":
-          return void res.status(200).json(await checkUsername(me, body.username, !!staff?.ok));
+          return void res.status(200).json(await checkUsername(me, body.username, staffCan(staff, "nava")));
         case "set_username":
-          return void res.status(200).json({ username: await setMiniUsername(me, body.username, !!staff?.ok) });
+          return void res.status(200).json({ username: await setMiniUsername(me, body.username, staffCan(staff, "nava")) });
         case "set_bio":
           return void res.status(200).json({ bio: await setBio(me, body.bio) });
         case "upload_photo":
@@ -391,7 +392,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "post_edit":
           return void res.status(200).json(await editPost(me, body.pid, { caption: body.caption, noComments: body.noComments, hideLikes: body.hideLikes }));
         case "post_delete": {
-          const gone = await deletePost(me, body.pid, { asStaff: !!staff?.ok });
+          const gone = await deletePost(me, body.pid, { asStaff: staffCan(staff, "reports") });
           if (gone && gone.ownerId !== me._id) {
             await logAdminAction(me._id, "miniapp_post_delete", `${body.pid}:${gone.ownerId}`).catch(() => {});
             const why = typeof body.reason === "string" && body.reason.trim() ? `\nدلیل: ${body.reason.trim().slice(0, 200)}` : "";
@@ -441,7 +442,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
         case "comment_delete":
-          return void res.status(200).json(await deleteComment(me, body.commentId, { asStaff: !!staff?.ok }));
+          return void res.status(200).json(await deleteComment(me, body.commentId, { asStaff: staffCan(staff, "reports") }));
 
         /* --------------------------------------------------------- follow */
         case "follow": {
@@ -455,7 +456,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "follow_respond":
           return void res.status(200).json(await respondFollowRequest(me, body.id, body.accept !== false));
         case "accounts": {
-          if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
+          if (!staffCan(staff, "seeds")) return void res.status(403).json({ error: "forbidden" });
           const seeds = await allSeeds();
           const real = viewer.user;
           const row = (u: any) => ({ id: u.anonId, name: u.nickname ?? "-", verified: !!u.verified || isOfficial(u), ...(u.official === true ? { official: true } : {}), pv: photoVer(u.profilePhotoFileId) });
@@ -484,7 +485,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return send(await storyViewers(me, body.storyId));
         case "story_delete":
         {
-          const gone = await deleteStory(me, body.storyId, { asStaff: !!staff?.ok });
+          const gone = await deleteStory(me, body.storyId, { asStaff: staffCan(staff, "reports") });
           if (gone && gone.ownerId !== me._id) await logAdminAction(me._id, "miniapp_story_delete", `${body.storyId}:${gone.ownerId}`).catch(() => {});
           return void res.status(200).json({ ok: true });
         }
@@ -552,7 +553,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case "dm_end":
           return void res.status(200).json(await endThread(me, body.sid, botApi()));
         case "gift_remove": {
-          if (!staff?.ok || env.OWNER_ID === undefined || staff.id !== env.OWNER_ID) return void res.status(403).json({ error: "forbidden" });
+          if (!staff?.ok || !staffCan(staff, "owner")) return void res.status(403).json({ error: "forbidden" });
           const r = await adminDeleteGift(typeof body.id === "string" ? body.id : "");
           if (!r) return void res.status(404).json({ error: "not_found" });
           await logAdminAction(staff.id, "gift_delete", `${r.ownerId}:${r.giftId}`).catch(() => {});
@@ -588,9 +589,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await reportInApp(me, body.id, { reason: body.reason, text: body.text, image: body.image }, botApi());
           return void res.status(200).json({ ok: true });
         case "mod": {
-          if (!staff?.ok) return void res.status(403).json({ error: "forbidden" });
           const ops: StaffOp[] = ["ban", "unban", "verify", "unverify", "photo_remove", "badges", "reset_user"];
           if (!ops.includes(body.op as StaffOp)) return void res.status(400).json({ error: "bad_input" });
+          // the permission of EACH operation is checked on the server, per request (a hidden button is not protection)
+          const need = ({ ban: "ban", unban: "ban", verify: "verify", unverify: "verify", badges: "badges", photo_remove: "users", reset_user: "resetUser" } as const)[body.op as StaffOp];
+          if (!staff?.ok || !staffCan(staff, need)) return void res.status(403).json({ error: "forbidden" });
           return void res.status(200).json(await staffModerate(staff.id, body.id, body.op as StaffOp, botApi(), { badges: body.badges, reason: body.reason }));
         }
 

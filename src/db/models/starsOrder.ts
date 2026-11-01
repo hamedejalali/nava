@@ -18,6 +18,8 @@ export interface StarsOrderDoc {
   createdAt: Date;
   fulfilledAt?: Date;
   chargeId?: string;
+  /** who actually paid (a forwarded invoice may be paid by somebody other than `userId`) */
+  payerId?: number;
 }
 
 /** Payments that could not be matched to an order / failed validation. Kept for manual reconciliation. */
@@ -37,7 +39,11 @@ async function orders() {
 
 export async function ensureStarsOrderIndexes(): Promise<void> {
   const c = await orders();
-  await c.createIndexes([{ key: { userId: 1, status: 1, createdAt: -1 }, name: "user_status_created" }]);
+  await c.createIndexes([
+    { key: { userId: 1, status: 1, createdAt: -1 }, name: "user_status_created" },
+    // one charge can fulfil at most one order (belt and braces next to the conditional claim)
+    { key: { chargeId: 1 }, name: "charge_unique", unique: true, partialFilterExpression: { chargeId: { $type: "string" } } },
+  ]);
 }
 
 /** Reuses the user's open order for the same package/price/relic (so repeated taps do not pile up
@@ -66,10 +72,6 @@ export async function getStarsOrder(id: string): Promise<StarsOrderDoc | null> {
   return c.findOne({ _id: id });
 }
 
-export async function markStarsOrderFulfilled(id: string, chargeId: string): Promise<void> {
-  const c = await orders();
-  await c.updateOne({ _id: id }, { $set: { status: "fulfilled", fulfilledAt: new Date(), chargeId } });
-}
 
 /** Idempotent (keyed by the Telegram charge id): returns true only the first time it is recorded. */
 export async function recordStarsPaymentException(doc: Omit<StarsPaymentExceptionDoc, "createdAt">): Promise<boolean> {

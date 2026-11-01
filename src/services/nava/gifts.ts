@@ -1,3 +1,4 @@
+import { canContact } from "../ageBand.js";
 import type { Api } from "grammy";
 import { getClient } from "../../db/connect.js";
 import { chargeRelicInSession } from "../../db/models/relic.js";
@@ -133,6 +134,7 @@ export async function sendGift(
   if (receiverAnonId === viewer.anonId) throw new SocialError("self");
   const receiver = await findVisibleUser(viewer._id, receiverAnonId);
   if (!receiver) throw new SocialError("not_found");
+  if (!canContact(viewer, receiver)) throw new SocialError("age_blocked"); // AGE SEPARATION: no gifts (they carry a message) across the line
   // a default (seed) member can receive gifts like anybody else (the Telegram notice is swallowed by the seed guard)
 
   const giftId = `${viewer._id}:${clientIdRaw}`;
@@ -207,6 +209,7 @@ export async function regiftGift(
   if (receiverAnonId === viewer.anonId) throw new SocialError("self");
   const receiver = await findVisibleUser(viewer._id, receiverAnonId);
   if (!receiver) throw new SocialError("not_found");
+  if (!canContact(viewer, receiver)) throw new SocialError("age_blocked");
   // a default (seed) member can receive gifts like anybody else (the Telegram notice is swallowed by the seed guard)
   const gifts = await col<any>(C.gifts);
   const now = new Date();

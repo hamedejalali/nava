@@ -33,7 +33,7 @@ button{background:var(--card);color:var(--tx);border:1px solid var(--line);borde
 .arow b{display:block}.arow span{color:var(--mu);font-size:12px}.arow .tick{margin-inline-start:auto;color:var(--ok);font-weight:800}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
-<div class="top"><h1><span class="live" id="lv"></span>مانیتورینگ مویا</h1><div class="acc" id="acc"><div class="av" id="accav">👤</div><b id="accn">Nava</b><span class="ch">⌄</span></div></div><div class="sub" id="ts">در حال بارگذاری…</div><div class="sub"><a href="/miniapp/?as=user" style="color:#2aabee;text-decoration:none">🌐 باز کردن «مویاگرام» به‌عنوان کاربر</a></div>
+<div class="top"><h1><span class="live" id="lv"></span>مانیتورینگ مویا</h1><div class="acc" id="acc"><div class="av" id="accav">👤</div><b id="accn">Moya</b><span class="ch">⌄</span></div></div><div class="sub" id="ts">در حال بارگذاری…</div><div class="sub"><a href="/miniapp/?as=user" style="color:#2aabee;text-decoration:none">🌐 باز کردن «مویاگرام» به‌عنوان کاربر</a></div>
 <div id="err" hidden></div><div class="grid" id="g"></div>
 <p class="note">مقدارهایی که قابل اندازه‌گیری نیستند به‌جای عدد ساختگی «در دسترس نیست» نمایش داده می‌شوند. بار سیستم (٪) روی سرورلس معنا ندارد؛ به‌جای آن ترافیک، تأخیر و صف تلگرام نمایش داده می‌شود.</p>
 <button id="r">به‌روزرسانی</button>
@@ -74,7 +74,7 @@ async function loadAccounts(){try{const r=await fetch("/api/monitor",{method:"PO
 function openSwitcher(){
  if(!accounts)return;const bg=el("div","sheetbg"),sh=el("div","sheet");sh.append(el("div","grab"),el("h3",null,"تعویض اکانت"));
  {const mr=el("div","arow");const mav=el("div","av");mav.textContent="📊";const mt=el("div");mt.append(el("b",null,"مانیتورینگ"),el("span",null,"پنل نظارت و آمار"));mr.append(mav,mt,el("div","tick","●"));mr.onclick=()=>{const bg=document.querySelector(".sheetbg");if(bg)bg.click()};sh.append(mr)}
- accounts.forEach(a=>{const row=el("div","arow");const av=el("div","av");avStyle(a,av);const t=el("div");const b=el("b",null,a.name+(a.verified?" ✔":""));t.append(b,el("span",null,a.main?"اکانت اصلی (Nava)":a.official?"حساب حقوقی":"ممبر پیش‌فرض"));row.append(av,t);if(a.main)row.append(el("div","tick","●"));
+ accounts.forEach(a=>{const row=el("div","arow");const av=el("div","av");avStyle(a,av);const t=el("div");const b=el("b",null,a.name+(a.verified?" ✔":""));t.append(b,el("span",null,a.main?"اکانت اصلی (مویا)":a.official?"حساب حقوقی":"ممبر پیش‌فرض"));row.append(av,t);if(a.main)row.append(el("div","tick","●"));
   row.onclick=()=>{try{if(a.main)sessionStorage.removeItem("ng_actas");else sessionStorage.setItem("ng_actas",a.id)}catch(e){}location.href="/miniapp/?as=user"};sh.append(row)});
  if(accounts.length<2)sh.append(el("div","note","هنوز ممبر پیش‌فرضی نساخته‌ای."));
  const close=()=>{bg.classList.remove("on");sh.classList.remove("on");setTimeout(()=>{bg.remove();sh.remove()},330)};bg.onclick=close;document.body.append(bg,sh);requestAnimationFrame(()=>{bg.classList.add("on");sh.classList.add("on")})}

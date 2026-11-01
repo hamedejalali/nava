@@ -3,7 +3,7 @@
   "use strict";
   var NG = (window.NG = {});
   /** this build's version — the server tells the app its current one (whoami / pulse); a mismatch means an update was released while the app was open */
-  NG.VER = "1.27.2";
+  NG.VER = "1.28.0";
   var tg = (NG.tg = window.Telegram && window.Telegram.WebApp);
   NG.initData = (tg && tg.initData) || "";
   var qs = (NG.qs = new URLSearchParams(location.search));
@@ -104,7 +104,7 @@
   /* --------------------------------------------------------------- api */
   NG.api = function (action, body) {
     body = body || {}; body.action = action; body.initData = NG.initData;
-    if (qs.get("as") === "user") body.asUser = true;
+    if (qs.get("as") === "staff") body.asStaff = true;
     if (NG.actAs) body.actAs = NG.actAs; // owner / admins working AS a default member (verified on the server)
     return fetch("/api/miniapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (r) {
@@ -115,7 +115,7 @@
   /** Like NG.api but reports upload progress (0..1) — used for photo uploads. */
   NG.apiUp = function (action, body, onProgress) {
     body = body || {}; body.action = action; body.initData = NG.initData;
-    if (qs.get("as") === "user") body.asUser = true;
+    if (qs.get("as") === "staff") body.asStaff = true;
     if (NG.actAs) body.actAs = NG.actAs;
     return new Promise(function (resolve, reject) {
       var x = new XMLHttpRequest(); x.open("POST", "/api/miniapp");
@@ -188,7 +188,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.27.2";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.28.0";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

@@ -1,3 +1,4 @@
+import { ageBandFilter } from "./ageBand.js";
 import { getDb } from "../db/connect.js";
 import { getBlockedCounterparts } from "../db/models/blocks.js";
 import { avatarUrl } from "./nava/present.js";
@@ -91,7 +92,7 @@ export async function pickMemberCards(me: any, excludeAnonIds: string[], count =
   const seenRows = await db.collection<any>("match_seen").find({ userId: me._id }, { projection: { targetId: 1 } }).limit(20000).toArray();
   const nin = [me._id, ...blocked, ...seenRows.map((r: any) => r.targetId as number)];
   if (env.OWNER_ID !== undefined) nin.push(env.OWNER_ID);
-  const base = { _id: { $nin: nin }, onboardingStep: "COMPLETED", banned: { $ne: true }, seedHidden: { $ne: true }, official: { $ne: true }, anonId: { $nin: excludeAnonIds } };
+  const base = { ...ageBandFilter(me.age), _id: { $nin: nin }, onboardingStep: "COMPLETED", banned: { $ne: true }, seedHidden: { $ne: true }, official: { $ne: true }, anonId: { $nin: excludeAnonIds } };
   const withPhoto = await users.find({ ...base, profilePhotoFileId: { $type: "string", $ne: "" } } as any).limit(400).toArray();
   // people without a profile photo are never shown
   const pool = shuffle(withPhoto);

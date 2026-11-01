@@ -23,7 +23,7 @@ if (!reset && !url) {
   process.exit(1);
 }
 
-const menu_button = reset ? { type: "default" } : { type: "web_app", text: "نوا", web_app: { url } };
+const menu_button = reset ? { type: "default" } : { type: "web_app", text: "مویاگرام", web_app: { url } };
 const res = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },

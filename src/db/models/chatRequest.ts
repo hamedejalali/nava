@@ -1,3 +1,4 @@
+import { canContact } from "../../services/ageBand.js";
 import type { Collection } from "mongodb";
 import { randomBytes } from "node:crypto";
 import { getDb } from "../connect.js";
@@ -55,10 +56,17 @@ export async function ensureChatRequestIndexes(): Promise<void> {
 export type CreateChatRequestResult =
   | { status: "created"; request: ChatRequestDoc }
   | { status: "already_pending" }
-  | { status: "rate_limited" };
+  | { status: "rate_limited" }
+  /** v1.28: under-18 and 18+ are never put in touch (also when the age is unknown) */
+  | { status: "age_blocked" };
 
 export async function createChatRequest(fromId: number, toId: number, now = new Date(), origin: "bot" | "miniapp" = "bot"): Promise<CreateChatRequestResult> {
   const col = await chatRequestCollection();
+
+  // AGE SEPARATION (server-side, the one place every request — bot, Moyagram, gift reply, search — goes through)
+  const ppl = await (await getDb()).collection<any>("users").find({ _id: { $in: [fromId, toId] } }, { projection: { age: 1, official: 1, isAdmin: 1 } }).toArray();
+  const fromU = ppl.find((u) => u._id === fromId), toU = ppl.find((u) => u._id === toId);
+  if (!canContact(fromU, toU)) return { status: "age_blocked" };
 
   // An old pending request that already ran out is closed first so the
   // unique "one pending per pair" index doesn't block a fresh one.

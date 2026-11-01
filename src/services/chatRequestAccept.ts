@@ -1,3 +1,4 @@
+import { canContact } from "./ageBand.js";
 import { getClient, getDb } from "../db/connect.js";
 import { newSessionId, type ChatSessionDoc } from "../db/models/chatSession.js";
 import { chargeChatCost, InsufficientBalanceError } from "../db/models/relic.js";
@@ -54,6 +55,9 @@ export async function acceptChatRequest(token: string, acceptorId: number, now =
 
         const { fromId, toId } = claimed;
         if (await isBlockedEitherWay(fromId, toId)) throw new Abort({ status: "blocked" });
+        // age separation again at the moment the chat is created (an old pending request must not bypass it)
+        const both = await users.find({ _id: { $in: [fromId, toId] } }, { projection: { age: 1, official: 1, isAdmin: 1 }, session: mongoSession }).toArray();
+        if (!canContact(both.find((u) => u._id === fromId), both.find((u) => u._id === toId))) throw new Abort({ status: "blocked" });
 
         const sessionId = newSessionId();
 

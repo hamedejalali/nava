@@ -5,6 +5,8 @@ import { createHarness, resetState } from "../harness/fakeTelegram.js";
 import { seedUser } from "../harness/fakeMongo.js";
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com/miniapp/", OWNER_ID: "1" });
+// these tests cover the settlement code of staked games (tables opened before stakes were switched off in v1.28.0)
+(await import("../../src/services/games/backgammonGames.js")).STAKE_SWITCH.enabled = true;
 const bg = await import("../../src/services/games/backgammonGames.js");
 const { prepareGameShare } = await import("../../src/services/games/gameShare.js");
 const { setAppVar, resetAppVarsCache } = await import("../../src/services/appVars.js");

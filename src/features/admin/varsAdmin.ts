@@ -1,3 +1,4 @@
+import { parseModerationThreshold } from "../../config/env.js";
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -144,6 +145,7 @@ export function registerVarsAdmin(composer: Composer<NavaContext>) {
     } else if (def.kind === "number") {
       const n = Number(text.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))));
       if (!Number.isFinite(n) || n < 0) return void (await ctx.reply("یک عدد معتبر بفرست.", { reply_markup: cancelKeyboard() }));
+      if (def.key === "SIGHTENGINE_THRESHOLD" && parseModerationThreshold(String(n)) === undefined) return void (await ctx.reply("حساسیت باید عددی بیشتر از ۰ و حداکثر ۱ باشه (مثلاً 0.5).", { reply_markup: cancelKeyboard() }));
       value = String(n);
     } else if (def.kind === "bool") {
       const yes = ["روشن", "بله", "on", "true", "1"].includes(text.toLowerCase());

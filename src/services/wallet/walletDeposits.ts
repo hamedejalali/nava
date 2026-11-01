@@ -39,7 +39,13 @@ export interface DepositRow {
   walletCompletedAt?: string;
   creditedAt: Date;
   balanceAfter?: number;
+  /** the user was told (set ONLY after Telegram accepted the message, or the user is permanently unreachable) */
   notifiedAt?: Date;
+  notifyLeaseUntil?: Date;
+  notifyAttempts?: number;
+  notifyFailed?: string;
+  /** the receipt in the log chat went out */
+  logNotifiedAt?: Date;
 }
 
 interface SyncDoc {
@@ -175,12 +181,35 @@ export interface SyncSummary {
 
 const syncCol = async () => (await db()).collection<SyncDoc>(SYNC);
 
-/** Notifies the user (once) and writes a receipt to the log chat. Never throws. */
+const MAX_NOTIFY_ATTEMPTS = 10;
+
+/** Notifies the user and writes a receipt to the log chat. Never throws.
+ *  v1.28.0: `notifiedAt` is written only AFTER Telegram accepted the message. A failed send releases the claim and is retried by the
+ *  next sync (`retryPendingAnnouncements`), up to MAX_NOTIFY_ATTEMPTS; a blocked / deactivated user (403 / 400) is final. */
 export async function announceCredit(api: Pick<Api, "sendMessage">, o: Extract<CreditOutcome, { credited: true }>): Promise<void> {
   const d = await db();
-  const claim = await d.collection<any>(DEPOSITS).updateOne({ _id: o.row._id, notifiedAt: { $exists: false } }, { $set: { notifiedAt: new Date() } });
-  if (claim.modifiedCount !== 1) return;
-  await api.sendMessage(o.userId, `✅ ${o.amount} ژتون به حساب شما در مویا اضافه شد.`).catch(() => {});
+  const rows = d.collection<any>(DEPOSITS);
+  const now = new Date();
+  const claim = await rows.updateOne(
+    { _id: o.row._id, notifiedAt: { $exists: false }, $or: [{ notifyLeaseUntil: { $exists: false } }, { notifyLeaseUntil: { $lt: now } }] },
+    { $set: { notifyLeaseUntil: new Date(now.getTime() + 60_000) } },
+  );
+  if (claim.modifiedCount === 1) {
+    try {
+      await api.sendMessage(o.userId, `✅ ${o.amount} ژتون به حساب شما در مویا اضافه شد.`);
+      await rows.updateOne({ _id: o.row._id }, { $set: { notifiedAt: new Date() }, $unset: { notifyLeaseUntil: "" } });
+    } catch (err) {
+      const code = (err as { error_code?: number })?.error_code;
+      if (code === 403 || code === 400) {
+        await rows.updateOne({ _id: o.row._id }, { $set: { notifiedAt: new Date(), notifyFailed: `telegram_${code}` }, $unset: { notifyLeaseUntil: "" } });
+      } else {
+        await rows.updateOne({ _id: o.row._id }, { $unset: { notifyLeaseUntil: "" }, $inc: { notifyAttempts: 1 } }).catch(() => {});
+        console.error("[wallet] deposit notice failed; will retry:", code ?? "unknown");
+      }
+    }
+  }
+  const logClaim = await rows.updateOne({ _id: o.row._id, logNotifiedAt: { $exists: false } }, { $set: { logNotifiedAt: new Date() } });
+  if (logClaim.modifiedCount !== 1) return;
   const logChat = await getLogChatId("wallet").catch(() => undefined);
   if (logChat !== undefined) {
     const lines = [
@@ -192,8 +221,23 @@ export async function announceCredit(api: Pick<Api, "sendMessage">, o: Extract<C
       ...(o.row.totalCharged !== undefined ? [`کسر شده از ولت کاربر: ${o.row.totalCharged} ژتون`] : []),
       `زمان: ${o.row.walletCompletedAt ?? o.row.creditedAt.toISOString()}`,
     ];
-    await api.sendMessage(logChat, lines.join("\n"), { parse_mode: "HTML" }).catch(() => {});
-  }
+    try {
+      await api.sendMessage(logChat, lines.join("\n"), { parse_mode: "HTML" });
+    } catch {
+      await rows.updateOne({ _id: o.row._id }, { $unset: { logNotifiedAt: "" } }).catch(() => {}); // receipt retried with the next announce
+    }
+  } 
+}
+
+/** Re-announces credited deposits whose notice never got through (credit itself is long done and idempotent). */
+export async function retryPendingAnnouncements(api: Pick<Api, "sendMessage">, limit = 20): Promise<number> {
+  const rows = (await db()).collection<DepositRow>(DEPOSITS);
+  const pending = await rows
+    .find({ notifiedAt: { $exists: false }, creditedAt: { $gt: new Date(Date.now() - 3 * 86_400_000) }, notifyAttempts: { $not: { $gte: MAX_NOTIFY_ATTEMPTS } } } as any)
+    .limit(limit)
+    .toArray();
+  for (const row of pending) await announceCredit(api, { credited: true, userId: row.userId, amount: row.amount, balanceAfter: row.balanceAfter ?? 0, row });
+  return pending.length;
 }
 
 async function alertAdmins(api: Pick<Api, "sendMessage">, text: string) {
@@ -243,6 +287,7 @@ export async function syncWalletDeposits(api: Pick<Api, "sendMessage">, opts: { 
       if (list.length < PAGE) break;
     }
     await c.updateOne({ _id: CURSOR_ID }, { $set: { lastOkAt: new Date() }, $unset: { lastError: "", lockUntil: "" } }, { upsert: true });
+    await retryPendingAnnouncements(api).catch(() => {});
     return { ran: true, fetched, credited };
   } catch (err: any) {
     const code = err instanceof WalletApiError ? err.code : "ERROR";

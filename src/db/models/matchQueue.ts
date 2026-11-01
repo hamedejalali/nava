@@ -1,3 +1,4 @@
+import { ageBandFilter } from "../../services/ageBand.js";
 import type { Collection } from "mongodb";
 import { getDb } from "../connect.js";
 import type { Gender } from "./user.js";
@@ -183,6 +184,9 @@ export function buildCandidateQuery(me: {
   return {
     _id: { $nin: excludeIds },
     expiresAt: { $gt: new Date() },
+    // AGE SEPARATION: under-18 and 18+ never meet, in EVERY search type (lucky / gender / same-age / province). An unknown age matches nobody.
+    // (Works on the snapshot every queue entry already carries, so old queue documents are covered too.)
+    ...ageBandFilter(me.age, "ageSnapshot"),
     $and: [{ $or: iAccept }, { $or: theyAccept }],
   };
 }

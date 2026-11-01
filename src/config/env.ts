@@ -24,6 +24,18 @@ function optional(name: string): string | undefined {
   return value;
 }
 
+export const DEFAULT_MODERATION_THRESHOLD = 0.5;
+/** A moderation threshold is a probability in (0, 1]. Anything else (NaN, Infinity, negative, 0, > 1, junk text)
+ *  returns undefined so the caller falls back to the safe default — a bad value can never switch the filter off
+ *  (a threshold above 1 would never flag anything) nor flag everything (0 / negative). */
+export function parseModerationThreshold(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const text = String(raw).trim();
+  if (!/^\d*\.?\d+$/.test(text)) return undefined; // plain decimals only: rejects "", "NaN", "Infinity", "-1", "1e9", "0x1"
+  const n = Number(text);
+  return Number.isFinite(n) && n > 0 && n <= 1 ? n : undefined;
+}
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
@@ -128,9 +140,7 @@ export const env = {
       return optional("SIGHTENGINE_API_SECRET");
     },
     get threshold(): number {
-      const raw = optional("SIGHTENGINE_THRESHOLD");
-      const n = raw ? Number(raw) : NaN;
-      return Number.isFinite(n) ? n : 0.5;
+      return parseModerationThreshold(optional("SIGHTENGINE_THRESHOLD")) ?? DEFAULT_MODERATION_THRESHOLD;
     },
   },
 

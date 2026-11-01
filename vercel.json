@@ -4,6 +4,9 @@
     "api/webhook.ts": {
       "memory": 512,
       "maxDuration": 60
+    },
+    "api/cron/process-broadcasts.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

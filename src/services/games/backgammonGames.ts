@@ -44,7 +44,11 @@ export interface BgGameDoc {
   updatedAt: Date;
 }
 
-export const STAKES = [0, 1, 2, 5, 10, 20, 50, 100] as const;
+/** v1.28.0: staked (Jeton) games are DISABLED on the server until the whole flow is audited (free games only).
+ *  Games that already hold chips keep being settled/refunded by `settle`; nobody can open or join a new staked table. */
+export const STAKE_SWITCH = { enabled: false }; // tests flip it to exercise the settlement code of pre-existing staked games
+const ALL_STAKES = [0, 1, 2, 5, 10, 20, 50, 100] as const;
+export const stakeOptions = (): readonly number[] => (STAKE_SWITCH.enabled ? ALL_STAKES : [0]);
 export const IDLE_MS = 2 * 60_000; // a player who does not move for 2 minutes loses the game
 export const WARN_LEFT_MS = 15_000; // …and is warned in Telegram when 15 seconds are left
 const WARN_AT_MS = IDLE_MS - WARN_LEFT_MS;
@@ -64,8 +68,10 @@ async function ensureIdx() {
   await c.createIndexes([
     { key: { status: 1, updatedAt: -1 }, name: "status_updated" },
     { key: { players: 1, status: 1 }, name: "players_status" },
-    { key: { createdAt: 1 }, name: "ttl", expireAfterSeconds: 3 * 86_400 },
   ]);
+  // v1.28.0: the old TTL index on createdAt silently DELETED active / unsettled games (and their held chips) after 3 days.
+  // Finished + settled (or free) games are now purged by `purgeFinishedGames` instead; dropping the old index is harmless if it is gone.
+  try { await c.dropIndex("ttl"); } catch { /* not there */ }
   indexed = true;
 }
 
@@ -203,6 +209,18 @@ export async function settle(gid: string): Promise<void> {
   }
 }
 
+/** Old history only: a game is deleted when it is FINISHED, 3+ days old and holds nothing (free, or already settled).
+ *  Waiting / active / unsettled staked games are never deleted. */
+export async function purgeFinishedGames(): Promise<number> {
+  const c = await games();
+  const r = await c.deleteMany({
+    status: "finished",
+    updatedAt: { $lt: new Date(Date.now() - 3 * 86_400_000) },
+    $or: [{ stake: { $exists: false } }, { stake: 0 }, { settled: true }],
+  } as any);
+  return r.deletedCount ?? 0;
+}
+
 /** every unfinished game of this player (stale ones are finished on the way), newest activity first */
 async function myUnfinished(userId: number): Promise<BgGameDoc[]> {
   const c = await games();
@@ -225,6 +243,10 @@ export async function sweepStaleGames(limit = 100): Promise<number> {
     const f = await expire(g);
     if (f.status === "finished") n++;
   }
+  // finished games whose chips were never settled (crash between finish and payout) are settled again — idempotent
+  const unsettled = await c.find({ status: "finished", stake: { $gt: 0 }, settled: { $ne: true } } as any).limit(limit).toArray();
+  for (const g of unsettled) await settle(g._id);
+  await purgeFinishedGames();
   return n;
 }
 
@@ -348,7 +370,7 @@ export async function lobby(me: any): Promise<{ mine: GameRow[]; open: Array<{ g
   return {
     mine: await rowsFor(me, mineDocs),
     open,
-    stakes: STAKES,
+    stakes: stakeOptions(),
     myXp: await myXpOf(me),
     canCreate: mineDocs.length < MAX_OPEN && !mineDocs.some((g) => g.status === "waiting"),
     max: MAX_OPEN,
@@ -380,7 +402,9 @@ export async function create(me: any, stakeRaw?: unknown): Promise<GameView> {
   if (mine.length >= MAX_OPEN) throw new SocialError("game_limit");
   const rl = await checkRateLimit(me._id, "bg-create", 12, 3_600_000);
   if (!rl.allowed) throw new SocialError("too_fast");
-  const stake = typeof stakeRaw === "number" && (STAKES as readonly number[]).includes(stakeRaw) ? stakeRaw : 0;
+  // server-side switch: any non-zero stake is refused (a hidden UI is not protection)
+  if (stakeRaw !== undefined && stakeRaw !== null && stakeRaw !== 0 && !STAKE_SWITCH.enabled) throw new SocialError("stakes_disabled");
+  const stake = typeof stakeRaw === "number" && stakeOptions().includes(stakeRaw) ? stakeRaw : 0;
   const now = new Date();
   const g: BgGameDoc = { _id: idOf(), status: "waiting", players: [me._id, 0], state: null, v: 1, last: null, createdAt: now, updatedAt: now, stake };
   if (stake > 0) {
@@ -412,6 +436,12 @@ export async function join(me: any, gid: unknown, guest = false): Promise<GameVi
   if (mine.some((g) => g.status === "active" && g.players.includes(g0.players[0]))) throw new SocialError("same_opponent");
   const starter: Player = Math.random() < 0.5 ? 0 : 1;
   const stake = g0.stake ?? 0;
+  if (stake > 0 && !STAKE_SWITCH.enabled) {
+    // a table opened before the switch: nobody may sit at it — close it now so the host's held chips come back at once
+    const r = await c.updateOne({ _id: gid, status: "waiting" }, { $set: { status: "finished", endedBy: "cancel", updatedAt: new Date() }, $inc: { v: 1 } });
+    if (r.modifiedCount === 1) { await settle(gid); await announceEnd(gid); }
+    throw new SocialError("stakes_disabled");
+  }
   // a person who has not finished registration plays only free tables; a staked table needs an account (the app then offers «ثبت‌نام»)
   if (guest && stake > 0) throw new SocialError("insufficient");
   let updated: BgGameDoc | null = null;

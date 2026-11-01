@@ -1,4 +1,4 @@
-import { C, SocialError, col, escapeRegex, findVisibleUser, hiddenOwnerIds, isAnonId, lockedAmong, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
+import { ageBandDiscoveryFilter, C, SocialError, col, escapeRegex, findVisibleUser, hiddenOwnerIds, isAnonId, lockedAmong, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
 import type { PostDoc } from "./posts.js";
 
 /** Explore (everybody), precise search and "recent searches" of the Moyagram Mini App. */
@@ -22,7 +22,7 @@ export async function explore(viewerId: number, offsetRaw?: unknown): Promise<{ 
   const hidden = await hiddenOwnerIds(viewerId);
   const users = await usersCol();
   const docs = await users
-    .find(visibleUserFilter(viewerId, hidden))
+    .find({ ...visibleUserFilter(viewerId, hidden), ...(await ageBandDiscoveryFilter(viewerId)) })
     .sort({ createdAt: -1, _id: 1 })
     .skip(offset)
     .limit(EXPLORE_PAGE + 1)
@@ -113,6 +113,7 @@ export async function searchPeople(viewerId: number, rawQuery: unknown): Promise
   const docs = await users
     .find({
       ...visibleUserFilter(viewerId, hidden),
+      ...(await ageBandDiscoveryFilter(viewerId)),
       $or: [{ miniUsernameLower: plain }, { nickname: fuzzyRegex(q) }, { anonId: plain }],
     })
     .limit(200)

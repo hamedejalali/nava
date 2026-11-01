@@ -71,7 +71,7 @@ export function registerAdminBroadcast(composer: Composer<NavaContext>) {
     await ctx.reply(
       updated?.done
         ? `✅ پیام همگانی تموم شد. ارسال موفق: ${updated.sentCount} — ناموفق: ${updated.failCount}`
-        : `📤 ${updated?.sentCount ?? 0} نفر تا الان — ادامه‌ش خودکار طی چند دقیقه‌ی بعد انجام می‌شه.`
+        : `📤 ${updated?.sentCount ?? 0} نفر تا الان ارسال شد. ادامه‌ی ارسال خودکاره و با کران روزانه (هر روز حدود ۰۴:۳۰ به وقت تهران) انجام می‌شه؛ ممکنه تا اون موقع منتظر بمونه.`
     );
   });
 }

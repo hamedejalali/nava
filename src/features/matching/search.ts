@@ -1,3 +1,4 @@
+import { ageBandOf } from "../../services/ageBand.js";
 import type { Composer } from "grammy";
 import { hasUnlimitedXp } from "../../db/models/relic.js";
 import { GrammyError } from "grammy";
@@ -222,6 +223,10 @@ export function registerSearch(composer: Composer<NavaContext>) {
     const searchType = TYPE_BY_CALLBACK[ctx.callbackQuery.data!];
     if (!searchType) return;
 
+    if (!ageBandOf(user.age)) {
+      await ctx.reply("سن پروفایلت ثبت نشده یا معتبر نیست؛ تا اصلاح نشه جستجو ممکن نیست. از «ویرایش پروفایل» درخواست اصلاح بده یا به پشتیبانی پیام بده.");
+      return;
+    }
     if (!hasUnlimitedXp(user._id) && (user.relicBalance ?? 0) < 1) {
       const t = dictionary(ctx.userLang);
       await ctx.reply(t.errors.insufficientBalance);

@@ -185,6 +185,18 @@ export function createBot(): Bot<NavaContext> {
     await ctx.api.sendMessage(ctx.from.id, await maintenanceText()).catch(() => {});
   });
 
+  // ---- Payments are independent of ordinary user restrictions (v1.28) ----
+  // Telegram has ALREADY taken the money when successful_payment arrives, and answers the pre-checkout query only if we do:
+  // both are handled here, BEFORE the ban / onboarding / rate-limit middlewares, so a banned (or half-registered) payer never
+  // loses a payment. Everything else from a banned user is still blocked by the ban middleware below. Not affected by maintenance either.
+  const payments = new Composer<NavaContext>();
+  registerStarsCheckout(payments);
+  bot.use(async (ctx, next) => {
+    if (!ctx.preCheckoutQuery && !ctx.message?.successful_payment) return next();
+    await loadEmojiConfig().catch(() => {});
+    return payments.middleware()(ctx, next);
+  });
+
   // ---- Default-member chat whose time is up ----
   // The invocation that connected a default member normally ends the chat itself; if it was cut off, the
   // person's very next update finishes it here (and every webhook request sweeps the rest), so nobody can be
@@ -316,7 +328,7 @@ export function createBot(): Bot<NavaContext> {
   registerProfileLookup(features);
   registerVerifyFlow(features);
   registerShop(features); // «ژتون» purchase menu: Stars / ژتون / آدرس ولت (one message, edited in place)
-  registerStarsCheckout(features);
+
   registerMainMenuRouter(features); // last: only acts on exact main-menu label text, next()s everything else
   bot.use(features);
 

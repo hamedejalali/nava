@@ -1,3 +1,4 @@
+import { ageBandFilter } from "../../services/ageBand.js";
 import { getDb } from "../connect.js";
 import { runInTransaction } from "../tx.js";
 import { generateAnonId, type Gender, type UserDoc } from "./user.js";
@@ -214,6 +215,7 @@ export function seedCandidateFilter(me: { gender?: Gender; age?: number; provinc
     onboardingStep: "COMPLETED",
     activeChatSessionId: null,
     _id: { $nin: excludeIds },
+    $and: [ageBandFilter(me.age)], // AGE SEPARATION: a default member is never offered across the under-18 / 18+ line
   };
   if (searchType === "male") base.gender = "male";
   else if (searchType === "female") base.gender = "female";

@@ -1,3 +1,4 @@
+import { canContact } from "../ageBand.js";
 import { InputFile, type Api } from "grammy";
 import { getDb } from "../../db/connect.js";
 import { env } from "../../config/env.js";
@@ -258,6 +259,9 @@ async function usable(me: any, sid: unknown): Promise<{ s: ChatSessionDoc; pid: 
   if ((s as any).readonly) throw new SocialError("read_only");
   const pid = otherParticipant(s, me._id)!;
   if (await isBlockedEitherWay(me._id, pid)) throw new SocialError("chat_ended");
+  // AGE SEPARATION also for chats that already exist (an old thread must not keep working across the line)
+  const peer = await (await db()).collection<any>("users").findOne({ _id: pid }, { projection: { age: 1, official: 1, isAdmin: 1 } });
+  if (!canContact(me, peer)) throw new SocialError("age_blocked");
   return { s, pid };
 }
 
