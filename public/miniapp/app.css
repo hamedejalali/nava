@@ -892,3 +892,24 @@ button:active>.ring,.story:active .ring{transform:scale(.93)}
 .sendgift .em{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;font-size:34px;line-height:1;transform-origin:50% 50%}
 .gc .gem.hasanim .em{opacity:0;animation:none}
 .gc .gem{margin-top:14px}.gdetail .gc .gem{margin-top:6px}
+
+/* ---------- v1.28.1: calmer splash palette, always-full progress bar, wordmark that never clips ---------- */
+.splash{background:radial-gradient(110% 80% at 50% -10%,#26307a 0%,#141a3d 42%,#0a0d22 100%)!important}
+.splash::before{content:"";position:absolute;inset:auto -20% -30% -20%;height:60%;background:radial-gradient(closest-side,rgba(123,108,255,.28),transparent 70%);filter:blur(10px);z-index:0}
+.splash .logo .lg-bg{animation:none!important;filter:none!important}
+.logo-glow{background:linear-gradient(135deg,#38c6f4,#7b6cff,#b45cff)!important;opacity:.5}
+.splash .brand{background:linear-gradient(180deg,#fff 20%,#c9d2ff 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;padding:.12em .3em .22em!important;line-height:1.4!important;overflow:visible}
+.splash-prog{height:5px!important;background:rgba(255,255,255,.16)!important;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.08)}
+.splash-prog i{background:linear-gradient(90deg,#7ad7ff,#8b7bff,#c28bff)!important;transition:width .35s cubic-bezier(.3,.8,.3,1)!important;min-width:6%}
+.wordmark.en{display:inline-block;overflow:visible;white-space:nowrap;max-width:62vw;font-size:clamp(23px,7.4vw,32px);line-height:1.45;padding:.1em .3em .2em .15em;margin:-.1em 0 -.2em;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text}
+.topbar{overflow:visible}
+/* v1.28.1: 3D badges are inset in their box; the box itself never grows the text line (coin used to poke out above/below) */
+.bdw{margin-block:-.2em;line-height:0;vertical-align:-.28em;overflow:visible}
+.bdg{width:1.3em;height:1.3em;min-width:17px;min-height:17px;overflow:visible}
+/* v1.28.1: resting dice on my half of the board («نوبت شما») — tap to throw */
+.dw.idle{pointer-events:auto;cursor:pointer;animation:gidle 1.8s ease-in-out infinite}
+.dw.idle::after{content:"";position:absolute;inset:calc(var(--u,1px)*-9);border-radius:50%;background:radial-gradient(closest-side,rgba(255,213,74,.45),transparent 72%);z-index:-1;animation:gidlg 1.8s ease-in-out infinite}
+@keyframes gidle{0%,100%{transform:translateY(0)}50%{transform:translateY(calc(var(--u,1px)*-3.5))}}
+@keyframes gidlg{0%,100%{opacity:.5}50%{opacity:1}}
+.gdturn{position:absolute;transform:translate(-50%,0);white-space:nowrap;font-weight:800;font-size:calc(var(--u,1px)*11.5);color:#ffe27a;text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 10px rgba(255,200,60,.55);pointer-events:none;letter-spacing:.2px}

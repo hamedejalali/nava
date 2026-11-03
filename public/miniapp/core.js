@@ -3,7 +3,7 @@
   "use strict";
   var NG = (window.NG = {});
   /** this build's version — the server tells the app its current one (whoami / pulse); a mismatch means an update was released while the app was open */
-  NG.VER = "1.28.0";
+  NG.VER = "1.28.1";
   var tg = (NG.tg = window.Telegram && window.Telegram.WebApp);
   NG.initData = (tg && tg.initData) || "";
   var qs = (NG.qs = new URLSearchParams(location.search));
@@ -188,7 +188,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.28.0";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.28.1";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -227,12 +227,14 @@
   document.addEventListener("pointerdown", function (e) { NG.lastTap = { x: e.clientX, y: e.clientY, t: Date.now() }; }, true);
 
   NG.netErr = function () { NG.toast("اتصال برقرار نیست."); };
-  /** splash progress bar (0..100) — only ever moves forward */
-  var splashPct = 6;
+  /** splash progress bar (0..100) — only ever moves forward. It also creeps on its own (never past 90%) so it never looks stuck,
+   *  and hideSplash always fills it to 100% and waits for the fill to be SEEN before the splash fades. */
+  var splashPct = 6, splashTimer = null;
   NG.splashProgress = function (p) {
     var b = $("splashbar"); if (!b || p <= splashPct) return;
     splashPct = Math.min(100, p); b.style.width = splashPct + "%";
   };
+  splashTimer = setInterval(function () { if (splashPct < 90) NG.splashProgress(splashPct + (90 - splashPct) * 0.08 + 0.4); }, 150);
   // optional artwork (assets/logo.png, assets/splash-bg.jpg): used only if the file really exists
   (function () {
     function probe(url, ok) { var i = new Image(); i.onload = function () { ok(url); }; i.src = url; }
@@ -245,8 +247,10 @@
   })();
   NG.hideSplash = function () {
     var s = $("splash"); if (!s) return;
+    if (splashTimer) { clearInterval(splashTimer); splashTimer = null; }
     NG.splashProgress(100);
-    s.classList.add("gone"); setTimeout(function () { if (s.parentNode) s.remove(); }, 520);
+    // let the bar finish its fill (transition .35s) and rest a beat at 100% BEFORE the splash fades out
+    setTimeout(function () { s.classList.add("gone"); setTimeout(function () { if (s.parentNode) s.remove(); }, 520); }, 460);
   };
 
   /* ------------------------------------------------------------- images */

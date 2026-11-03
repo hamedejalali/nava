@@ -44,7 +44,7 @@ import { explore, recentAdd, recentClear, recentList, recentRemove, searchPeople
 import { prepareShare } from "../src/services/nava/share.js";
 import { waitUntil } from "@vercel/functions";
 import { BOT_VERSION } from "../src/config/version.js";
-import { GAME_ACTIONS, GAME_ACTING_NEVER, GAME_GUEST_ACTIONS, GAME_ERRORS, gamePulse, handleGameAction } from "../src/services/games/index.js";
+import { isGameAction, GAME_ACTIONS, GAME_ACTING_NEVER, GAME_GUEST_ACTIONS, GAME_ERRORS, gamePulse, handleGameAction } from "../src/services/games/index.js";
 import { deleteThreadForMe, cancelRequest, dmPulse, endThread, listRequests, openThread, overview as dmOverview, respondRequest, sendPhoto as dmSendPhoto, sendText as dmSendText } from "../src/services/nava/dm.js";
 import { blockInApp, listBlocked, reportInApp, unblockInApp } from "../src/services/nava/safety.js";
 import { sendOfficialMessage } from "../src/services/nava/dm.js";
@@ -320,6 +320,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (missNow.length) return void res.status(403).json({ error: "join_required", channels: missNow });
 
     try {
+      // every game (backgammon, and any plug-in added in services/games/modules.ts) is served from the registry
+      if (isGameAction(action)) return send(await handleGameAction(action, me, body, guestGame));
       switch (action) {
         /* ------------------------------------------------------ profile */
         case "me":
@@ -598,16 +600,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         /* ----------------------------------------------------------- games */
-        case "game_lobby":
-        case "game_create":
-        case "game_join":
-        case "game_state":
-        case "game_roll":
-        case "game_move":
-        case "game_resign":
-        case "game_share":
-          return send(await handleGameAction(action, me, body, guestGame));
-
         /* ---------------------------------------------------------- legacy */
         case "feed": {
           const candidate = await pickCandidate(me._id, sanitizeExclude(body.exclude));

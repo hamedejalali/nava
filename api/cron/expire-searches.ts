@@ -14,7 +14,7 @@ import { purgeOldDmMedia } from "../../src/services/nava/dm.js";
 import { processDueSeedJobs } from "../../src/features/matching/seedMatch.js";
 import { seedGuardTransformer } from "../../src/services/seeds/guard.js";
 import { processDueGiftEvents } from "../../src/services/nava/giftEvents.js";
-import { sweepStaleGames } from "../../src/services/games/backgammonGames.js";
+import { sweepAllGames } from "../../src/services/games/index.js";
 
 /**
  * MongoDB's TTL index eventually deletes expired match_queue documents on
@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Backgammon: finish (and refund / announce) tables and games nobody touched any more (never throws).
   let gamesSwept = 0;
   try {
-    gamesSwept = await sweepStaleGames();
+    gamesSwept = await sweepAllGames();
   } catch (err) {
     console.error("[cron] backgammon sweep failed:", err instanceof Error ? err.name : "unknown");
   }

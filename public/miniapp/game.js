@@ -244,7 +244,6 @@
       '<div class="gmboard" id="brd"><div id="svgh"></div><div class="gmdice" id="dc"></div></div>' +
       '<div class="gmstat" id="st"></div>' +
       '<div class="gmclock" id="clk"><i></i><span></span></div>' +
-      '<button class="btn blue tall gmroll" id="rl">🎲 تاس بنداز</button>' +
       '<div class="gmwait" id="wt"><div class="gmorbit"><i>⚀</i><i>⚃</i><i>⚅</i></div><p>منتظر یه حریف…<br><small id="wtn"></small></p><button class="btn blue" id="shg">📤 دعوت دوست با لینک</button><button class="btn" id="cn">لغو میز</button></div>' +
       "</div>");
     w.appendChild(body);
@@ -277,9 +276,9 @@
       if (v.status === "finished" || v.winner !== null) { var o = outcome(v); return o.kind === "cancel" ? o.title + (o.line ? " — " + o.line : "") : o.title + " — " + o.line; }
       var myTurn = v.state.turn === mine;
       if (myTurn && v.canRoll) {
-        if (l.kind === "cocked" && l.by === mine) return "🎲 تاس از تخته افتاد! دوباره بنداز";
-        if (l.kind === "pass" && l.by !== mine) return "حریفت حرکتی نداشت — نوبت توئه، تاس بنداز";
-        return "نوبت توئه — تاس بنداز";
+        // the dice on the board say «نوبت شما»; only the rare "opponent had no move" news is worth a line
+        if (l.kind === "pass" && l.by !== mine) return "حریفت حرکتی نداشت";
+        return "";
       }
       if (myTurn) return v.legal.length ? (sel == null ? "نوبت توئه — یه مهره رو انتخاب کن" : "حالا مقصد رو بزن") : "حرکتی نمونده…";
       if (l.kind === "cocked" && l.by !== mine) return "تاسِ حریف از تخته افتاد؛ دوباره می‌اندازه…";
@@ -332,13 +331,36 @@
       var left = rem.slice(); [0, 1].forEach(function (i) { var k = left.indexOf(r.dice[i]); if (k >= 0) left.splice(k, 1); else f[i] = true; });
       return f;
     }
+    /* v1.28.1: on my turn (before throwing) two resting dice sit on my half of the board with «نوبت شما» under them; tapping them throws.
+       There is no separate roll button and no separate "your turn" line any more. */
+    function idleDice() {
+      var us = u(), cx = 265, cy = 162;
+      dc.style.setProperty("--u", us + "px");
+      if (!dc.querySelector(".idle")) {
+        dc.innerHTML = "";
+        [[-21, 4, 5, -8], [21, 2, 2, 7]].forEach(function (o, i) {
+          var dw = el('<div class="dw idle ' + (v.me === 0 ? "dv0" : "dv1") + '"><div class="dsh"></div><div class="cube">' + cubeHtml() + "</div></div>");
+          dw.style.left = (cx + o[0]) * us + "px"; dw.style.top = (cy + o[1]) * us + "px";
+          dw.style.animationDelay = i * 0.25 + "s";
+          dw.querySelector(".cube").style.transform = orient(o[2], o[3], null);
+          dw.onclick = function () { if (busy) return; NG.haptic("sel"); act("game_roll", {}); };
+          dc.appendChild(dw);
+        });
+        var lab = el('<div class="gdturn"></div>'); dc.appendChild(lab);
+      }
+      var l = v.last || {}, lab2 = dc.querySelector(".gdturn");
+      lab2.textContent = l.kind === "cocked" && l.by === v.me ? "تاس افتاد — دوباره بنداز" : "نوبت شما";
+      lab2.style.left = cx * us + "px"; lab2.style.top = (cy + 30) * us + "px";
+      Array.prototype.forEach.call(dc.querySelectorAll(".dw"), function (dw, i) { dw.style.left = (cx + (i ? 21 : -21)) * us + "px"; dw.style.top = (cy + (i ? 2 : 4)) * us + "px"; });
+    }
     function syncDice(animate) {
+      if (v.status === "active" && v.canRoll && v.state && v.state.winner === null && v.state.turn === v.me) return idleDice();
       var meta = diceMeta();
       if (!meta) { dc.innerHTML = ""; return; }
       var us = u(), uf = usedFlags(meta), rem = v.state.remaining;
       dc.style.setProperty("--u", us + "px");
       var existing = dc.querySelectorAll(".dw");
-      if (existing.length !== 2 || animate) {
+      if (existing.length !== 2 || animate || dc.querySelector(".idle")) {
         dc.innerHTML = "";
         meta.list.forEach(function (d, i) {
           var dw = el('<div class="dw ' + (meta.by === 0 ? "dv0" : "dv1") + '"><div class="dsh"></div><div class="cube">' + cubeHtml() + "</div></div>");
@@ -448,7 +470,6 @@
       var stEl = $("st"); stEl.textContent = statusText();
       var myTurn = v.status === "active" && v.state && v.state.winner === null && v.state.turn === v.me;
       stEl.classList.toggle("go", !!myTurn);
-      var rl = $("rl"); rl.style.display = v.canRoll ? "flex" : "none";
       paintClock();
     }
 
@@ -519,7 +540,6 @@
     }
     function loop() { if (!alive) return; if (!document.body.contains(w)) { alive = false; return; } if (!document.hidden && !busy) poll(); tm = setTimeout(loop, 1500); }
 
-    $("rl").onclick = function () { $("rl").disabled = true; act("game_roll", {}); setTimeout(function () { $("rl").disabled = false; }, 600); };
     $("shg").onclick = function () { NG.share("game", gid); };
     $("cn").onclick = function () { NG.confirm("لغو میز؟", "میز بسته می‌شه" + (v && v.stake ? " و ژتونت برمی‌گرده." : "."), "تأیید", function () { act("game_resign", {}, true); }); };
     top.querySelector(".rt").onclick = function () {
@@ -531,7 +551,7 @@
 
     if (first) { v = first; lastRollN = first.rollN || 0; endAt = v.idleLeft != null && v.status === "active" ? Date.now() + v.idleLeft * 1000 : 0; paint({}); if ((v.status === "finished" || v.winner !== null) && !resShown) { resShown = true; resEl = showResult(w, v, function () { alive = false; scr.close(); }, function () {}); } }
     else { paintHeadSkeleton(); }
-    function paintHeadSkeleton() { $("wt").style.display = "none"; brd.style.display = "none"; $("rl").style.display = "none"; $("clk").style.display = "none"; $("st").textContent = "…"; }
+    function paintHeadSkeleton() { $("wt").style.display = "none"; brd.style.display = "none"; $("clk").style.display = "none"; $("st").textContent = "…"; }
     // the first request also gives the very first state when we did not get one
     if (!first) NG.api("game_state", { gid: gid }).then(function (r) { if (!alive) return; if (!r.ok) { NG.toast(NG.errText(r)); alive = false; scr.close(); return; } v = r.data; lastRollN = v.rollN || 0; endAt = v.idleLeft != null && v.status === "active" ? Date.now() + v.idleLeft * 1000 : 0; paint({}); if ((v.status === "finished" || v.winner !== null) && !resShown) { resShown = true; resEl = showResult(w, v, function () { alive = false; scr.close(); }, function () {}); } }).catch(NG.netErr);
     loop();
@@ -648,6 +668,19 @@
     { id: "cards", name: "حکم", bg: "linear-gradient(150deg,#d6485a,#7a1830)", logo: LOGO.cards },
     { id: "xo", name: "دوز", bg: "linear-gradient(150deg,#2a6fdb,#143a7a)", logo: LOGO.xo }
   ];
+  /* ---- v1.28.1 plug-in games: a game file calls NG.registerGame({id, name, bg, logo, open}) and gets a live tile in the hub
+        (replacing the «به‌زودی» tile with the same id). Files are listed in games/manifest.js. See docs/ADD_A_GAME.md. ---- */
+  NG.GAMES = NG.GAMES || [];
+  NG.registerGame = function (g) {
+    if (!g || !g.id || typeof g.open !== "function") return;
+    NG.GAMES = NG.GAMES.filter(function (x) { return x.id !== g.id; }); NG.GAMES.push(g);
+  };
+  (function loadGameFiles() {
+    (NG.GAME_FILES || []).forEach(function (f) {
+      if (!/^[a-z0-9_-]{2,24}$/.test(f)) return;
+      var sc = document.createElement("script"); sc.src = "games/" + f + ".js?v=" + NG.VER; sc.async = false; document.head.appendChild(sc);
+    });
+  })();
   var lastItems = [];
   NG.openGames = function () {
     var w = el('<div class="gmhub"></div>');
@@ -655,16 +688,18 @@
     var grid = el('<div class="gmgrid"></div>'); w.appendChild(grid);
     w.appendChild(el('<div class="gmsoon">بازی‌های بیشتر به‌زودی اضافه می‌شن ✨</div>'));
     var scr = NG.push(w); top.querySelector(".bk").onclick = scr.close;
-    TILES.forEach(function (t, i) {
+    var tiles = TILES.map(function (t) { var g = NG.GAMES.filter(function (x) { return x.id === t.id; })[0]; return g ? { id: g.id, name: g.name || t.name, bg: g.bg || t.bg, logo: g.logo || t.logo, live: true, open: g.open } : t; });
+    NG.GAMES.forEach(function (g) { if (!tiles.some(function (t) { return t.id === g.id; })) tiles.push({ id: g.id, name: g.name, bg: g.bg || "linear-gradient(150deg,#2a6fdb,#143a7a)", logo: g.logo || "", live: true, open: g.open }); });
+    tiles.forEach(function (t, i) {
       var b = el('<button class="gtile' + (t.live ? "" : " soon") + '" style="background:' + t.bg + ';animation-delay:' + i * 60 + 'ms"><div class="gtl">' + t.logo + '</div><b>' + t.name + '</b>' + (t.live ? '<small class="gtn"></small><i class="gdot hide"></i>' : '<span class="gsn">به‌زودی</span>') + "</button>");
       b.onclick = function () {
-        if (t.live) { NG.haptic("sel"); NG.openGame(); return; }
+        if (t.live) { NG.haptic("sel"); if (t.open) t.open(); else NG.openGame(); return; }
         NG.haptic("err"); b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake"); NG.toast("🚧 " + t.name + " به‌زودی میاد!");
       };
       grid.appendChild(b);
     });
     function mark() {
-      var live = grid.querySelector(".gtile:not(.soon)"); if (!live) return;
+      var live = grid.querySelector(".gtile:not(.soon)"); if (!live || !live.querySelector(".gdot")) return;
       var turn = lastItems.filter(function (x) { return x.t; }).length;
       live.querySelector(".gdot").classList.toggle("hide", !turn);
       var n = live.querySelector(".gtn"); n.textContent = lastItems.length ? num(lastItems.length) + " بازی" : "";

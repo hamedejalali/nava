@@ -49,5 +49,16 @@ export function make(id, build) {
       ? `<radialGradient id="${id}-${n}" cx=".35" cy=".3" r=".85">${stops(PAL[base])}</radialGradient>`
       : `<linearGradient id="${id}-${n}" x1=".15" y1="0" x2=".85" y2="1">${stops(PAL[base])}</linearGradient>`;
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><defs>${grads}<filter id="${id}-s" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#000" flood-opacity=".32"/></filter></defs><g filter="url(#${id}-s)">${inner}</g></svg>`;
+  // v1.28.1 — 3D look: the art is drawn at 86% inside the 64×64 box (nothing touches the edges any more, coin included), then lit by a
+  // light from the top-left: soft bevel highlight (specular on the blurred alpha), darker bottom-right rim, a contact shadow and a drop shadow.
+  const f3 = `<filter id="${id}-3d" x="-25%" y="-25%" width="150%" height="160%" color-interpolation-filters="sRGB">` +
+    `<feGaussianBlur in="SourceAlpha" stdDeviation="1.7" result="bl"/>` +
+    `<feSpecularLighting in="bl" surfaceScale="5" specularConstant=".9" specularExponent="26" lighting-color="#ffffff" result="sp"><feDistantLight azimuth="225" elevation="52"/></feSpecularLighting>` +
+    `<feComposite in="sp" in2="SourceAlpha" operator="in" result="spIn"/>` +
+    `<feComposite in="SourceGraphic" in2="spIn" operator="arithmetic" k1="0" k2="1" k3=".85" k4="0" result="lit"/>` +
+    `<feOffset in="SourceAlpha" dx="-.9" dy="-1.5" result="of"/><feComposite in="SourceAlpha" in2="of" operator="out" result="rim"/>` +
+    `<feFlood flood-color="#1a0a00" flood-opacity=".34" result="fl"/><feComposite in="fl" in2="rim" operator="in" result="shade"/>` +
+    `<feMerge result="body"><feMergeNode in="lit"/><feMergeNode in="shade"/></feMerge>` +
+    `<feDropShadow in="body" dx="0" dy="1.8" stdDeviation="1.5" flood-color="#000" flood-opacity=".38"/></filter>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><defs>${grads}${f3}<radialGradient id="${id}-cs"><stop offset="0" stop-color="#000" stop-opacity=".34"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs><ellipse cx="32" cy="57.5" rx="16" ry="3" fill="url(#${id}-cs)"/><g transform="translate(4.5 3) scale(.86)" filter="url(#${id}-3d)">${inner}</g></svg>`;
 }
