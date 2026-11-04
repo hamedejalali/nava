@@ -193,7 +193,7 @@ export async function toBriefs(viewerId: number, docs: any[]): Promise<Brief[]> 
     username: u.miniUsername ?? null,
     name: u.nickname ?? "-",
     verified: !!u.verified || isOfficial(u),
-    ...(isOfficial(u) && coinOf(u) ? { gold: true as const, coin: coinOf(u)! } : {}),
+    ...(isOfficial(u) ? { gold: true as const } : {}),
     ...(Array.isArray(u.badges) && u.badges.length ? { bd: cleanBadges(u.badges) } : {}),
     pv: photoVer(u.profilePhotoFileId),
     story: (st.get(u._id) ?? 0) as 0 | 1 | 2,
@@ -226,11 +226,4 @@ export async function healOwnerIdentity(user: any, realFirstName?: string): Prom
   if (!Object.keys(set).length) return;
   await (await usersCol()).updateOne({ _id: user._id }, { $set: set });
   Object.assign(user, set);
-}
-
-/** the coin shown beside an official account's tick: its own glyph, 🪙 by default, none when the owner removed it */
-export function coinOf(u: { officialCoin?: string | null } | null | undefined): string | null {
-  const c = u?.officialCoin;
-  if (c === "") return null;
-  return typeof c === "string" && c ? c : "🪙";
 }

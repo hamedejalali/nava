@@ -67,14 +67,6 @@ test("V1. Nava sends without XP or request: lands in the user's Directs, read-on
   assert.equal((await call(10, { action: "official_send", id: "user_BBBB", text: "x" })).status, 403, "normal users cannot send as Nava");
 });
 
-test("V2. set_coin: only official accounts, can be changed, removed, re-added", async () => {
-  assert.equal((await call(10, { action: "set_coin", coin: "🪙" })).status, 403);
-  assert.equal((await call(OWNER_ID, { action: "set_coin", coin: "💎" })).payload.coin, "💎");
-  assert.equal((await call(OWNER_ID, { action: "set_coin", coin: "" })).payload.coin, null);
-  assert.equal((await call(OWNER_ID, { action: "set_coin", coin: "🪙" })).payload.coin, "🪙");
-  assert.equal((await call(OWNER_ID, { action: "set_coin", coin: "<b>" })).status === 200, false);
-});
-
 test("V3. matching: skipped people never return and photo-less people are never shown", async () => {
   seedUser({ id: 12, anonId: "user_NOPH", nickname: "بدون", onboardingStep: "COMPLETED", relicBalance: 0 } as any);
   const first = await call(10, { action: "match_cards" });

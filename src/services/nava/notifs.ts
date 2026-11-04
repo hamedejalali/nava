@@ -123,7 +123,7 @@ export interface NotifItem {
   liked?: boolean;
 }
 
-export async function listNotifs(viewerId: number, before?: unknown): Promise<{ items: NotifItem[]; hasMore: boolean; next: number | null }> {
+export async function listNotifs(viewerId: number, before?: unknown): Promise<{ now: number; items: NotifItem[]; hasMore: boolean; next: number | null }> {
   const beforeDate = typeof before === "number" && Number.isFinite(before) && before > 0 ? new Date(before) : null;
   const c = await col<NotifDoc>(C.notifs);
   const docs = await c
@@ -177,7 +177,7 @@ export async function listNotifs(viewerId: number, before?: unknown): Promise<{ 
     if (d.type === "comment" || d.type === "reply") it.liked = !!d.commentId && liked.has(d.commentId);
     items.push(it);
   }
-  return { items, hasMore: docs.length > NOTIF_PAGE, next: page.length ? page[page.length - 1]!.at.getTime() : null };
+  return { now: Date.now(), items, hasMore: docs.length > NOTIF_PAGE, next: page.length ? page[page.length - 1]!.at.getTime() : null };
 }
 
 export { isId };

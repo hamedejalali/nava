@@ -125,10 +125,10 @@ test("M1. staff moderation: ban / verify / badges / photo removal; a normal user
   assert.equal((await call(10, { action: "mod", id: "user_BBBB", op: "ban" })).status, 403);
   const v = await call(OWNER_ID, { action: "mod", id: "user_BBBB", op: "verify" });
   assert.equal(v.payload.verified, true);
-  const b = await call(OWNER_ID, { action: "mod", id: "user_BBBB", op: "badges", badges: ["tick-gold", "tg-crown", "nope", "tg-crown"] });
-  assert.deepEqual(b.payload.badges, ["tick-gold", "tg-crown"]);
+  const b = await call(OWNER_ID, { action: "mod", id: "user_BBBB", op: "badges", badges: ["tick-gold", "m-gold", "nope", "m-gold"] });
+  assert.deepEqual(b.payload.badges, ["tick-gold", "m-gold"]);
   const pr = await call(10, { action: "profile", id: "user_BBBB" });
-  assert.deepEqual(pr.payload.profile.bd, ["tick-gold", "tg-crown"]);
+  assert.deepEqual(pr.payload.profile.bd, ["tick-gold", "m-gold"]);
   const ph = await call(OWNER_ID, { action: "mod", id: "user_BBBB", op: "photo_remove" });
   assert.equal(ph.payload.hasPhoto, false);
   const ban = await call(OWNER_ID, { action: "mod", id: "user_BBBB", op: "ban" });
@@ -199,10 +199,10 @@ test("B1. admin panel «🏅 بج‌ها»: enter a numeric id, toggle badges fr
   assert.ok(h.of("sendMessage", OWNER_ID).some((c: any) => /پیدا نشد/.test(String(c.payload.text))));
   await h.text(OWNER_ID, "11");
   const kb = h.last("sendMessage", OWNER_ID)!.payload.reply_markup.inline_keyboard.flat();
-  const crown = kb.find((b: any) => /تاج/.test(b.text));
+  const crown = kb.find((b: any) => /شش‌ضلعی طلایی/.test(b.text));
   assert.ok(crown, "badge buttons shown");
   await h.callback(OWNER_ID, crown.callback_data);
-  assert.deepEqual((await col("users").findOne({ _id: 11 }))!.badges, ["tg-crown"]);
+  assert.deepEqual((await col("users").findOne({ _id: 11 }))!.badges, ["m-gold"]);
   await h.callback(OWNER_ID, crown.callback_data);
   assert.deepEqual((await col("users").findOne({ _id: 11 }))!.badges, []);
   // a normal user cannot reach it

@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, "..", "public", "miniapp", "badges");
 mkdirSync(out, { recursive: true });
 for (const f of readdirSync(out)) if (f.endsWith(".svg")) rmSync(join(out, f));
-const parts = ["a", "b", "c"];
+const parts = ["m"]; // v1.28.2: the old emoji-like sets (a/b/c) are gone — only the abstract 3D emblems remain
 const ids = [];
 for (const p of parts) {
   let mod;

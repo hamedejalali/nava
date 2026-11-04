@@ -6,7 +6,7 @@ import { verifyMediaSig } from "./nava/media.js";
 import { eligibleCandidateFilter } from "./miniapp.js";
 import { env } from "../config/env.js";
 import { effectiveHide } from "./nava/profile.js";
-import { coinOf, isOfficial } from "./nava/common.js";
+import { isOfficial } from "./nava/common.js";
 
 /**
  * "Matching" tab cards.
@@ -56,7 +56,7 @@ function toCard(u: any): MatchCard {
     province: hide.location ? null : (u.province ?? null),
     bio: hide.bio ? "" : String(u.bio ?? "").slice(0, 160),
     verified: !!u.verified || isOfficial(u),
-    ...(isOfficial(u) && coinOf(u) ? { gold: true as const, coin: coinOf(u)! } : {}),
+    ...(isOfficial(u) ? { gold: true as const } : {}),
     av: u.profilePhotoFileId ? avatarUrl(u.anonId, version) : null,
   };
 }

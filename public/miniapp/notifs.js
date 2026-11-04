@@ -169,7 +169,7 @@
     function load(reset) {
       if (loading) return; loading = true;
       if (reset) { body.innerHTML = '<div class="more-spin"><div class="spin"></div></div>'; cursor = null; secs = {}; more = null; }
-      NG.api("notifs", { before: cursor || undefined }).then(function (r) {
+      NG.api("notifs", { before: cursor || undefined }).then(function (r) { if (r.ok && r.data && typeof r.data.now === "number") NG.skew = r.data.now - Date.now(); /* server clock: never show "16 hours ago" for a fresh like */
         loading = false;
         if (reset) body.innerHTML = "";
         if (more) { more.remove(); more = null; }

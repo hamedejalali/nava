@@ -564,10 +564,8 @@
         { label: "ساخت استوری", fn: function () { NG.createStory(); } },
         { label: "آرشیو استوری‌ها", fn: function () { NG.openArchive(); } },
         { label: "کاربران مسدود‌شده", fn: function () { NG.openBlocked(); } },
-        { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } },
-        ].concat(p.isOwnerPage ? [
-          { label: "🪙 ژتونِ کنار تیک (تغییر / حذف)", fn: function () { coinSheet(p, function () { reload(); }); } }
-        ].concat(NG.staff && !NG.actAs ? [{ label: "🏅 بج‌های این اکانت", fn: function () { NG.badgeSheet({ id: p.id, name: p.name, bd: p.bd, mod: { badges: p.bd || [] } }, function () { PCACHE[p.id] && delete PCACHE[p.id]; NG.refreshMe().then(function () { reload(); }); }); } }] : []) : []).concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
+        { label: p.isPrivate ? "پیج خصوصی: روشن (غیرخصوصی کردن)" : "خصوصی کردن پیج", fn: function () { togglePrivate(p); } }
+        ].concat(p.isOwnerPage ? [].concat(NG.staff && !NG.actAs ? [{ label: "🏅 بج‌های این اکانت", fn: function () { NG.badgeSheet({ id: p.id, name: p.name, bd: p.bd, mod: { badges: p.bd || [] } }, function () { PCACHE[p.id] && delete PCACHE[p.id]; NG.refreshMe().then(function () { reload(); }); }); } }] : []) : []).concat(NG.staff ? [{ label: "تعویض اکانت", fn: function () { NG.openAccounts(); } }] : []).concat([
         { label: "ژتون: " + (p.unlimited ? "∞" : num(p.relic || 0)) + " • سطح: " + (p.level || "-"), cls: "", fn: function () {} }
       ]));
     }
@@ -628,22 +626,6 @@
           NG.haptic("ok"); var applied = r.data && r.data.status === "applied"; close(function () { NG.toast(applied ? "✅ ذخیره شد" : "✅ درخواستت برای مالک ارسال شد"); NG.refreshMe(); });
         }).catch(function () { go.disabled = false; NG.netErr(); });
       };
-    });
-  }
-
-  var COINS = ["🪙", "💰", "👑", "💎", "⭐", "🌟", "🔥", "❤️", "✨", "🏆", "🛡️", "⚡"];
-  function coinSheet(p, after) {
-    NG.sheet('<div class="shd">ژتونِ کنار تیک</div><div class="ctx">یک اموجی انتخاب کن یا ژتون رو حذف کن.</div><div class="bgsr" id="cg" style="padding:6px 16px;justify-content:center"></div><div class="pad" style="margin-top:10px"><input class="inp" id="ci" maxlength="8" placeholder="اموجی دلخواه"></div><div class="pad" style="margin-top:10px;display:flex;gap:8px"><button class="btn blue tall" id="cs" style="flex:1">ذخیره</button><button class="btn tall" id="cx" style="flex:1;color:var(--red)">حذف سکه</button></div>', function (sh, close) {
-      var cg = sh.querySelector("#cg"), ci = sh.querySelector("#ci");
-      COINS.forEach(function (c) { var b = el('<button class="bgchip" style="font-size:22px">' + c + "</button>"); b.onclick = function () { ci.value = c; }; cg.appendChild(b); });
-      function save(v) {
-        NG.api("set_coin", { coin: v }).then(function (r) {
-          if (!r.ok) return NG.toast(NG.errText(r));
-          NG.haptic("ok"); close(function () { NG.toast("✅ ذخیره شد"); delete PCACHE[p.id]; NG.refreshMe().then(function () { if (after) after(); }); });
-        }).catch(NG.netErr);
-      }
-      sh.querySelector("#cs").onclick = function () { if (ci.value.trim()) save(ci.value.trim()); };
-      sh.querySelector("#cx").onclick = function () { save(""); };
     });
   }
 

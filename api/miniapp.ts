@@ -13,7 +13,7 @@ import {
   MINIAPP_INITDATA_MAX_AGE_SECONDS,
 } from "../src/services/miniapp.js";
 import { authenticateStaff, staffCan } from "../src/services/monitor.js";
-import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setCoin, setLike, setLocation, setMiniUsername, setOfficialChatOpen, uploadProfilePhoto } from "../src/services/miniappSocial.js";
+import { SocialError, checkUsername, ensureSocialIndexesOnce, setBio, setLike, setLocation, setMiniUsername, setOfficialChatOpen, uploadProfilePhoto } from "../src/services/miniappSocial.js";
 import { createChatRequest } from "../src/db/models/chatRequest.js";
 import { sendChatRequestToTarget } from "../src/features/matching/chatRequest.js";
 import { getDb } from "../src/db/connect.js";
@@ -106,7 +106,7 @@ const ACTIONS = new Set([
   // gifts / share / chat request
   "gift_catalog", "gift_send", "gift_regift", "gifts", "share", "request",
   // direct messages (Moyagram chat) + chat requests inbox
-  "dm_overview", "dm_open", "dm_send", "dm_photo", "dm_end", "dm_delete", "official_send", "gift_remove", "set_coin", "dm_requests", "dm_respond", "dm_cancel",
+  "dm_overview", "dm_open", "dm_send", "dm_photo", "dm_end", "dm_delete", "official_send", "gift_remove", "dm_requests", "dm_respond", "dm_cancel",
   // safety: block / report (synced with the bot) and staff moderation from a profile's ⋮ menu
   "block", "unblock", "blocked_list", "report", "mod",
   // backgammon (experimental two-player game)
@@ -347,8 +347,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return void res.status(200).json({ status: await uploadProfilePhoto(me, body.image) });
         case "set_location":
           return void res.status(200).json(await setLocation(me, body.province, body.city));
-        case "set_coin":
-          return void res.status(200).json({ coin: await setCoin(me, body.coin) });
         case "official_chat":
           return void res.status(200).json({ open: await setOfficialChatOpen(me, body.open === true) });
         case "set_visibility":
