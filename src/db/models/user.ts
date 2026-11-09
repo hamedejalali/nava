@@ -1,4 +1,4 @@
-import type { Collection } from "mongodb";
+import type { ClientSession, Collection } from "mongodb";
 import { randomBytes } from "node:crypto";
 import { getDb } from "../connect.js";
 import { grantInitialBalanceIfNeeded } from "./relic.js";
@@ -55,6 +55,8 @@ export interface UserDoc {
    *  upload. */
   profilePhotoFileId?: string;
   profilePhotoAt?: Date;
+  /** v1.29.0: caption of the «profile photo post» in the Mini App (the person may set it, may not delete the post). */
+  profilePostCaption?: string;
   /** Cached live Relic balance — see src/db/models/relic.ts for the
    *  ledger that is the actual source of truth. */
   relicBalance?: number;
@@ -242,9 +244,9 @@ export async function getOrCreateUser(input: {
   throw new Error("[user] Failed to allocate a unique anonId after multiple attempts.");
 }
 
-export async function getUser(telegramId: number): Promise<UserDoc | null> {
+export async function getUser(telegramId: number, session?: ClientSession): Promise<UserDoc | null> {
   const col = await usersCollection();
-  return col.findOne({ _id: telegramId });
+  return col.findOne({ _id: telegramId }, session ? { session } : undefined);
 }
 
 /**
@@ -404,7 +406,16 @@ export async function setProfilePhoto(telegramId: number, fileId: string): Promi
   const col = await usersCollection();
   // profilePhotoAt = when the current profile photo was approved: it is the date of the
   // "profile photo post" in the Mini App feed (and changes the cached-picture version).
-  await col.updateOne({ _id: telegramId }, { $set: { profilePhotoFileId: fileId, profilePhotoAt: new Date() } });
+  // a new photo is a NEW «profile photo post»: the caption of the previous one does not belong to it (v1.29.0)
+  await col.updateOne({ _id: telegramId }, { $set: { profilePhotoFileId: fileId, profilePhotoAt: new Date() }, $unset: { profilePostCaption: "" } });
+}
+
+/** v1.29.0: staff took a photo back. Removes the profile photo only while `fileId` is STILL the current one
+ *  (a newer photo the person set in the meantime is never touched). True when something was removed. */
+export async function removeProfilePhotoIfCurrent(telegramId: number, fileId: string): Promise<boolean> {
+  const col = await usersCollection();
+  const r = await col.updateOne({ _id: telegramId, profilePhotoFileId: fileId }, { $unset: { profilePhotoFileId: "", profilePhotoAt: "", profilePostCaption: "" } });
+  return r.modifiedCount === 1;
 }
 
 export async function setUserLocation(telegramId: number, lat: number, lng: number): Promise<void> {

@@ -1,0 +1,2 @@
+# MongoDB connection settings (v1.29.6)
+`maxPoolSize: 10` per serverless instance (unchanged) + `connectTimeoutMS 10000`, `waitQueueTimeoutMS 10000`, `maxIdleTimeMS 60000`. No `socketTimeoutMS` (it would kill long legitimate operations such as exports/broadcast steps). Total connections ≈ instances × 10: check it against your Atlas tier limit; lower `maxPoolSize` if Vercel scales wide and Atlas shows connection pressure. Keep the Vercel function region near the Atlas region (owner check; not verifiable from code).

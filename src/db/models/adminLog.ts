@@ -23,3 +23,9 @@ export async function logAdminAction(adminId: number, action: string, details?: 
 export async function getRecentAdminLogs(limit = 20): Promise<AdminLogEntry[]> {
   return (await col()).find({}).sort({ createdAt: -1 }).limit(limit).toArray();
 }
+
+/** Records an action in the activity log WITHOUT posting the generic log message (used when the action sends its own single,
+ *  more informative summary to the log channel — e.g. a bulk jeton send). */
+export async function recordAdminActionQuiet(adminId: number, action: string, details?: string): Promise<void> {
+  await (await col()).insertOne({ adminId, action, details, createdAt: new Date() });
+}

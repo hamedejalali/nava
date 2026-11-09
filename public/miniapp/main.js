@@ -5,11 +5,16 @@
 
   /* ------------------------------------------------------------------ shell */
   var TABS = ["home", "explore", "match", "dm", "profile"];
-  var ORDER = ["profile", "dm", "match", "explore", "home"]; // rendered LTR => Home sits on the right (RTL feel)
-  var ICON = { explore: "search", dm: "dm" }; // the Explore tab wears the magnifier; Directs sits where Search used to be
+  var ORDER = ["profile", "games", "match", "explore", "home"]; // rendered LTR => Home sits on the right (RTL feel). v1.29.5: «games» (the animated dice) took the Directs slot; Directs now opens from the Home header, next to the heart
+  var ICON = { explore: "search" }; // the Explore tab wears the magnifier
   var pages = (NG.pages = {}), current = "home", tabbar, pill, scrollAt = {};
   var profileV = null, matchV = null, dmV = null, profileAt = 0;
 
+  /** v1.29.5: the colourful, rolling 3D dice of the Games tab (pure CSS, no image) + the «your turn» dot */
+  function diceHtml() {
+    var f = ""; for (var i = 1; i <= 6; i++) f += '<i class="df d' + i + '"></i>';
+    return '<span class="dice"><span class="cube">' + f + '</span></span><i class="gdot hide"></i>';
+  }
   function buildShell() {
     NG.col.innerHTML = "";
     TABS.forEach(function (t) { var p = el('<div class="tabpage" id="pg-' + t + '"></div>'); pages[t] = p; NG.col.appendChild(p); });
@@ -17,12 +22,13 @@
     ORDER.forEach(function (t) {
       var b = el('<button class="tab" data-tab="' + t + '" aria-label="' + t + '"></button>');
       if (t === "profile") b.innerHTML = '<div class="av" id="tabav"></div>';
+      else if (t === "games") b.innerHTML = diceHtml();
       else b.innerHTML = '<span class="o">' + svg((ICON[t] || t) + "O", "") + '</span><span class="f">' + svg((ICON[t] || t) + "F", "") + "</span>";
-      b.addEventListener("click", function () { NG.selectTab(t, true); });
+      // Games is not a page: it opens the games hub on top (a guest may still sit at a shared table, exactly like the old floating button)
+      b.addEventListener("click", function () { if (t === "games") { NG.haptic("sel"); NG.openGames(); } else NG.selectTab(t, true); });
       tabbar.appendChild(b);
     });
     NG.col.appendChild(tabbar);
-    if (NG.mountGameFab) NG.mountGameFab();
     pill = $("pill");
     window.addEventListener("resize", movePill);
     setTabAvatar();
@@ -36,7 +42,10 @@
   /** The pill is placed in pixels from the real tab button, so it can never stick out of the bar or drift off the icon. */
   function movePill() {
     if (!tabbar || !pill) return;
-    var b = tabbar.querySelector('.tab[data-tab="' + current + '"]'); if (!b) return;
+    var b = tabbar.querySelector('.tab[data-tab="' + current + '"]');
+    // the Directs page is reached from the Home header and has no tab of its own: no highlighted tab then
+    pill.style.opacity = b ? "" : "0";
+    if (!b) { Array.prototype.forEach.call(tabbar.querySelectorAll(".tab"), function (x) { x.classList.remove("on"); }); return; }
     var w = Math.max(0, b.offsetWidth - 10);
     pill.style.width = w + "px";
     pill.style.transform = "translateX(" + (b.offsetLeft + 5) + "px)";
@@ -90,7 +99,7 @@
   function tileFor(u) {
     var t = el('<div class="tile sk"></div>');
     var src = u.src || u.tileSrc;
-    if (src) t.appendChild(NG.img(src));
+    if (src) t.appendChild(NG.img(src, "", true));
     else { t.classList.remove("sk"); t.appendChild(el('<div class="ph0">' + esc(String(NG.nameOf(u) || "؟").charAt(0).toUpperCase()) + "</div>")); }
     t.appendChild(el('<div class="cnt">' + esc(NG.nameOf(u)) + "</div>"));
     t.onclick = function () { NG.haptic("sel"); NG.openProfile(u.id); };
@@ -183,11 +192,12 @@
     var o = d.old, m = d.me;
     setTabAvatar();
     if (o && m && profileV && o.relic !== m.relic) profileV.setRelic(m.relic);
-    if (o && m && (o.av !== m.av || o.name !== m.name || o.age !== m.age || o.username !== m.username || o.bio !== m.bio || !!o.photoPending !== !!m.photoPending || o.pendingName !== m.pendingName || o.pendingAge !== m.pendingAge)) {
+    if (o && m && (o.av !== m.av || o.name !== m.name || o.age !== m.age || o.username !== m.username || o.bio !== m.bio || !!o.photoPending !== !!m.photoPending || o.pendingName !== m.pendingName || o.pendingAge !== m.pendingAge || !!o.verified !== !!m.verified || (o.bd || []).join(",") !== (m.bd || []).join(","))) {
       if (profileV) profileV.reload();
       if (o.av !== m.av) { NG.refresh(); NG.refreshTray(); }
       if (o.photoPending && !m.photoPending && o.av === m.av) NG.toast("درخواست عکس پروفایل بررسی شد.");
       if (o.av !== m.av) NG.toast("✅ عکس پروفایلت عوض شد");
+      if ((o.bd || []).join(",") !== (m.bd || []).join(",")) { NG.toast("🏅 بج‌های پروفایلت به‌روز شد"); if (NG.refresh) NG.refresh(); }
     }
     schedulePoll();
   });
@@ -252,14 +262,30 @@
       q.forEach(function (fn, i) { setTimeout(function () { try { fn(); } catch (e) {} }, i * 350); });
     } catch (e) {}
   }
+  /* v1.29.6 — real-user performance: ONE anonymous sample per session (time until the first screen is ready, first API round trip, coarse
+     network class). Numbers only: no id, no URL, no content. Failure is silent and never blocks anything. */
+  var rumSent = false;
+  function sendRum(apiMs) {
+    if (rumSent) return; rumSent = true;
+    setTimeout(function () {
+      try {
+        var loadMs = (window.performance && performance.now) ? Math.round(performance.now()) : null;
+        if (loadMs === null) return;
+        var c = navigator.connection || {};
+        NG.api("rum", { loadMs: loadMs, apiMs: apiMs, net: typeof c.effectiveType === "string" ? c.effectiveType : "" }).catch(function () {});
+      } catch (e) {}
+    }, 3000);
+  }
   /* -------------------------------------------------------------------- boot */
   function boot() {
     var t0 = Date.now();
     function reveal() { var wait = Math.max(0, 900 - (Date.now() - t0)); setTimeout(NG.hideSplash, wait); }
     if (!NG.initData) { NG.fatal("مینی‌اپ رو از داخل تلگرام باز کن", "دکمه‌ی مینی‌اپ داخل ربات رو بزن."); return; }
     NG.splashProgress(30);
+    var tApi = (window.performance && performance.now) ? performance.now() : 0;
     NG.api("whoami").then(function (r) {
       NG.splashProgress(60);
+      var apiMs = tApi ? Math.round(performance.now() - tApi) : null;
       if (!r.ok) {
         var er = r.data && r.data.error;
         if (NG.actAs && (er === "not_found" || er === "forbidden" || er === "not_registered")) { NG.setActAs(null); location.reload(); return; }
@@ -278,7 +304,7 @@
       pages.home.classList.add("on"); movePill();
       NG.splashProgress(80);
       var done = NG.renderHome(pages.home);
-      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); setTimeout(prefetch, 250); };
+      var fin = function () { reveal(); deepLink(); schedulePoll(); pulse(); setTimeout(prefetch, 250); if (!r.data.acting) sendRum(apiMs); };
       if (done && done.then) done.then(fin, fin); else fin();
       setTimeout(movePill, 120);
     }).catch(function () { NG.fatal("اتصال برقرار نیست", "اینترنتت رو چک کن و دوباره باز کن."); });

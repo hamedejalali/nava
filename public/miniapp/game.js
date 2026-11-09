@@ -748,6 +748,8 @@
     lastItems = items;
     var turn = items.filter(function (x) { return x.t; }).length;
     if (fab) { fab.querySelector(".gdot").classList.toggle("hide", !turn); fab.classList.toggle("turn", turn > 0); }
+    var gt = document.querySelector('.tab[data-tab="games"]'); // v1.29.5: the Games tab shows «your turn» (the floating button is gone)
+    if (gt) { var gd = gt.querySelector(".gdot"); if (gd) gd.classList.toggle("hide", !turn); gt.classList.toggle("turn", turn > 0); }
     if (prevGames) {
       items.forEach(function (it) {
         var p = prevGames[it.gid];

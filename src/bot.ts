@@ -1,4 +1,6 @@
 import { Bot, Composer, GrammyError, HttpError } from "grammy";
+import { logError } from "./utils/safeLog.js";
+import { TELEGRAM_API_TIMEOUT_S } from "./utils/fetchTimeout.js";
 import type { NavaContext } from "./bot-context.js";
 import { env } from "./config/env.js";
 import { healOwnerIdentity } from "./services/nava/common.js";
@@ -87,7 +89,7 @@ import { seedGuardTransformer } from "./services/seeds/guard.js";
 import { getMaintenanceState, maintenanceAllows, maintenanceText } from "./services/maintenance.js";
 
 export function createBot(): Bot<NavaContext> {
-  const bot = new Bot<NavaContext>(env.BOT_TOKEN);
+  const bot = new Bot<NavaContext>(env.BOT_TOKEN, { client: { timeoutSeconds: TELEGRAM_API_TIMEOUT_S.bot } });
 
   // Every outgoing request passes through the emoji/HTML safety net — see
   // src/ui/telegramSafety.ts for what it guarantees.
@@ -123,7 +125,7 @@ export function createBot(): Bot<NavaContext> {
     getDb().then((db) => ensureGiftEventIndexes(db)),
   ]).catch((err) => {
     // eslint-disable-next-line no-console
-    console.error("[bot] Index setup failed (will retry on next cold start):", err);
+    logError("MG-BOT-001", "Index setup failed (will retry on next cold start)", err);
   });
 
   // ---- Context enrichment ----

@@ -106,7 +106,7 @@ export async function profilesToItems(viewerId: number, owners: any[]): Promise<
     owner: briefs[i]!,
     mediaId: null,
     pv: photoVer(o.profilePhotoFileId),
-    caption: "",
+    caption: typeof o.profilePostCaption === "string" ? o.profilePostCaption : "",
     at: (o.profilePhotoAt ?? o.createdAt ?? new Date(0)).getTime(),
     likes: o.likesCount ?? 0,
     liked: liked.has(o._id),
@@ -257,7 +257,18 @@ export async function editCaption(owner: any, pidRaw: unknown, captionRaw: unkno
 /** Caption and/or the two Instagram switches — owner only. Returns what is stored now. */
 export async function editPost(owner: any, pidRaw: unknown, input: { caption?: unknown; noComments?: unknown; hideLikes?: unknown }): Promise<{ caption: string; noComments: boolean; hideLikes: boolean }> {
   const pid = parsePid(pidRaw);
-  if (!pid || pid.kind !== "post") throw new SocialError("not_found");
+  if (!pid) throw new SocialError("not_found");
+  // v1.29.0: the profile-photo post (pp:<anonId>) can never be deleted by its owner, but he may set / change its caption.
+  // Only the caption exists on it (no comment / like switches).
+  if (pid.kind === "profile") {
+    if (pid.anonId !== owner.anonId || !owner.profilePhotoFileId) throw new SocialError("not_found");
+    const caption = input.caption == null || input.caption === "" ? "" : cleanText(input.caption, MAX_CAPTION, { multiline: true });
+    const users = await usersCol();
+    // guard on the CURRENT photo: a caption can never be attached to a photo that was replaced / removed a moment ago
+    const r = await users.updateOne({ _id: owner._id, profilePhotoFileId: owner.profilePhotoFileId } as any, caption ? { $set: { profilePostCaption: caption } } : { $unset: { profilePostCaption: "" } });
+    if (r.matchedCount !== 1) throw new SocialError("not_found");
+    return { caption, noComments: false, hideLikes: false };
+  }
   const set: Record<string, unknown> = {};
   if (input.caption !== undefined) set.caption = input.caption == null || input.caption === "" ? "" : cleanText(input.caption, MAX_CAPTION, { multiline: true });
   if (typeof input.noComments === "boolean") set.noComments = input.noComments;
@@ -274,7 +285,10 @@ export async function editPost(owner: any, pidRaw: unknown, input: { caption?: u
 
 export async function deletePost(owner: any, pidRaw: unknown, opts: { asStaff?: boolean } = {}): Promise<{ ownerId: number } | void> {
   const pid = parsePid(pidRaw);
-  if (!pid || pid.kind !== "post") throw new SocialError("not_found");
+  if (!pid) throw new SocialError("not_found");
+  // v1.29.0: the profile-photo post cannot be deleted by anybody through this door (staff remove a photo with «حذف عکس پروفایل»;
+  // the owner replaces it with «تغییر عکس پروفایل»). All other posts stay deletable.
+  if (pid.kind === "profile") throw new SocialError("forbidden");
   const posts = await col<PostDoc>(C.posts);
   const post = await posts.findOne(opts.asStaff ? ({ _id: pid.id } as any) : ({ _id: pid.id, ownerId: owner._id } as any));
   if (!post) throw new SocialError("not_found");

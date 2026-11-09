@@ -16,11 +16,12 @@
 
     function paint() {
       root.innerHTML = "";
-      var top = el('<div class="topbar"><div class="ttlx">پیام‌ها</div><div class="icons"><button id="reqb" aria-label="requests" class="reqb">' + svg("user") + '<i class="dot hide"></i></button></div></div>');
+      var top = el('<div class="topbar"><div class="dmhd"><button class="dmback" aria-label="back">' + svg("back") + '</button><div class="ttlx">پیام‌ها</div></div><div class="icons"><button id="reqb" aria-label="requests" class="reqb">' + svg("user") + '<i class="dot hide"></i></button></div></div>');
       root.appendChild(top);
       var inc = data ? data.requests.incoming : 0, out = data ? data.requests.outgoing : 0;
       var dot = top.querySelector(".dot"); if (inc > 0) dot.classList.remove("hide");
       top.querySelector("#reqb").onclick = function () { NG.openDmRequests(); };
+      top.querySelector(".dmback").onclick = function () { NG.selectTab("home", true); };
       if (!data) { root.appendChild(el('<div class="more-spin"><div class="spin"></div></div>')); return; }
       if (inc > 0 || out > 0) {
         var rb = el('<button class="dmreq">' + svg("chat", "") + "<span>درخواست‌های چت" + (inc ? " · " + num(inc) + " جدید" : "") + (out ? " · " + num(out) + " ارسال‌شده" : "") + "</span></button>");
@@ -233,7 +234,11 @@
   var badgeN = 0;
   NG.setDmBadge = function (n) {
     badgeN = n || 0;
-    var b = document.querySelector('.tab[data-tab="dm"]'); if (!b) return;
+    NG.paintDmBadge();
+  };
+  /** v1.29.5: the unread badge sits on the Directs button of the Home header (re-applied whenever Home is rebuilt) */
+  NG.paintDmBadge = function () {
+    var b = document.getElementById("dmb"); if (!b) return;
     var i = b.querySelector(".tb");
     if (!badgeN) { if (i) i.remove(); return; }
     if (!i) { i = document.createElement("i"); i.className = "tb"; b.appendChild(i); }

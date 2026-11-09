@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import { getAppVar } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { getDb } from "../../db/connect.js";
@@ -101,7 +102,7 @@ export async function startVerifyRequest(ctx: NavaContext): Promise<void> {
     const chosen = photos[Math.floor(Math.random() * photos.length)]!;
     await ctx.replyWithPhoto(chosen).catch((err) => {
       // eslint-disable-next-line no-console
-      console.error("[verify] sample photo could not be sent (wrong file_id for this bot?):", err);
+      logError("MG-VF-001", "sample photo could not be sent (wrong file_id for this bot?)", err);
     });
   }
   await ctx.reply(VERIFY_TERMS_TEXT, { reply_markup: kb });

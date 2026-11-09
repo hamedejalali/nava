@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { logError } from "../src/utils/safeLog.js";
 import type { Update } from "grammy/types";
 import { createBot } from "../src/bot.js";
 import { waitUntil } from "@vercel/functions";
@@ -41,7 +42,7 @@ try {
   // generic Vercel "function crashed" error. Catching it here means every
   // request instead gets ONE clear, labeled log line explaining why.
   botConstructError = err;
-  console.error("[nava:webhook] cold-start bot construction failed:", err);
+  logError("MG-WH-001", "cold-start bot construction failed", err);
 }
 
 // FIXED — this promise used to be cached forever once set, even if it
@@ -84,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     // env.WEBHOOK_SECRET is a required() getter — this only throws if the
     // env var is genuinely missing in this deployment.
-    console.error("[nava:webhook] cannot read WEBHOOK_SECRET (missing env var?):", err);
+    logError("MG-WH-002", "cannot read WEBHOOK_SECRET (missing env var?)", err);
     res.status(500).send("server misconfigured");
     return;
   }
@@ -108,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await ensureInit();
   } catch (err) {
-    console.error("[nava:webhook] bot.init() failed:", err);
+    logError("MG-WH-003", "bot.init() failed", err);
     res.status(503).send("bot not ready");
     return;
   }

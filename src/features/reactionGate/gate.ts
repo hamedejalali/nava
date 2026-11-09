@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, glassUrlButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
@@ -43,7 +44,7 @@ export async function requireReactionGate(ctx: NavaContext): Promise<boolean> {
     return false;
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error("[reactionGate] check failed, letting the user through:", err);
+    logError("MG-RG-001", "check failed, letting the user through", err);
     return true;
   }
 }

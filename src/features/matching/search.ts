@@ -10,7 +10,7 @@ import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 import { attemptMatchOrQueue, rescanQueued, type MatchAttemptResult } from "./engine.js";
 import { PARTNER_TYPE_CALLBACKS, SEARCH_CALLBACKS } from "./constants.js";
 import { CHAT_REQUEST_ACCEPTED_TEXT, classifySendError, deliverSession } from "./matchDelivery.js";
-import { claimSearchNotice } from "../../db/models/searchNotice.js";
+import { claimArmedSearchNoticeFor, claimSearchNotice, hasArmedNoticeFor } from "../../db/models/searchNotice.js";
 import { sendTimeoutNotice, settleNotice } from "./searchNotices.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -84,6 +84,10 @@ export interface CountdownOptions {
   tickMs?: number; // default 2000
   /** never connect a default (seed) member (tests / emergency switch) */
   noSeed?: boolean;
+  /** When the person PRESSED the button (ms). The 40 s and the shown number run from here, so the countdown can never
+   *  outlive the queue entry's own `expiresAt` (which is set later, at enqueue time) and MongoDB's TTL sweep can not remove the
+   *  entry before the countdown settles it. Default: when the countdown starts (tests). */
+  searchStartedAt?: number;
 }
 
 /** A default-member chat is played out inside this invocation, but Vercel stops a function at ~60 s: after this
@@ -113,21 +117,40 @@ export async function runCountdown(
 ) {
   const totalMs = opts.totalMs ?? SEARCH_TIMEOUT_MS;
   const tickMs = opts.tickMs ?? 2000;
-  const startedAt = Date.now();
-  const deadline = startedAt + totalMs;
+  const startedAt = Date.now(); // this countdown's own start: it only ever owns a queue entry created before it
+  const clockStart = Math.min(opts.searchStartedAt ?? startedAt, startedAt); // the person's press: the 40 s run from here
+  const deadline = clockStart + totalMs;
   let lastShown = -1;
+  let canEdit = true; // false once the status message is gone: the search itself goes on, only the number stops
   // v1.18.0: 3 s before the end, if still nobody was found, a default member may be connected (see seedMatch.ts)
   const seedAt = deadline - SEED_SEARCH_LEAD_MS;
   let seedTried = !!opts.noSeed;
 
+  /** The status message belongs to THIS countdown: whenever the search is over for any other reason (matched by the other
+   *  side, cancelled, replaced by a newer press) it must not stay on the screen as a frozen, dead timer. */
+  const dropOwnStatus = () => api.deleteMessage(chatId, statusMessageId).catch(() => {});
+
+  // numbers shown are the steady grid 2, 4, 6 … (not "elapsed after drift": 2, 5, 7, 10 …); a late tick just skips ahead
+  const nextGrid = () => {
+    const k = Math.floor((Date.now() - clockStart) / tickMs) + 1;
+    return clockStart + k * tickMs;
+  };
+
+  let searchEnded = false; // the queue entry is gone for a reason other than "TTL swept it before the deadline"
   while (Date.now() < deadline) {
-    let wake = Math.min(tickMs, Math.max(0, deadline - Date.now()));
+    let wake = Math.min(Math.max(0, nextGrid() - Date.now()), Math.max(0, deadline - Date.now()));
     if (!seedTried) wake = Math.min(wake, Math.max(0, seedAt - Date.now()));
     await sleep(wake);
     if (Date.now() >= deadline) break;
 
     try {
-      if (!(await queueEntryExists(user._id, { createdBefore: new Date(startedAt) }))) return; // matched or cancelled — whoever removed it already answered
+      if (!(await queueEntryExists(user._id, { createdBefore: new Date(startedAt) }))) {
+        // Matched / cancelled / replaced: whoever removed the entry already answered. If NOBODY did (the TTL sweep took
+        // the entry, which only happens once its time is up) the search timed out: fall through to the timeout path.
+        if (await hasArmedNoticeFor(user._id, new Date(startedAt)).catch(() => false)) break;
+        searchEnded = true;
+        break;
+      }
     } catch (err) {
       console.error("[search] queue check failed mid-countdown (will retry next tick):", err instanceof Error ? err.name : "unknown");
       continue;
@@ -139,7 +162,10 @@ export async function runCountdown(
         await announceMatch(api, user, lang, r, { chatId, messageId: statusMessageId });
         return;
       }
-      if (r.status === "matched_elsewhere" || r.status === "busy") return;
+      if (r.status === "matched_elsewhere" || r.status === "busy") {
+        await dropOwnStatus();
+        return;
+      }
     } catch (err) {
       console.error("[search] rescan failed (will retry next tick):", err instanceof Error ? err.name : "unknown");
     }
@@ -149,25 +175,33 @@ export async function runCountdown(
       try {
         const sm = await trySeedMatch(api, user as any, searchType, { chatId, messageId: statusMessageId }, { createdBefore: new Date(startedAt) });
         if (sm.status === "matched") {
-          await runSeedScript(api, sm.sessionId, { hardStopAt: startedAt + SEED_SCRIPT_BUDGET_MS });
+          await runSeedScript(api, sm.sessionId, { hardStopAt: clockStart + SEED_SCRIPT_BUDGET_MS });
           return;
         }
-        if (sm.status === "gone") return; // matched with a real person / cancelled meanwhile: whoever did it answered
+        if (sm.status === "gone") {
+          await dropOwnStatus(); // matched with a real person / cancelled meanwhile: whoever did it answered
+          return;
+        }
       } catch (err) {
         console.error("[search] default-member match failed (normal timeout follows):", err instanceof Error ? err.name : "unknown");
       }
     }
 
-    const elapsed = Math.min(Math.round((Date.now() - startedAt) / 1000), Math.round(totalMs / 1000));
+    if (!canEdit) continue;
+    const elapsed = Math.min(Math.round((Math.floor((Date.now() - clockStart) / tickMs) * tickMs) / 1000), Math.round(totalMs / 1000));
     if (elapsed === lastShown) continue;
     lastShown = elapsed;
     try {
       await api.editMessageReplyMarkup(chatId, statusMessageId, { reply_markup: countdownKeyboard(lang, elapsed) });
     } catch (err) {
-      // 400 = the message was replaced/deleted by someone else: stop quietly. Anything else (429, network)
-      // only skips this visual update — the search is still valid.
-      if (err instanceof GrammyError && err.error_code === 400 && !/not modified/i.test(err.description)) return;
+      // 400 = the message was deleted/replaced by someone else: stop editing, but KEEP searching (matching and the
+      // timeout notice must not depend on the number being visible). Anything else (429, network) only skips this update.
+      if (err instanceof GrammyError && err.error_code === 400 && !/not modified/i.test(err.description)) canEdit = false;
     }
+  }
+  if (searchEnded) {
+    await dropOwnStatus();
+    return;
   }
 
   // Deadline reached: exactly one party gets to remove the entry; only that party declares the timeout.
@@ -178,15 +212,16 @@ export async function runCountdown(
     console.error("[search] timeout claim failed (daily cron will clean up):", err instanceof Error ? err.name : "unknown");
     return;
   }
-  if (!claimed) return;
-  await api.deleteMessage(chatId, statusMessageId).catch(() => {});
   // The durable notice record decides who delivers: if the recovery pass already took it, we stay silent.
   let notice: Awaited<ReturnType<typeof claimSearchNotice>> = { status: "none" };
   try {
-    notice = await claimSearchNotice(user._id, claimed.createdAt);
+    if (claimed) notice = await claimSearchNotice(user._id, claimed.createdAt);
+    else notice = await claimArmedSearchNoticeFor(user._id, new Date(startedAt)); // entry already swept by the TTL: the armed notice still proves the search timed out
   } catch (err) {
     console.error("[search] could not claim timeout notice (sending without it):", err instanceof Error ? err.name : "unknown");
   }
+  if (!claimed && notice.status !== "claimed") return; // matched / cancelled / handled by someone else
+  await dropOwnStatus();
   if (notice.status === "taken") return;
   const res = await sendTimeoutNotice(api, user._id, lang);
   if (notice.status === "claimed") await settleNotice(notice.notice, res).catch(() => {});
@@ -195,6 +230,7 @@ export async function runCountdown(
 export function registerSearch(composer: Composer<NavaContext>) {
   composer.callbackQuery(Object.values(PARTNER_TYPE_CALLBACKS), async (ctx) => {
     const user = ctx.dbUser;
+    const pressedAt = Date.now();
     if (!user) {
       await ctx.answerCallbackQuery();
       return;
@@ -287,7 +323,7 @@ export function registerSearch(composer: Composer<NavaContext>) {
       return;
     }
 
-    const countdown = runCountdown(ctx.api, user, ctx.chat!.id, sent.message_id, ctx.userLang, searchType).catch((err) => {
+    const countdown = runCountdown(ctx.api, user, ctx.chat!.id, sent.message_id, ctx.userLang, searchType, { searchStartedAt: pressedAt }).catch((err) => {
       console.error("[search] runCountdown crashed (background task):", err instanceof Error ? err.name : "unknown");
     });
     // Outside a real Vercel request (local `node`/tests, another host)

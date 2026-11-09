@@ -7,6 +7,7 @@ import { installFakeMongo, resetFakeMongo, seedUser, col } from "../harness/fake
 process.env.BOT_TOKEN = "123456:TEST-TOKEN";
 process.env.WEBHOOK_SECRET ||= "s";
 process.env.MONGODB_URI ||= "mongodb://fake";
+process.env.CRON_SECRET ||= "cron"; // v1.29.6: a healthy deployment has the cron secret (a missing one now raises its own alert: v1296-platform P11)
 process.env.OWNER_ID = "900";
 process.env.ADMIN_IDS = "901";
 installFakeMongo();

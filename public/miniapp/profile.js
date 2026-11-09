@@ -469,7 +469,7 @@
 
     function tile(it, idx) {
       var t = el('<div class="tile sk"></div>');
-      if (it.src) t.appendChild(NG.img(it.src)); else t.classList.remove("sk");
+      if (it.src) t.appendChild(NG.img(it.src, "", true)); else t.classList.remove("sk");
       if (it.comments || it.likes) t.appendChild(el('<div class="badge">' + (it.comments ? svg("comment", "") : "") + "</div>"));
       var badge = t.querySelector(".badge"); if (badge && !it.comments) badge.remove();
       t.onclick = function () { NG.haptic("sel"); NG.openPosts(pids, pids.indexOf(it.pid), NG.nameOf(P)); };
@@ -615,8 +615,8 @@
   var USER_ERR = { taken: "این یوزرنیم قبلاً انتخاب شده", too_short: "حداقل ۵ کاراکتر", too_long: "حداکثر ۲۴ کاراکتر", bad_chars: "فقط حروف انگلیسی، عدد، _ و . مجازه", bad_dots: "نقطه نباید اول/آخر یا پشت‌سرهم باشه", reserved: "این یوزرنیم رزرو شده" };
 
   function requestSheet(field, current) {
-    var isName = field === "nickname", ownerPg = !!(NG.me && NG.me.isOwnerPage);
-    NG.sheet('<div class="shd">' + (ownerPg ? "تغییر " : "درخواست تغییر ") + (isName ? "نام" : "سن") + '</div><div class="ctx">' + (ownerPg ? (isName ? "نام جدید (حداکثر ۳۲ حرف)." : "سن جدید؛ خالی بذاری سن حذف می‌شه (اختیاریه).") + "<br>بدون نیاز به تأیید و فوری اعمال می‌شه." : (isName ? "نام جدید رو فارسی بنویس (حداکثر ۳۲ حرف)." : "سن جدید رو بین ۹ تا ۹۹ وارد کن.") + "<br>این درخواست برای مالک ربات فرستاده می‌شه و بعد از تأییدش اعمال می‌شه.") + '</div><div class="pad"><input class="inp" id="rv" ' + (isName ? 'maxlength="32" placeholder="نام جدید"' : 'inputmode="numeric" maxlength="3" placeholder="سن جدید"') + ' value="' + esc(current || "") + '"></div><div class="gerr" id="re"></div><div class="pad" style="margin-top:10px"><button class="btn blue tall" id="rs" style="width:100%">' + (ownerPg ? "ذخیره" : "ارسال درخواست") + '</button></div>', function (sh, close) {
+    var isName = field === "nickname", ownerPg = !!(NG.me && NG.me.isOwnerPage), instant = ownerPg || isName;
+    NG.sheet('<div class="shd">' + (instant ? "تغییر " : "درخواست تغییر ") + (isName ? "نام" : "سن") + '</div><div class="ctx">' + (ownerPg ? (isName ? "نام جدید (حداکثر ۳۲ حرف)." : "سن جدید؛ خالی بذاری سن حذف می‌شه (اختیاریه).") + "<br>بدون نیاز به تأیید و فوری اعمال می‌شه." : (isName ? "نام جدید رو فارسی بنویس (حداکثر ۳۲ حرف).<br>فوری اعمال می‌شه؛ اگه مدیریت تأییدش نکنه به نام قبلی برمی‌گرده." : "سن جدید رو بین ۹ تا ۹۹ وارد کن.<br>این درخواست برای مالک ربات فرستاده می‌شه و بعد از تأییدش اعمال می‌شه.")) + '</div><div class="pad"><input class="inp" id="rv" ' + (isName ? 'maxlength="32" placeholder="نام جدید"' : 'inputmode="numeric" maxlength="3" placeholder="سن جدید"') + ' value="' + esc(current || "") + '"></div><div class="gerr" id="re"></div><div class="pad" style="margin-top:10px"><button class="btn blue tall" id="rs" style="width:100%">' + (instant ? "ذخیره" : "ارسال درخواست") + '</button></div>', function (sh, close) {
       var inp = sh.querySelector("#rv"), err = sh.querySelector("#re"), go = sh.querySelector("#rs");
       go.onclick = function () {
         go.disabled = true; err.classList.remove("show");
@@ -685,7 +685,7 @@
     av.querySelector(".chg").onclick = function () { NG.changeProfilePhoto(); }; ring.onclick = function () { NG.changeProfilePhoto(); };
     w.appendChild(av);
     if (m.photoPending) w.appendChild(el('<div class="note" style="padding-top:0;text-align:center">📷 عکس جدیدت در انتظار تأیید مالکه.</div>'));
-    var f1 = el('<div class="field-row"><label>نام</label><div class="v"><span class="ro">' + esc(m.name) + '</span>' + (m.pendingName ? '<div class="msg">در انتظار تأیید: ' + esc(m.pendingName) + "</div>" : "") + '<div class="lnk">' + (m.isOwnerPage ? "تغییر نام" : "درخواست تغییر نام") + '</div></div></div>');
+    var f1 = el('<div class="field-row"><label>نام</label><div class="v"><span class="ro">' + esc(m.name) + '</span>' + (m.pendingName ? '<div class="msg">در انتظار تأیید: ' + esc(m.pendingName) + "</div>" : "") + '<div class="lnk">' + "تغییر نام" + '</div></div></div>');
     f1.querySelector(".lnk").onclick = function () { requestSheet("nickname", m.name); };
     var f2 = el('<div class="field-row"><label>یوزرنیم</label><div class="v"><input class="ltr" dir="ltr" maxlength="25" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="@username" value="' + esc(orig.u ? "@" + orig.u : "") + '"><div class="line"></div><div class="msg"></div></div></div>');
     var f3 = el('<div class="field-row"><label>سن</label><div class="v"><span class="ro">' + (m.age != null ? num(m.age) : "-") + '</span>' + (m.pendingAge ? '<div class="msg">در انتظار تأیید: ' + num(m.pendingAge) + "</div>" : "") + '<div class="lnk">' + (m.isOwnerPage ? "تغییر سن (اختیاری)" : "درخواست تغییر سن") + '</div></div></div>');
@@ -701,7 +701,7 @@
       oci.onchange = function () { var want = oci.checked; NG.api("official_chat", { open: want }).then(function (x) { if (!x.ok) { oci.checked = !want; return NG.toast(NG.errText(x)); } m.officialChat = !!x.data.open; NG.haptic("ok"); }).catch(function () { oci.checked = !want; NG.netErr(); }); };
       w.appendChild(oc);
     }
-    w.appendChild(el('<div class="note">' + (m.isOwnerPage ? "اینجا همه‌چیز فوری و بدون تأیید اعمال می‌شه؛ از بخش «نمایش برای دیگران» هر چیزی رو که نمی‌خوای کسی ببینه خاموش کن." : "عکس پروفایل و تغییر نام یا سن بعد از تأیید مالک اعمال می‌شن. یوزرنیم و بیوگرافی فوری ذخیره می‌شن. یوزرنیم مخصوص مویاگرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.") + '</div>'));
+    w.appendChild(el('<div class="note">' + (m.isOwnerPage ? "اینجا همه‌چیز فوری و بدون تأیید اعمال می‌شه؛ از بخش «نمایش برای دیگران» هر چیزی رو که نمی‌خوای کسی ببینه خاموش کن." : "عکس پروفایل، نام، یوزرنیم و بیوگرافی فوری اعمال می‌شن (مدیریت بعداً نگاه می‌کنه و در صورت نقض قوانین برشون می‌گردونه)؛ فقط تغییر سن بعد از تأیید مالک اعمال می‌شه. یوزرنیم مخصوص مویاگرامه و جدا از یوزرنیم تلگرامته؛ هر تغییری اینجا توی پروفایل ربات هم دیده می‌شه.") + '</div>'));
     var ui = f2.querySelector("input"), um = f2.querySelector(".msg"), bi = f4.querySelector("textarea"), bc = f4.querySelector(".cnt"), dn = top.querySelector(".done");
     var okName = true, seq = 0, t;
     function cnt() { bc.textContent = [].concat(bi.value).join("").length + " / 300"; }

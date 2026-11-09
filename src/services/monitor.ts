@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { getDb } from "../db/connect.js";
 import type { UserDoc } from "../db/models/user.js";
 import { verifyTelegramWebAppInitData } from "../utils/telegramWebApp.js";
+import { collectOps, evaluateOps, type OpsSnapshot } from "./monitorOps.js";
 
 /**
  * Monitoring Mini App backend (v1.9.0) — OWNER / ADMIN ONLY.
@@ -31,6 +32,9 @@ export function thresholds() {
     minRequests: num("MONITOR_MIN_REQUESTS", 10),
     dbLatencyMs: num("MONITOR_DB_LATENCY_MS", 1500),
     pendingUpdates: num("MONITOR_PENDING_UPDATES", 50),
+    jobBacklog: num("MONITOR_JOB_BACKLOG", 20),
+    apiAvgLatencyMs: num("MONITOR_API_LATENCY_MS", 2500),
+    maxAlertsPerRun: 3,
     cooldownMs: num("MONITOR_ALERT_COOLDOWN_MIN", 30) * 60_000,
     evalIntervalMs: 60_000,
   };
@@ -167,7 +171,7 @@ export async function collectSnapshot(deps: MonitorDeps = {}) {
     safe(() => db.collection("match_queue").countDocuments({}), "query failed"),
     safe(() => db.collection("chat_requests").countDocuments({ createdAt: { $gte: dayAgo } }), "query failed"),
     safe(() => db.collection("relic_transactions").countDocuments({ createdAt: { $gte: hourAgo } }), "query failed"),
-    safe(() => db.collection<MetricBucket>("ops_metrics").find({ minute: { $gte: hourAgo } }).toArray(), "query failed"),
+    safe(() => db.collection<MetricBucket>("ops_metrics").find({ minute: { $gte: hourAgo }, kind: { $exists: false } }).toArray(), "query failed"),
   ]);
 
   let webhook: Metric<WebhookInfoLite>;
@@ -189,8 +193,12 @@ export async function collectSnapshot(deps: MonitorDeps = {}) {
     last5 = last60 = na("metrics unreadable");
   }
 
+  // v1.29.6: jobs / payments / cron / Mini App API / real-user performance (see monitorOps.ts)
+  const ops: Metric<OpsSnapshot> = await safe(() => collectOps(now), "ops signals unreadable");
+
   const mem = process.memoryUsage();
   return {
+    ops,
     generatedAt: now.toISOString(),
     database: dbPing,
     telegramWebhook: webhook,
@@ -200,7 +208,7 @@ export async function collectSnapshot(deps: MonitorDeps = {}) {
     // Deliberately unavailable — see the file header.
     systemLoadPercent: na("Not measurable on serverless; use traffic/latency/pending-updates instead"),
     thisInstance: { rssMb: Math.round(mem.rss / 1048576), uptimeSec: Math.round(process.uptime()), note: "Only the serverless container that answered this request" },
-    thresholds: (({ evalIntervalMs, ...rest }) => rest)(thresholds()),
+    thresholds: (({ evalIntervalMs, maxAlertsPerRun, ...rest }) => rest)(thresholds()),
   };
 }
 export type Snapshot = Awaited<ReturnType<typeof collectSnapshot>>;
@@ -227,7 +235,7 @@ export async function claimSlot(key: string, windowMs: number, now = new Date())
   }
 }
 
-export interface AlertCondition { key: string; text: string }
+export interface AlertCondition { key: string; text: string; cooldownMs?: number }
 
 export function evaluateConditions(s: Snapshot): AlertCondition[] {
   const t = thresholds();
@@ -243,6 +251,7 @@ export function evaluateConditions(s: Snapshot): AlertCondition[] {
     if (s.telegramWebhook.value.pending_update_count >= t.pendingUpdates)
       out.push({ key: "pending", text: `🟠 آپدیت‌های در صف تلگرام: ${s.telegramWebhook.value.pending_update_count} (آستانه ${t.pendingUpdates}).` });
   }
+  if (s.ops.available) out.push(...evaluateOps(s.ops.value, { jobBacklog: t.jobBacklog, apiErrorRatePct: t.errorRatePct, apiMinRequests: t.minRequests, apiAvgLatencyMs: t.apiAvgLatencyMs }, new Date(s.generatedAt)));
   return out;
 }
 
@@ -258,7 +267,9 @@ export async function runAlertCheck(deps: AlertDeps, snapshot?: Snapshot): Promi
   const snap = snapshot ?? (await collectSnapshot(deps));
   const sent: string[] = [];
   for (const c of evaluateConditions(snap)) {
-    if (!(await claimSlot(`alert:${c.key}`, t.cooldownMs, now))) continue;
+    // storm guard: at most `maxAlertsPerRun` messages per evaluation; the rest are simply picked up (and claimed) by a later evaluation
+    if (sent.length >= t.maxAlertsPerRun) break;
+    if (!(await claimSlot(`alert:${c.key}`, c.cooldownMs ?? t.cooldownMs, now))) continue;
     try { await deps.send(`🚨 هشدار مانیتورینگ مویا\n${c.text}`); sent.push(c.key); }
     catch (err) { console.error("[monitor] alert send failed:", err instanceof Error ? err.name : "unknown"); }
   }

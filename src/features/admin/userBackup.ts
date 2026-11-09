@@ -1,4 +1,6 @@
 import { InputFile, type Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
+import { fetchWithTimeout } from "../../utils/fetchTimeout.js";
 import { getAppVarNumber } from "../../services/appVars.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -101,17 +103,17 @@ async function runExport(ctx: NavaContext, adminId: number): Promise<void> {
     const caption = `📤 خروجی اکسل کاربران — ${count} کاربر`;
 
     await ctx.api.sendDocument(adminId, new InputFile(file, path.basename(file)), { caption }).catch((err) => {
-      console.error("[userBackup] failed to DM export to admin:", err);
+      logError("MG-BK-001", "failed to DM export to admin", err);
     });
 
     const backupId = await getAppVarNumber("BACKUP_CHANNEL_ID");
     if (backupId !== undefined) {
       await ctx.api.sendDocument(backupId, new InputFile(file, path.basename(file)), { caption }).catch((err) => {
-        console.error("[userBackup] failed to send export to backup channel:", err);
+        logError("MG-BK-002", "failed to send export to backup channel", err);
       });
     }
   } catch (err) {
-    console.error("[userBackup] export failed:", err);
+    logError("MG-BK-003", "export failed", err);
     await ctx.api.sendMessage(adminId, "❌ خروجی اکسل با خطا مواجه شد. لاگ سرور رو بررسی کن.").catch(() => {});
   } finally {
     await releaseExportLock();
@@ -126,7 +128,7 @@ async function runImport(ctx: NavaContext, fileId: string): Promise<void> {
   try {
     const tgFile = await ctx.api.getFile(fileId);
     const url = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${tgFile.file_path}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 60_000); // a backup file can be large
     if (!res.ok) throw new Error(`دانلود فایل از تلگرام ناموفق بود (status ${res.status})`);
     const buf = Buffer.from(await res.arrayBuffer());
     await (await import("node:fs/promises")).writeFile(file, buf);
@@ -134,7 +136,7 @@ async function runImport(ctx: NavaContext, fileId: string): Promise<void> {
     const report: ImportReport = await importUsersFromExcel(file);
     await ctx.api.sendMessage(adminId, formatImportReport(report));
   } catch (err) {
-    console.error("[userBackup] import failed:", err);
+    logError("MG-BK-004", "import failed", err);
     await ctx.api
       .sendMessage(adminId, `❌ بازیابی با خطا مواجه شد: ${err instanceof Error ? err.message : String(err)}`)
       .catch(() => {});

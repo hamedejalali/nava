@@ -162,6 +162,13 @@ async function creditLedgerOnce(
   }
 }
 
+/** v1.29.0: one person's share of an owner bulk send. Exactly once per (job, user): the ledger id is deterministic, ledger row and balance
+ *  commit in ONE transaction. Returns true when THIS call credited, false when it had already been credited (a resumed job). */
+export function creditAdminBulkOnce(jobId: string, userId: number, amount: number, adminId: number): Promise<boolean> {
+  if (!Number.isInteger(amount) || amount <= 0) return Promise.resolve(false);
+  return creditLedgerOnce(`jetonmass:${jobId}:${userId}`, userId, amount, "ADMIN_ADJUSTMENT", { reference: jobId, metadata: { adminId, reason: "admin_bulk_send", jobId } });
+}
+
 /** Grants the one-time 5-Relic signup bonus. Idempotent via the guarded
  *  `relicInitialized` flip AND the deterministic `initial:<userId>` ledger
  *  id; both the flag flip and the ledger row now commit in the SAME

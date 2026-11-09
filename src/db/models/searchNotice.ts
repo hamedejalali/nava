@@ -122,3 +122,24 @@ export async function noticeExistsFor(userId: number, queueCreatedAt: Date): Pro
   const c = await col();
   return !!(await c.findOne({ _id: noticeId(userId, queueCreatedAt) }, { projection: { _id: 1 } }));
 }
+
+/** Is this person's search (the one that began at/before `createdBefore`) still "owed" a timeout notice? True means it
+ *  ended neither by a match nor by a cancel (both void the record) — e.g. the queue document was already swept
+ *  by MongoDB's TTL a moment before the countdown's own deadline. */
+export async function hasArmedNoticeFor(userId: number, createdBefore: Date): Promise<boolean> {
+  const c = await col();
+  return !!(await c.findOne({ userId, state: "armed", queueCreatedAt: { $lte: createdBefore } }, { projection: { _id: 1 } }));
+}
+
+/** Like claimSearchNotice, but for a countdown that no longer has the queue document (TTL swept it first): takes the
+ *  exclusive right to deliver the timeout notice of the newest armed search that started at/before `createdBefore`. */
+export async function claimArmedSearchNoticeFor(userId: number, createdBefore: Date): Promise<ClaimResult> {
+  const c = await col();
+  const now = new Date();
+  const got = await c.findOneAndUpdate(
+    { userId, state: "armed", queueCreatedAt: { $lte: createdBefore } },
+    { $set: { state: "sending", leaseUntil: new Date(now.getTime() + LEASE_MS), updatedAt: now }, $inc: { attempts: 1 } },
+    { returnDocument: "after", sort: { queueCreatedAt: -1 } },
+  );
+  return got ? { status: "claimed", notice: got } : { status: "none" };
+}

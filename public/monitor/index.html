@@ -51,6 +51,9 @@ const prev={};
 /* numbers glide to their new value instead of jumping */
 function count(node,key,to,fmt){const from=prev[key]==null?0:prev[key];prev[key]=to;if(from===to||matchMedia("(prefers-reduced-motion:reduce)").matches){node.textContent=fmt(to);return}const t0=performance.now(),D=700;(function f(t){const k=Math.min(1,(t-t0)/D),e=1-Math.pow(1-k,3);node.textContent=fmt(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(f)})(t0)}
 function win(w){return w.requests?`${n(w.requests)} درخواست · خطا ${w.errorRatePct}٪ · میانگین ${n(w.avgLatencyMs)}ms`:"بدون ترافیک ثبت‌شده"}
+function sub(m,f){return m&&m.available?{available:true,value:f(m.value)}:(m||{available:false})}
+function opsW(w){return w.requests?`${n(w.requests)} درخواست · خطا ${w.errorRatePct}٪ · میانگین ${n(w.avgLatencyMs)}ms · کندتر از ۱ثانیه ${n(w.slowOver1s)}`:"بدون ترافیک ثبت‌شده"}
+function when(x){return x?new Date(x).toLocaleString("fa-IR"):"هنوز ثبت نشده"}
 function render(s){const T=s.thresholds;document.getElementById("lv").className="live";g.replaceChildren(
  card("دیتابیس (پینگ زنده)",s.database,v=>n(v.latencyMs)+" ms",v=>v.latencyMs>T.dbLatencyMs?"warn":"ok"),
  card("صف آپدیت تلگرام",s.telegramWebhook,v=>n(v.pending_update_count),v=>v.pending_update_count>=T.pendingUpdates?"warn":"ok"),
@@ -59,6 +62,11 @@ function render(s){const T=s.thresholds;document.getElementById("lv").className=
  card("کاربران ثبت‌نام‌شده",s.users.registered,n),card("کل کاربران",s.users.total,n),
  card("چت‌های فعال",s.activity.activeChats,n),card("صف جستجو",s.activity.searchQueue,n),
  card("درخواست چت (۲۴س)",s.activity.chatRequests24h,n),card("تراکنش ژتون (۱س)",s.activity.ledgerEntries1h,n),
+ card("API مینی‌اپ (۵ دقیقه)",sub(s.ops,o=>o.api),m=>m.available?opsW(m.value.last5min):"در دسترس نیست",null,true),
+ card("کران‌ها",sub(s.ops,o=>o.cron),c=>(c.secretConfigured?"CRON_SECRET تنظیم شده":"⚠ CRON_SECRET تنظیم نشده")+" · انقضای جستجو: "+when(c.lastRun["expire-searches"])+" · ارسال همگانی: "+when(c.lastRun["process-broadcasts"]),c=>c.secretConfigured?"":"bad",true),
+ card("کارهای ماندگار (عقب‌افتاده/lease منقضی)",sub(s.ops,o=>o.jobs),m=>!m.available?"در دسترس نیست":`اعلان تطبیق ${n(m.value.matchDeliveriesOverdue)}/${n(m.value.matchDeliveriesStaleLease)} · اعلان جستجو ${n(m.value.searchNoticesOverdue)}/${n(m.value.searchNoticesStaleLease)} · ارسال همگانی ${n(m.value.broadcastJobsStale)} · ژتون‌دهی ${n(m.value.jetonJobsStale)}`,null,true),
+ card("پرداخت و کیف پول",sub(s.ops,o=>o.payments),m=>!m.available?"در دسترس نیست":`استثنای Stars(۲۴س) ${n(m.value.starsExceptions24h)} · واریز بدون تطبیق ${n(m.value.walletUnmatched)} · رسید ارسال‌نشده ${n(m.value.walletUnnotifiedOver15min)}${m.value.walletSyncFailing?" · ⚠ همگام‌سازی ناموفق":""}`,null,true),
+ card("عملکرد واقعی کاربران (۲۴س)",sub(s.ops,o=>o.rum),m=>!m.available?"در دسترس نیست":(m.value.last24h.samples?`${n(m.value.last24h.samples)} نمونه · میانگین بارگذاری ${n(m.value.last24h.avgLoadMs)}ms · بالای ۴ثانیه ${m.value.last24h.shareOver4sPct}٪ · شبکه کند ${m.value.last24h.slowNetworkSharePct}٪`:"هنوز نمونه‌ای ثبت نشده"),null,true),
  card("بار سیستم (٪)",s.systemLoadPercent,String,null,true),
  card("آخرین خطای وب‌هوک",s.telegramWebhook,v=>v.last_error_message?v.last_error_message.slice(0,120):"ندارد",v=>v.last_error_message?"warn":"ok",true));
  document.getElementById("ts").textContent="به‌روزرسانی: "+new Date(s.generatedAt).toLocaleTimeString("fa-IR");[...g.children].forEach((c,i)=>c.style.animationDelay=(i*45)+"ms")}

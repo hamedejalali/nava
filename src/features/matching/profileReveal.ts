@@ -1,4 +1,5 @@
 import type { Api, Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import { getAppVarNumber } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { env } from "../../config/env.js";
@@ -56,7 +57,7 @@ export async function sendRevealNotification(api: Api, viewerId: number, target:
     });
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error("[profileReveal] could not send reveal notification:", err);
+    logError("MG-PR-002", "could not send reveal notification", err);
   }
 }
 

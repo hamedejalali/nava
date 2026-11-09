@@ -1,3 +1,4 @@
+import { cleanBadges } from "../config/badges.js";
 import { ageBandFilter } from "./ageBand.js";
 import { getDb } from "../db/connect.js";
 import { getBlockedCounterparts } from "../db/models/blocks.js";
@@ -31,6 +32,8 @@ export interface MatchCard {
   verified: boolean;
   gold?: true;
   coin?: string;
+  /** badges shown next to the name (same list as everywhere else in the app) */
+  bd?: string[];
   av: string | null;
   /** I already liked this person's profile photo (first post) */
   liked?: boolean;
@@ -57,6 +60,7 @@ function toCard(u: any): MatchCard {
     bio: hide.bio ? "" : String(u.bio ?? "").slice(0, 160),
     verified: !!u.verified || isOfficial(u),
     ...(isOfficial(u) ? { gold: true as const } : {}),
+    ...(Array.isArray(u.badges) && u.badges.length ? { bd: cleanBadges(u.badges) } : {}),
     av: u.profilePhotoFileId ? avatarUrl(u.anonId, version) : null,
   };
 }

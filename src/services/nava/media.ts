@@ -39,11 +39,23 @@ function toBuffer(d: any): Buffer {
   return Buffer.from(d);
 }
 
-export async function loadMedia(id: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+/**
+ * v1.29.6 (F-06, partial) — cache policy for USER media (posts, stories, covers, DM photos, profile photos).
+ * v1.29.5 sent `public, s-maxage=1 year` for all of it, so a copy lived in Vercel's SHARED edge cache for a year after the owner deleted the
+ * post / the account was banned / the DM photo was purged (the URL signature has no expiry). Now such media is `private`: only the viewer's
+ * own device may keep it (never a shared cache), so deleting the media at the origin takes effect for every device that has not cached it.
+ * DM photos (private conversations) are kept for one hour only. Gift animations are catalogue assets, not user data: unchanged (public).
+ * Trade-off (owner decision, see docs/AUDIT_v1.29.6.md): more origin hits than a CDN would cause; a signature expiry is NOT part of this change.
+ */
+export function userMediaCacheControl(kind: string | undefined): string {
+  return kind === "dm" ? "private, max-age=3600" : "private, max-age=604800, immutable";
+}
+
+export async function loadMedia(id: string): Promise<{ buffer: Buffer; contentType: string; kind?: string } | null> {
   const media = await col(C.media);
   const doc = await media.findOne({ _id: id });
   if (!doc) return null;
-  return { buffer: toBuffer(doc.data), contentType: doc.contentType || "image/jpeg" };
+  return { buffer: toBuffer(doc.data), contentType: doc.contentType || "image/jpeg", kind: (doc as any).kind };
 }
 
 export async function deleteMedia(ids: Array<string | null | undefined>): Promise<void> {

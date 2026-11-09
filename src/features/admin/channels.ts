@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import { cancelKeyboard } from "../common/userFlows.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -140,7 +141,7 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
       await ctx.reply(`✅ کانال «${title}» اضافه شد.`);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("[admin/channels] getChat failed:", err);
+      logError("MG-AD-001", "getChat failed", err);
       await ctx.reply(
         "نتونستم این کانال رو پیدا کنم. مطمئن شو یوزرنیم درسته، کانال عمومیه، و ربات توی اون کانال ادمینه — بعد دوباره بفرست یا لغو کن."
       );

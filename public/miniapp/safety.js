@@ -98,7 +98,7 @@
       Array.prototype.forEach.call(sh.querySelectorAll(".bgi"), function (b) {
         b.onclick = function () {
           var id = b.getAttribute("data-id"), i = cur.indexOf(id);
-          if (i >= 0) cur.splice(i, 1); else { if (cur.length >= 6) return NG.toast("حداکثر ۶ بج."); cur.push(id); }
+          if (i >= 0) cur.splice(i, 1); else { if (cur.length >= 8) return NG.toast("حداکثر ۸ بج."); cur.push(id); }
           b.classList.toggle("on", i < 0); NG.haptic("sel");
         };
       });

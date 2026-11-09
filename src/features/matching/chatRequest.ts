@@ -1,4 +1,5 @@
 import type { Api, Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import type { NavaContext } from "../../bot-context.js";
 import { buttonIcon } from "../../config/emojis.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
@@ -43,7 +44,7 @@ export async function sendChatRequestToTarget(request: ChatRequestDoc, from: Use
     }
     return true;
   } catch (err) {
-    console.error("[chatRequest] could not deliver request:", err);
+    logError("MG-CR-001", "could not deliver request", err);
     await declineChatRequestOnce(request._id, target._id).catch(() => {});
     return false;
   }

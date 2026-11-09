@@ -3,7 +3,7 @@
   "use strict";
   var NG = (window.NG = {});
   /** this build's version — the server tells the app its current one (whoami / pulse); a mismatch means an update was released while the app was open */
-  NG.VER = "1.28.2";
+  NG.VER = "1.29.6";
   var tg = (NG.tg = window.Telegram && window.Telegram.WebApp);
   NG.initData = (tg && tg.initData) || "";
   var qs = (NG.qs = new URLSearchParams(location.search));
@@ -65,8 +65,8 @@
   var P = (NG.P = {
     homeO: '<path d="M9.005 16.545a2.997 2.997 0 0 1 2.997-2.997A2.997 2.997 0 0 1 15 16.545V22h7V11.543L12 2 2 11.543V22h7.005Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>',
     homeF: '<path d="M22 23h-6.001a1 1 0 0 1-1-1v-5.455a2.997 2.997 0 1 0-5.993 0V22a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V11.543a1.002 1.002 0 0 1 .31-.724l10-9.543a1.001 1.001 0 0 1 1.38 0l10 9.543a1.002 1.002 0 0 1 .31.724V22a1 1 0 0 1-1 1Z" fill="currentColor"/>',
-    matchO: '<rect x="4" y="3" width="16" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16.2s-3.6-2.2-3.6-4.8a2 2 0 0 1 3.6-1.2 2 2 0 0 1 3.6 1.2c0 2.6-3.6 4.8-3.6 4.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-    matchF: '<rect x="4" y="3" width="16" height="18" rx="4" fill="currentColor"/><path d="M12 16.2s-3.6-2.2-3.6-4.8a2 2 0 0 1 3.6-1.2 2 2 0 0 1 3.6 1.2c0 2.6-3.6 4.8-3.6 4.8Z" fill="var(--bg)"/>',
+    matchO: '<circle cx="8" cy="8.5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="16.5" cy="9.5" r="2.7" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M15 14.2c.5-.2 1-.2 1.5-.2 2.8 0 5 1.8 5 4.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
+    matchF: '<circle cx="8" cy="8.5" r="3.5" fill="currentColor"/><path d="M1.8 19.6c0-3.6 2.7-6.1 6.2-6.1s6.2 2.5 6.2 6.1c0 .7-.5 1.1-1.1 1.1H2.9c-.6 0-1.1-.4-1.1-1.1Z" fill="currentColor"/><circle cx="16.7" cy="9.5" r="3" fill="currentColor"/><path d="M15.3 13.7c.4-.1.9-.2 1.4-.2 2.9 0 5.5 2 5.5 5.1 0 .8-.5 1.2-1.1 1.2h-4.3c.2-.4.3-.9.3-1.4 0-1.8-.7-3.5-1.8-4.7Z" fill="currentColor"/>',
     exploreO: '<polygon fill="none" points="13.941 13.953 7.581 16.424 10.06 10.056 16.42 7.585 13.941 13.953" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/><polygon fill="currentColor" fill-rule="evenodd" points="10.06 10.056 13.941 13.953 7.581 16.424 10.06 10.056"/><circle cx="12.001" cy="12.005" fill="none" r="10.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>',
     exploreF: '<path d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5Zm4.42 7.085a.5.5 0 0 1 .64.64l-2.6 6.66a.5.5 0 0 1-.29.29l-6.66 2.6a.5.5 0 0 1-.64-.64l2.6-6.66a.5.5 0 0 1 .29-.29Z" fill="currentColor" fill-rule="evenodd"/><path d="M10.06 10.056l3.881 3.897-6.36 2.471Z" fill="currentColor"/>',
     searchO: '<path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="16.511" x2="22" y1="16.511" y2="22"/>',
@@ -188,7 +188,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.28.2";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.29.6";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });
@@ -254,9 +254,12 @@
   };
 
   /* ------------------------------------------------------------- images */
-  NG.img = function (src, cls) {
+  /* v1.29.6: `lazy` (list contexts only: explore / profile grids, feed media) lets the browser defer images that are far off-screen. Avatars, story
+     frames and anything that must preload keep the default (eager). Browsers without native lazy-loading simply ignore it. */
+  NG.img = function (src, cls, lazy) {
     var i = document.createElement("img");
     i.className = "fadeimg " + (cls || ""); i.alt = ""; i.draggable = false; i.decoding = "async";
+    if (lazy) i.loading = "lazy";
     i.onload = function () { i.classList.add("on"); var p = i.parentNode; if (p) p.classList.remove("sk"); };
     i.onerror = function () { var p = i.parentNode; if (p) p.classList.remove("sk"); i.remove(); };
     if (src) i.src = src;

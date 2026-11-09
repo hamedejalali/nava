@@ -1,4 +1,5 @@
 import { MongoClient, type Db } from "mongodb";
+import { logError } from "../utils/safeLog.js";
 import { env } from "../config/env.js";
 
 /**
@@ -36,6 +37,13 @@ async function createConnection(): Promise<Db> {
     minPoolSize: 0,
     // Fail fast instead of hanging a serverless invocation indefinitely.
     serverSelectionTimeoutMS: 8000,
+    // v1.29.6 — every wait is bounded. A request that can not get a pooled connection within 10 s fails (and is retried by Telegram /
+    // the client) instead of queueing until the function is killed; a TCP connect can not hang forever; idle sockets are released so a
+    // warm-but-idle instance does not hold Atlas connections (pool size itself is deliberately NOT raised: see docs/MONGODB_POOLING.md).
+    // socketTimeoutMS is intentionally NOT set: it would abort long legitimate operations (exports / cron sweeps).
+    connectTimeoutMS: 10_000,
+    waitQueueTimeoutMS: 10_000,
+    maxIdleTimeMS: 60_000,
   });
 
   await client.connect();
@@ -63,7 +71,7 @@ export async function getDb(): Promise<Db> {
       globalThis.__navaMongo = undefined;
     }
     // eslint-disable-next-line no-console
-    console.error("[db] MongoDB connection attempt failed (will retry on next call):", err);
+    logError("MG-DB-001", "MongoDB connection attempt failed (will retry on next call)", err);
     throw err;
   });
   globalThis.__navaMongo = { client: null as unknown as MongoClient, db: null as unknown as Db, connecting };

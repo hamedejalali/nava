@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import { getAppVar } from "../../services/appVars.js";
 import type { NavaContext } from "../../bot-context.js";
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
@@ -163,8 +164,8 @@ export function buildProfileKeyboard(lang: Language, target: UserDoc, viewContex
 /** Sends a profile card (photo + caption, or text-only). If the photo can't
  *  be sent (a file_id from another bot, deleted file, ...) the profile is
  *  sent as plain text instead of the whole screen failing. */
-export async function replyWithProfile(ctx: NavaContext, target: UserDoc, viewer: UserDoc | undefined, kb: ReturnType<typeof buildProfileKeyboard> | ReturnType<typeof inlineKeyboard>): Promise<void> {
-  const text = buildProfileText(ctx.userLang, target, viewer);
+export async function replyWithProfile(ctx: NavaContext, target: UserDoc, viewer: UserDoc | undefined, kb: ReturnType<typeof buildProfileKeyboard> | ReturnType<typeof inlineKeyboard>, extraNote?: string): Promise<void> {
+  const text = buildProfileText(ctx.userLang, target, viewer) + (extraNote ? `\n\n${extraNote}` : "");
   const photo = await resolveProfilePhoto(target);
   if (photo) {
     try {
@@ -172,21 +173,29 @@ export async function replyWithProfile(ctx: NavaContext, target: UserDoc, viewer
       return;
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("[profile] photo could not be sent, falling back to text:", err);
+      logError("MG-PR-001", "photo could not be sent, falling back to text", err);
     }
   }
   await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
 }
 
+export const PROFILE_PHOTO_CALLBACK = "profile:edit:photo";
+export const NO_PHOTO_NOTE = "📸 هنوز عکس پروفایل نداری و الان عکس پیش‌فرض نمایش داده میشه. حتماً عکس خودت رو ثبت کن.";
+
 export async function showOwnProfile(ctx: NavaContext): Promise<void> {
   if (!ctx.dbUser) return;
+  // v1.29.0: the photo shown here IS the photo of the person's Mini App page (one stored photo, nothing to send twice).
+  // Someone who still has only the default picture is asked, right here, to register a real one.
+  const fresh = (await getUser(ctx.dbUser._id)) ?? ctx.dbUser;
+  const hasRealPhoto = !!fresh.profilePhotoFileId;
   const rows = [[glassButton("ویرایش پروفایل", "profile:edit", "primary", buttonIcon("BIOGRAPHY"))]];
+  if (!hasRealPhoto) rows.unshift([glassButton("📸 ثبت عکس پروفایل", PROFILE_PHOTO_CALLBACK, "success")]);
   // Right under "ویرایش پروفایل": the glass "درخواست وریفای" button (hidden
   // once the user is already verified — nothing left to request).
   if (!ctx.dbUser.verified) {
     rows.push([glassButton("درخواست وریفای", VERIFY_REQUEST_CALLBACK, "primary", buttonIcon("VERIFY_REQUEST"))]);
   }
-  await replyWithProfile(ctx, ctx.dbUser, undefined, inlineKeyboard(rows));
+  await replyWithProfile(ctx, fresh, undefined, inlineKeyboard(rows), hasRealPhoto ? undefined : NO_PHOTO_NOTE);
 }
 
 /** Shows the current partner's profile to `ctx.from`, while an active

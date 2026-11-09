@@ -1,5 +1,5 @@
 import { getDb } from "../connect.js";
-import type { Collection } from "mongodb";
+import type { ClientSession, Collection } from "mongodb";
 
 interface BlockDoc {
   _id: string; // `${blockerId}:${blockedId}`
@@ -47,14 +47,17 @@ export async function unblockUser(blockerId: number, blockedId: number): Promise
 /** True if EITHER side has blocked the other — a block is always mutual
  *  in effect (neither can be matched with or message the other again),
  *  even though only one side took the action. */
-export async function isBlockedEitherWay(userA: number, userB: number): Promise<boolean> {
+export async function isBlockedEitherWay(userA: number, userB: number, session?: ClientSession): Promise<boolean> {
   const col = await collection();
-  const found = await col.findOne({
-    $or: [
-      { blockerId: userA, blockedId: userB },
-      { blockerId: userB, blockedId: userA },
-    ],
-  });
+  const found = await col.findOne(
+    {
+      $or: [
+        { blockerId: userA, blockedId: userB },
+        { blockerId: userB, blockedId: userA },
+      ],
+    },
+    session ? { session } : undefined
+  );
   return !!found;
 }
 

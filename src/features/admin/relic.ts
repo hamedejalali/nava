@@ -10,6 +10,7 @@ import { logAdminAction } from "../../db/models/adminLog.js";
 import { toAsciiDigits } from "../../utils/digits.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { isFlowCancelSignal } from "./flowState.js";
+import { jetonMenu } from "./jetonAdmin.js";
 
 const CB = { open: "admin:relic", cancel: "admin:relic:cancel" };
 export { CB as RELIC_ADMIN_CALLBACKS };
@@ -57,6 +58,12 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
     if (!isAdmin(ctx)) return next();
 
     if (ctx.message.text.trim() === ADMIN_MENU_LABELS.relic) {
+      // v1.29.0: the owner gets the bulk-send menu (the old single-user +/- stays as its last button); other admins keep the old flow
+      if (isOwner(ctx)) {
+        const m = jetonMenu();
+        await ctx.reply(m.text, { reply_markup: m.reply_markup });
+        return;
+      }
       await ctx.reply("آیدی عددی تلگرام کاربر مورد نظر رو بفرست:", { reply_markup: cancelKeyboard() });
       await setStep(ctx.from!.id, { stage: "await_user" });
       return;

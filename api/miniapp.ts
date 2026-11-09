@@ -25,7 +25,8 @@ import { pickGuestCards, markMatchSeen, markMatchSeenById, pickMemberCards, sani
 import { verifyTelegramWebAppInitData } from "../src/utils/telegramWebApp.js";
 import { adminDeleteGift } from "../src/services/nava/giftAdmin.js";
 import { findVisibleUser, isOfficial, parsePid } from "../src/services/nava/common.js";
-import { loadMedia, verifyMediaSig } from "../src/services/nava/media.js";
+import { recordApiMetric, recordRumSample, sanitizeRum } from "../src/services/monitorOps.js";
+import { loadMedia, userMediaCacheControl, verifyMediaSig } from "../src/services/nava/media.js";
 import { present } from "../src/services/nava/present.js";
 import { addComment, createPost, deleteComment, deletePost, editPost, getPostItem, listComments, listFeed, listUserPosts, setCommentLike, setPostLike } from "../src/services/nava/posts.js";
 import { listNotifs, markNotifsSeen, unreadCounts } from "../src/services/nava/notifs.js";
@@ -34,6 +35,7 @@ import { ensureOfficialFollow, countFollowRequests, listFollowRequests, listFoll
 import { allSeeds, getSeedByAnonId } from "../src/db/models/seeds.js";
 import { getMaintenanceState, maintenanceAllows, maintenanceText } from "../src/services/maintenance.js";
 import { photoVer } from "../src/services/nava/common.js";
+import { cleanBadges } from "../src/config/badges.js";
 import { giftCatalog, listReceivedGifts, regiftGift, sendGift } from "../src/services/nava/gifts.js";
 import { logAdminAction } from "../src/db/models/adminLog.js";
 import { reportPost } from "../src/services/nava/postReports.js";
@@ -88,6 +90,7 @@ async function botUsername(): Promise<string | null> {
   return cachedBotName;
 }
 const ACTIONS = new Set([
+  "rum",
   // identity / profile
   "whoami", "guest_cards", "onboard_state", "onboard_cities", "onboard_save", "match_cards", "match_seen", "me", "profile", "check_username", "set_username", "set_bio", "upload_photo", "request_change", "set_visibility", "set_location", "official_chat",
   // feed / explore / search
@@ -159,7 +162,7 @@ async function serveImage(req: VercelRequest, res: VercelResponse): Promise<void
     const media = await loadMedia(m);
     if (!media) return void res.status(404).end();
     res.setHeader("Content-Type", media.contentType);
-    res.setHeader("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable");
+    res.setHeader("Cache-Control", userMediaCacheControl(media.kind)); // v1.29.6: never a shared cache (revocable user media)
     res.setHeader("X-Content-Type-Options", "nosniff");
     return void res.status(200).send(media.buffer);
   }
@@ -171,8 +174,9 @@ async function serveImage(req: VercelRequest, res: VercelResponse): Promise<void
     const file = await downloadTelegramFile(user.profilePhotoFileId);
     if (!file) return void res.status(404).end();
     res.setHeader("Content-Type", file.contentType);
-    // the URL carries the photo version (&v=), so it can be cached "forever": a new photo = a new URL
-    res.setHeader("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable");
+    // the URL carries the photo version (&v=): a new photo = a new URL, so the device may keep it; but never a SHARED cache (v1.29.6: a banned
+    // / changed account's photo must not outlive the account in the edge cache)
+    res.setHeader("Cache-Control", userMediaCacheControl("profile"));
     res.setHeader("X-Content-Type-Options", "nosniff");
     return void res.status(200).send(file.buffer);
   }
@@ -190,7 +194,7 @@ async function serveImage(req: VercelRequest, res: VercelResponse): Promise<void
   res.status(400).end();
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function miniappHandler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "GET") {
@@ -297,6 +301,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (err) {
       console.error("[miniapp] rate limiter unavailable:", err instanceof Error ? err.name : "unknown");
     }
+    // v1.29.0: using the Mini App counts as activity (the «کم‌فعالیت‌ها» jeton send and «آخرین بازدید» read lastActivityAt). Throttled: one write / 10 min.
+    if (action !== "pulse") {
+      getDb().then((db) => db.collection<any>("users").updateOne({ _id: viewer.user._id, lastActivityAt: { $lt: new Date(Date.now() - 600_000) } }, { $set: { lastActivityAt: new Date() } })).catch(() => {});
+    }
     const send = (data: unknown) => void res.status(200).json(present(data));
 
     if (action === "whoami") {
@@ -326,6 +334,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         /* ------------------------------------------------------ profile */
         case "me":
           return send({ me: await getProfile(me, me.anonId) });
+        case "rum": { // v1.29.6: one anonymous performance sample per Mini App session (numbers only; nothing identifying is stored)
+          const sample = sanitizeRum(body);
+          if (sample) await recordRumSample(sample);
+          return send({ ok: !!sample });
+        }
         case "profile": {
           const p = await getProfile(me, body.id);
           return p ? send({ profile: p }) : void res.status(404).json({ error: "not_found" });
@@ -426,10 +439,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await markNotifsSeen(me._id);
           return void res.status(200).json({ ok: true });
         case "pulse": {
-          const u = await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1, isPrivate: 1, miniUsername: 1, nickname: 1, age: 1, bio: 1, profilePhotoAt: 1, profilePhotoFileId: 1, profileHide: 1 } });
+          const u = await (await getDb()).collection<any>("users").findOne({ _id: me._id }, { projection: { relicBalance: 1, isPrivate: 1, miniUsername: 1, nickname: 1, age: 1, bio: 1, profilePhotoAt: 1, profilePhotoFileId: 1, profileHide: 1, verified: 1, badges: 1, profilePostCaption: 1 } });
           // a tiny fingerprint of everything shown on the profile: when it changes (username / name / bio / photo edited from
           // the bot, an admin, or another device) the app refreshes the page at once instead of waiting for a reopen
-          const sig = [u?.miniUsername ?? "", u?.nickname ?? "", u?.age ?? "", u?.bio ?? "", u?.profilePhotoAt ? new Date(u.profilePhotoAt).getTime() : "", u?.profilePhotoFileId ? 1 : 0, JSON.stringify(u ? effectiveHide({ ...u, _id: me._id }) : {}), (await hasPendingProfilePhoto(me._id)) ? "P" : ""].join("|");
+          const sig = [u?.miniUsername ?? "", u?.nickname ?? "", u?.age ?? "", u?.bio ?? "", u?.profilePhotoAt ? new Date(u.profilePhotoAt).getTime() : "", u?.profilePhotoFileId ? 1 : 0, JSON.stringify(u ? effectiveHide({ ...u, _id: me._id }) : {}), (await hasPendingProfilePhoto(me._id)) ? "P" : "", u?.verified ? "V" : "", cleanBadges(u?.badges).join(","), u?.profilePostCaption ?? ""].join("|");
           return void res.status(200).json({
             ver: BOT_VERSION,
             sig,
@@ -612,5 +625,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     console.error("[miniapp] failed:", err instanceof Error ? err.message : "unknown error");
     res.status(500).json({ error: "server_error" });
+  }
+}
+
+
+/** v1.29.6: request / error / latency accounting for the monitoring panel. Counts only (no user id, no body, no URL); never affects the response. */
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") return miniappHandler(req, res);
+  const t0 = Date.now();
+  let code = 200;
+  const origStatus = res.status.bind(res);
+  (res as any).status = (c: number) => { code = c; return origStatus(c); };
+  try {
+    return await miniappHandler(req, res);
+  } catch (err) {
+    code = 500;
+    throw err;
+  } finally {
+    const p = recordApiMetric(code >= 500, Date.now() - t0);
+    try { waitUntil(p); } catch { /* not on Vercel: the promise simply runs */ }
   }
 }

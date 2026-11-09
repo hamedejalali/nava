@@ -6,9 +6,9 @@ import { getDb } from "../../db/connect.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { PROVINCES } from "../../data/provinces.js";
 import { citiesForProvince, isValidCityForProvince } from "../../data/cities.js";
-import { usersCollectionDirectSet, setUserLocation } from "../../db/models/user.js";
+import { usersCollectionDirectSet, setUserLocation, getUser } from "../../db/models/user.js";
 import { isValidPersianNickname } from "../onboarding/nickname.js";
-import { createEditRequest, decideEditRequest, getEditRequest } from "../../db/models/editRequests.js";
+import { createEditRequest, decideEditRequest, revokeAppliedEditRequest } from "../../db/models/editRequests.js";
 import {  } from "../admin/constants.js";
 import { getRecipients } from "../../services/channelRouting.js";
 import { isFlowCancelSignal } from "../admin/flowState.js";
@@ -70,7 +70,7 @@ function editMenuKeyboard() {
     // removed on request. They're still set once during onboarding and
     // can only be changed by an admin (resetUser / direct DB edit).
     [glassButton("📍 ثبت موقعیت مکانی", EDIT_CALLBACKS.location, "primary")],
-    [glassButton("✏️ درخواست تغییر نام", EDIT_CALLBACKS.requestNickname, "danger")],
+    [glassButton("✏️ تغییر نام", EDIT_CALLBACKS.requestNickname, "danger")],
     [glassButton("✏️ درخواست تغییر سن", EDIT_CALLBACKS.requestAge, "danger")],
     // (No verify button here on purpose — "درخواست وریفای" lives ONLY under
     // "ویرایش پروفایل" in the profile message itself.)
@@ -100,7 +100,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
   composer.callbackQuery(EDIT_CALLBACKS.photo, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "photo"); // marks the step as pending so the red cancel keyboard is not swapped back at once
-    await ctx.reply("عکس جدید پروفایلت رو همینجا بفرست، بعد از تایید ادمین جایگزین میشه.", { reply_markup: cancelKeyboard() });
+    await ctx.reply("عکس جدید پروفایلت رو همینجا بفرست؛ بلافاصله جایگزین میشه.", { reply_markup: cancelKeyboard() });
   });
 
   // Province/city editing was removed on request — these two handlers
@@ -124,7 +124,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
   composer.callbackQuery(EDIT_CALLBACKS.requestNickname, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "nickname_request");
-    await ctx.reply("نام مستعار جدیدی که می‌خوای رو بفرست. این درخواست باید توسط ادمین تایید بشه.", { reply_markup: cancelKeyboard() });
+    await ctx.reply("نام مستعار جدیدی که می‌خوای رو بفرست؛ بلافاصله اعمال میشه.", { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.requestAge, async (ctx) => {
@@ -208,10 +208,14 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
         return;
       }
       await setAwaiting(ctx.from!.id, null);
-      const previousNickname = user.nickname ?? "-";
-      const request = await createEditRequest(user._id, "nickname", previousNickname, raw);
-      await ctx.reply("✅ درخواستت برای ادمین ارسال شد. بعد از تایید اعمال میشه.");
-      await notifyAdminsOfRequest(ctx, request._id, user, "nickname", previousNickname, raw);
+      if (raw === (user.nickname ?? "")) {
+        await ctx.reply("این همون نام فعلیته 🙂");
+        return;
+      }
+      // v1.29.0: a new name needs nobody's approval; the staff get a copy with one «عدم تأیید» button
+      await applyNicknameNow(ctx.api, user, raw);
+      await ctx.reply("✅ نامت تغییر کرد.");
+      await showOwnProfile(ctx);
       return;
     }
 
@@ -261,29 +265,48 @@ async function notifyAdminsOfRequest(
   await notifyRecipientsOfEditRequest(ctx.api, requestId, user, field, previousValue, newValue);
 }
 
-/** Same notification the bot sends, usable without a grammY context (the Mini App uses it,
- *  so a name/age change asked from the Mini App goes through the very same owner approval). */
+/** v1.29.0 — a new nickname is live at once. Records it (status «applied»), then sends the staff a copy with a single
+ *  «عدم تأیید نام» button (no approve button). Shared by the bot and the Mini App. */
+export async function applyNicknameNow(
+  api: { sendMessage: (chatId: number, text: string, other?: any) => Promise<unknown> },
+  user: { _id: number; anonId: string; nickname?: string },
+  value: string,
+  recipients?: number[],
+): Promise<void> {
+  const previous = user.nickname ?? "-";
+  await usersCollectionDirectSet(user._id, { nickname: value });
+  const request = await createEditRequest(user._id, "nickname", previous, value, "applied");
+  await notifyRecipientsOfEditRequest(api, request._id, user, "nickname", previous, value, recipients, "applied");
+}
+
+/** Same notification the bot sends, usable without a grammY context (the Mini App uses it).
+ *  mode "pending" (age): ✅ / ❌ buttons, the change waits. mode "applied" (name): already live, ONE «عدم تأیید» button. */
 export async function notifyRecipientsOfEditRequest(
   api: { sendMessage: (chatId: number, text: string, other?: any) => Promise<unknown> },
   requestId: string,
   user: { _id: number; anonId: string },
   field: "nickname" | "age",
   previousValue: string,
-  newValue: string
+  newValue: string,
+  recipients?: number[],
+  mode: "pending" | "applied" = "pending",
 ): Promise<void> {
   const fieldFa = field === "nickname" ? "نام مستعار" : "سن";
   const text =
-    `📝 درخواست تغییر ${fieldFa}\n\n` +
+    (mode === "applied" ? `📝 تغییر ${fieldFa} (فوراً اعمال شد)\n\n` : `📝 درخواست تغییر ${fieldFa}\n\n`) +
     `کاربر: ${user.anonId} (${user._id})\n` +
     `مقدار قبلی: ${previousValue}\n` +
     `مقدار جدید: ${newValue}`;
-  const kb = inlineKeyboard([
-    [
-      glassButton("✅ تایید", `${ADMIN_DECISION_PREFIX.approve}${requestId}`, "success"),
-      glassButton("❌ رد", `${ADMIN_DECISION_PREFIX.reject}${requestId}`, "danger"),
-    ],
-  ]);
-  for (const adminId of await getRecipients("profileEdit")) {
+  const kb =
+    mode === "applied"
+      ? inlineKeyboard([[glassButton("❌ عدم تأیید نام", `${ADMIN_DECISION_PREFIX.reject}${requestId}`, "danger")]])
+      : inlineKeyboard([
+          [
+            glassButton("✅ تایید", `${ADMIN_DECISION_PREFIX.approve}${requestId}`, "success"),
+            glassButton("❌ رد", `${ADMIN_DECISION_PREFIX.reject}${requestId}`, "danger"),
+          ],
+        ]);
+  for (const adminId of recipients ?? (await getRecipients("profileEdit"))) {
     await api.sendMessage(adminId, text, { reply_markup: kb }).catch(() => {});
   }
 }
@@ -294,9 +317,27 @@ async function handleAdminDecision(ctx: NavaContext, requestId: string, decision
     return;
   }
   await ctx.answerCallbackQuery();
-  const request = await decideEditRequest(requestId, decision, ctx.from!.id);
+  let request = await decideEditRequest(requestId, decision, ctx.from!.id);
+  // v1.29.0: «عدم تأیید نام» on a name that is already live → give the old name back and tell the person
+  let revoked = false;
+  if (!request && decision === "rejected") {
+    request = await revokeAppliedEditRequest(requestId, ctx.from!.id);
+    revoked = !!request;
+  }
   if (!request) {
     await ctx.editMessageText("این درخواست قبلاً بررسی شده.").catch(() => {});
+    return;
+  }
+  const who = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name ?? String(ctx.from?.id));
+
+  if (revoked) {
+    const current = await getUser(request.telegramId);
+    const canRestore = request.field === "nickname" && request.oldValue !== "-" && current?.nickname === request.newValue;
+    if (canRestore) await usersCollectionDirectSet(request.telegramId, { nickname: request.oldValue });
+    await ctx.api
+      .sendMessage(request.telegramId, canRestore ? `⚠️ به دلیل عدم رعایت قوانین، نام شما به «${request.oldValue}» برگردانده شد.` : "⚠️ به دلیل عدم رعایت قوانین، تغییر نام شما تأیید نشد.")
+      .catch(() => {});
+    await ctx.editMessageText(`📝 تغییر نام — ❌ عدم تأیید شد${canRestore ? `؛ نام به «${request.oldValue}» برگشت` : ""}\nتوسط ${who}`).catch(() => {});
     return;
   }
 
@@ -313,6 +354,5 @@ async function handleAdminDecision(ctx: NavaContext, requestId: string, decision
 
   const fieldFa = request.field === "nickname" ? "نام مستعار" : "سن";
   const decisionFa = decision === "approved" ? "✅ تایید شد" : "❌ رد شد";
-  const who = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name ?? String(ctx.from?.id));
   await ctx.editMessageText(`📝 درخواست تغییر ${fieldFa} — ${decisionFa}\nتوسط ${who}`).catch(() => {});
 }

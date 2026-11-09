@@ -27,7 +27,8 @@ export interface ProcessResult {
   http: 200 | 500 | 503;
 }
 
-const LEASE_MS = 60_000;
+/** v1.29.6: must exceed the webhook function maxDuration (60s) so a lease can not expire while its own worker is still alive. */
+export const LEASE_MS = 90_000;
 export const MAX_ATTEMPTS_TRANSIENT = 10;
 export const MAX_ATTEMPTS_PERMANENT = 3;
 

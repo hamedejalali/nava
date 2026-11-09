@@ -1,4 +1,5 @@
 import type { Composer } from "grammy";
+import { fetchWithTimeout } from "../../utils/fetchTimeout.js";
 import type { NavaContext } from "../../bot-context.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { cancelKeyboard } from "../common/userFlows.js";
@@ -170,7 +171,7 @@ export function registerGiftsAdmin(composer: Composer<NavaContext>) {
       if ((d.file_size ?? 0) > 18 * 1024 * 1024) return void (await ctx.reply("حجم فایل زیاد است (حداکثر ۱۸ مگابایت).", { reply_markup: cancelKeyboard() }));
       try {
         const f = await ctx.api.getFile(d.file_id);
-        const res = await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${f.file_path}`);
+        const res = await fetchWithTimeout(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${f.file_path}`);
         if (!res.ok) throw new Error("download");
         const items = parsePack(Buffer.from(await res.arrayBuffer()), fname);
         await ctx.reply(`⏳ ${items.length} هدیه پیدا شد؛ در حال ساخت…`);

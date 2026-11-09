@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../connect.js";
 
 export type EditRequestField = "nickname" | "age";
-export type EditRequestStatus = "pending" | "approved" | "rejected";
+export type EditRequestStatus = "pending" | "approved" | "rejected" | "applied";
 
 export interface EditRequestDoc {
   _id: string;
@@ -26,7 +26,8 @@ export async function createEditRequest(
   telegramId: number,
   field: EditRequestField,
   oldValue: string,
-  newValue: string
+  newValue: string,
+  status: "pending" | "applied" = "pending",
 ): Promise<EditRequestDoc> {
   const doc: EditRequestDoc = {
     _id: randomUUID(),
@@ -34,7 +35,7 @@ export async function createEditRequest(
     field,
     oldValue,
     newValue,
-    status: "pending",
+    status,
     createdAt: new Date(),
   };
   const col = await collection();
@@ -55,6 +56,16 @@ export async function decideEditRequest(id: string, status: "approved" | "reject
   return col.findOneAndUpdate(
     { _id: id, status: "pending" },
     { $set: { status, decidedAt: new Date(), decidedBy } },
+    { returnDocument: "after" }
+  );
+}
+
+/** v1.29.0: a name change is live at once; staff may still take it back. Atomic applied → rejected (null = already handled). */
+export async function revokeAppliedEditRequest(id: string, decidedBy: number): Promise<EditRequestDoc | null> {
+  const col = await collection();
+  return col.findOneAndUpdate(
+    { _id: id, status: "applied" },
+    { $set: { status: "rejected", decidedAt: new Date(), decidedBy } },
     { returnDocument: "after" }
   );
 }

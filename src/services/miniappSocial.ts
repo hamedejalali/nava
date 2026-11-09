@@ -5,10 +5,9 @@ import { setProfilePhoto, type UserDoc } from "../db/models/user.js";
 import { env } from "../config/env.js";
 import { getBotSettings } from "../db/models/settings.js";
 import { dictionary } from "../i18n/index.js";
-import { glassButton, inlineKeyboard } from "../ui/keyboard.js";
 import {  } from "../features/admin/constants.js";
 import { getRecipients } from "./channelRouting.js";
-import { adminCaption } from "../features/photo/moderation.js";
+import { announceLivePhoto } from "../features/photo/moderation.js";
 import { checkImage, type ModerationCheckResult } from "./sightengine.js";
 import { botApi } from "./miniapp.js";
 import { SocialError, findVisibleUser, isOfficial } from "./nava/common.js";
@@ -242,8 +241,7 @@ export interface UploadDeps {
 
 export { decodeImage };
 
-/** Same moderation pipeline as a photo sent in the bot: Sightengine
- *  auto-approves safe photos, anything else waits for an admin. */
+/** v1.29.0: the photo is live at once (no approval). The staff get a copy with ONE «عدم تأیید» button that takes it back. */
 export async function uploadProfilePhoto(user: UserDoc, raw: unknown, deps?: Partial<UploadDeps>): Promise<"approved" | "pending"> {
   const buf = decodeImage(raw);
   const d: UploadDeps = {
@@ -265,9 +263,6 @@ export async function uploadProfilePhoto(user: UserDoc, raw: unknown, deps?: Par
     await setProfilePhoto(user._id, sent.photo[sent.photo.length - 1]!.file_id);
     return "approved";
   }
-  const admins = await d.recipients();
-  if (admins.length === 0) throw new SocialError("unavailable");
-
   // Atomic per-user cooldown (also stops double-submits).
   const db = await getDb();
   const now = Date.now();
@@ -282,20 +277,15 @@ export async function uploadProfilePhoto(user: UserDoc, raw: unknown, deps?: Par
   const sent = await d.api.sendPhoto(user._id, new InputFile(buf, "profile.jpg"));
   const largest = sent.photo[sent.photo.length - 1]!;
   const file = await d.api.getFile(largest.file_id);
-  const check = await d.check(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
-
-  if (!check.flagged) {
-    await createModerationRecord({ type: "profile_photo", senderId: user._id, fileId: largest.file_id, status: "approved", aiScore: check.score, aiClassification: check.classification });
-    await setProfilePhoto(user._id, largest.file_id);
-    await d.api.sendMessage(user._id, t.photo.approved).catch(() => {});
-    return "approved";
+  let check: ModerationCheckResult | null = null;
+  try {
+    check = await d.check(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
+  } catch {
+    check = null; // the automatic check only words the staff copy; it never blocks the upload
   }
 
-  const request = await createModerationRecord({ type: "profile_photo", senderId: user._id, fileId: largest.file_id, status: "pending", aiScore: check.score, aiClassification: check.classification });
-  const keyboard = inlineKeyboard([[glassButton("تأیید عکس", `modimg:approve:${request._id}`, "success"), glassButton("عدم تأیید عکس", `modimg:reject:${request._id}`, "danger")]]);
-  for (const adminId of admins) {
-    await d.api.sendPhoto(adminId, largest.file_id, { caption: adminCaption(user), reply_markup: keyboard }).catch(() => {});
-  }
-  await d.api.sendMessage(user._id, t.photo.submittedForReview).catch(() => {});
-  return "pending";
+  await setProfilePhoto(user._id, largest.file_id);
+  await d.api.sendMessage(user._id, t.photo.approved).catch(() => {});
+  await announceLivePhoto(d.api, user, largest.file_id, check, await d.recipients().catch(() => []));
+  return "approved";
 }

@@ -2,6 +2,7 @@ import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { env } from "../../config/env.js";
 import { isAdmin } from "../admin/constants.js";
+import { mayDo } from "../admin/permGate.js";
 import { getRecipients } from "../../services/channelRouting.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { incrementMessageCount } from "../../db/models/chatSession.js";
@@ -126,7 +127,7 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
     await ctx.answerCallbackQuery();
     // Defence in depth (v1.9.0): these buttons are only ever sent to the
     // owner/admins, but the action itself must not depend on that alone.
-    if (!isAdmin(ctx)) return;
+    if (!isAdmin(ctx) || !mayDo(ctx, "users")) return; // v1.29.2: also the granular right (the central gate runs first; this is the second line)
     const id = ctx.match![1]!;
     const result = await markPhotoModerationDecided(id, "deleted", ctx.from!.id);
 
@@ -156,7 +157,7 @@ export function registerChatPhotoModeration(composer: Composer<NavaContext>) {
 
   composer.callbackQuery(/^photomod:ban:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
-    if (!isAdmin(ctx)) return; // see the note on the delete handler
+    if (!isAdmin(ctx) || !mayDo(ctx, "ban")) return; // see the note on the delete handler
     const id = ctx.match![1]!;
     const doc = await getPhotoModerationLog(id);
     if (!doc) {

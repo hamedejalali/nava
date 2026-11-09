@@ -1,4 +1,5 @@
 import type { NavaContext } from "../../bot-context.js";
+import { logError } from "../../utils/safeLog.js";
 import { getAppVar } from "../../services/appVars.js";
 import { countReferralRewards } from "../../db/models/relic.js";
 import { getContent, setContent } from "../../db/models/content.js";
@@ -59,7 +60,7 @@ export async function sendInviteScreen(ctx: NavaContext): Promise<void> {
       sentAsPhoto = true;
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("[invite] banner photo could not be sent (wrong file_id for this bot?):", err);
+      logError("MG-IN-001", "banner photo could not be sent (wrong file_id for this bot?)", err);
     }
   }
   if (!sentAsPhoto) await ctx.reply(inviteText);

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { getDb } from "../../db/connect.js";
 import { isBlockedEitherWay } from "../../db/models/blocks.js";
+import { canContact } from "../ageBand.js";
 import { checkRateLimit } from "../../utils/rateLimit.js";
 import { SocialError, toBriefs, usersCol, type Brief } from "../nava/common.js";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
@@ -360,11 +361,13 @@ export async function lobby(me: any): Promise<{ mine: GameRow[]; open: Array<{ g
   const docs = hostIds.length ? await (await usersCol()).find({ _id: { $in: hostIds }, banned: { $ne: true } }).toArray() : [];
   const briefs = await toBriefs(me._id, docs);
   const by = new Map<number, Brief>(docs.map((d: any, i: number) => [d._id as number, briefs[i]!]));
+  const hostDocs = new Map<number, any>(docs.map((d: any) => [d._id as number, d]));
   const open: Array<{ gid: string; host: Brief; at: number; stake: number }> = [];
   for (const r of rows) {
     if (playing.has(r.players[0])) continue;
     const host = by.get(r.players[0]);
-    if (host && !(await isBlockedEitherWay(me._id, r.players[0]))) open.push({ gid: r._id, host, at: r.updatedAt.getTime(), stake: r.stake ?? 0 });
+    // v1.29.6 (F-09): the same age separation as every other stranger entry point (unknown / invalid age fails closed)
+    if (host && hostDocs.get(r.players[0]) && canContact(me, hostDocs.get(r.players[0])) && !(await isBlockedEitherWay(me._id, r.players[0]))) open.push({ gid: r._id, host, at: r.updatedAt.getTime(), stake: r.stake ?? 0 });
     if (open.length >= 20) break;
   }
   return {
@@ -430,6 +433,15 @@ export async function join(me: any, gid: unknown, guest = false): Promise<GameVi
   const g0 = await c.findOne({ _id: gid });
   if (!g0 || g0.status !== "waiting" || g0.players[0] === me._id) throw new SocialError("not_found");
   if (await isBlockedEitherWay(me._id, g0.players[0])) throw new SocialError("not_found");
+  if (!guest) {
+    // v1.29.6 (F-09): age separation, from FRESH database reads of both accounts (never a cached copy): a registered person may only sit
+    // at a table of their own age band (official / staff exemptions as everywhere else); unknown or invalid age fails closed. The answer is
+    // the neutral «not found» used for blocks, so it does not reveal anybody's age band. A GUEST (unregistered, no age on file) is not
+    // covered here — see docs/AUDIT_v1.29.6.md (owner decision: the shared-table link for people without an account).
+    const usersC = await usersCol();
+    const [meNow, host] = await Promise.all([usersC.findOne({ _id: me._id }), usersC.findOne({ _id: g0.players[0] })]);
+    if (!meNow || !host || (meNow as any).banned || (host as any).banned || !canContact(meNow as any, host as any)) throw new SocialError("not_found");
+  }
   const mine = await myUnfinished(me._id);
   if (mine.length >= MAX_OPEN) throw new SocialError("game_limit");
   // never two games against the same opponent

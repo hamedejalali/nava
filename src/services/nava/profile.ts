@@ -4,7 +4,7 @@ import { createEditRequest } from "../../db/models/editRequests.js";
 import {  } from "../../features/admin/constants.js";
 import { getRecipients } from "../channelRouting.js";
 import { isValidPersianNickname } from "../../features/onboarding/nickname.js";
-import { MAX_AGE, MIN_AGE, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
+import { MAX_AGE, MIN_AGE, applyNicknameNow, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
 import { botApi } from "../miniapp.js";
 import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, isOfficial, isStaffId, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
 import { cleanBadges } from "../../config/badges.js";
@@ -186,19 +186,22 @@ export async function requestProfileChange(
     if (typeof raw !== "string" || !isValidPersianNickname(raw)) throw new SocialError("bad_name");
     value = raw.trim();
     if (value === (user.nickname ?? "")) throw new SocialError("same_value");
-  } else {
-    const n = typeof raw === "number" ? raw : typeof raw === "string" && /^\d{1,3}$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
-    if (!Number.isInteger(n) || n < MIN_AGE || n > MAX_AGE) throw new SocialError("bad_age");
-    value = String(n);
-    if (value === String(user.age ?? "")) throw new SocialError("same_value");
+    // v1.29.0: a new name is live at once (like the bot); the staff copy carries one «عدم تأیید نام» button
+    await applyNicknameNow(deps.api ?? botApi(), user, value, deps.recipients ? await deps.recipients() : undefined);
+    return { status: "applied", value };
   }
-  const admins = await (deps.recipients ?? (() => getRecipients("photo")))();
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && /^\d{1,3}$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
+  if (!Number.isInteger(n) || n < MIN_AGE || n > MAX_AGE) throw new SocialError("bad_age");
+  value = String(n);
+  if (value === String(user.age ?? "")) throw new SocialError("same_value");
+  // an age change still waits for the owner's approval
+  const admins = await (deps.recipients ?? (() => getRecipients("profileEdit")))();
   if (admins.length === 0) throw new SocialError("unavailable");
   const reqs = await col("edit_requests");
   if (await reqs.findOne({ telegramId: user._id, field, status: "pending" })) throw new SocialError("pending_request");
-  const previous = field === "nickname" ? (user.nickname ?? "-") : String(user.age ?? "-");
+  const previous = String(user.age ?? "-");
   const request = await createEditRequest(user._id, field, previous, value);
-  await notifyRecipientsOfEditRequest(deps.api ?? botApi(), request._id, user, field, previous, value);
+  await notifyRecipientsOfEditRequest(deps.api ?? botApi(), request._id, user, field, previous, value, admins);
   return { status: "pending" };
 }
 

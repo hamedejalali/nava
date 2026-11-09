@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { logError } from "../src/utils/safeLog.js";
 import { getDb } from "../src/db/connect.js";
 import { env } from "../src/config/env.js";
 
@@ -23,6 +24,12 @@ import { env } from "../src/config/env.js";
  * at this deployment — for that, run `npm run webhook-info` locally (it calls Telegram directly).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // v1.29.6: never cached by a browser / CDN (a cached "ok" would hide an outage), and read-only methods only
+  res.setHeader("Cache-Control", "no-store");
+  if (req.method && req.method !== "GET" && req.method !== "HEAD") {
+    res.setHeader("Allow", "GET, HEAD");
+    return void res.status(405).json({ ok: false });
+  }
   const envPresence = {
     BOT_TOKEN: !!process.env.BOT_TOKEN,
     WEBHOOK_SECRET: !!process.env.WEBHOOK_SECRET,
@@ -39,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     mongo = { reachable: false, ms: Date.now() - start };
     // Full detail (message + stack) goes to Vercel's server-side logs
     // only — never into the public response below.
-    console.error("[health] MongoDB ping failed:", err);
+    logError("MG-DB-002", "MongoDB ping failed", err);
   }
 
   const ok = envPresence.BOT_TOKEN && envPresence.WEBHOOK_SECRET && envPresence.MONGODB_URI && mongo.reachable;

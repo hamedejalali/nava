@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { TELEGRAM_API_TIMEOUT_S } from "../../src/utils/fetchTimeout.js";
 import { Api, GrammyError } from "grammy";
 import { env } from "../../src/config/env.js";
+import { recordCronRun } from "../../src/services/monitorOps.js";
 import { safeEqual } from "../../src/utils/secureCompare.js";
 import { findExpiredUnnotified, leaseExpiredQueueEntry, finishExpiredQueueEntry } from "../../src/db/models/matchQueue.js";
 import { getUser } from "../../src/db/models/user.js";
@@ -38,8 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(401).send("Unauthorized");
     return;
   }
+  // v1.29.6: heartbeat — proves the schedule fires AND the secret matches (never throws; read by the monitoring panel)
+  await recordCronRun("expire-searches");
 
-  const api = new Api(env.BOT_TOKEN);
+  const api = new Api(env.BOT_TOKEN, { timeoutSeconds: TELEGRAM_API_TIMEOUT_S.cron });
   api.config.use(seedGuardTransformer);
   // 1) durable notices first (they survive the queue document's TTL deletion), 2) legacy queue-document sweep
   const notices = await processSearchNotices(api, 50);

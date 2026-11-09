@@ -65,7 +65,7 @@
     p.appendChild(head);
 
     var media = el('<div class="media sk" style="aspect-ratio:' + (it.ar || 0.8) + '"><div class="bigheart">' + svg("heartF", "") + "</div></div>");
-    media.insertBefore(NG.img(it.src), media.firstChild);
+    media.insertBefore(NG.img(it.src, "", true), media.firstChild);
     var last = 0;
     media.addEventListener("click", function () {
       var now = Date.now();
@@ -108,7 +108,11 @@
       list.push({ label: it.noComments ? "روشن کردن نظرات" : "خاموش کردن نظرات", fn: function () { setFlag(it, "noComments", !it.noComments); } });
       list.push({ label: it.hideLikes ? "نمایش تعداد لایک‌ها" : "مخفی کردن تعداد لایک‌ها", fn: function () { setFlag(it, "hideLikes", !it.hideLikes); } });
     }
-    if (it.mine && it.kind === "profile") list.push({ label: "تغییر عکس پروفایل", fn: function () { NG.changeProfilePhoto(); } });
+    // the profile-photo post can never be deleted: the owner may only set its caption or replace the photo
+    if (it.mine && it.kind === "profile") {
+      list.push({ label: it.caption ? "ویرایش کپشن" : "افزودن کپشن", fn: function () { editCaption(it); } });
+      list.push({ label: "تغییر عکس پروفایل", fn: function () { NG.changeProfilePhoto(); } });
+    }
     list.push({ label: "اشتراک‌گذاری", fn: function () { NG.share("pid", it.pid); } });
     if (!it.mine) {
       list.push({ label: "ارسال هدیه", fn: function () { NG.openGiftSheet(it.owner); } });
@@ -396,8 +400,10 @@
 
   NG.renderHome = function (page) {
     pgHome = page; page.innerHTML = "";
-    var top = el('<div class="topbar"><div class="wordmark en">Moyagram</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
+    var top = el('<div class="topbar"><div class="wordmark en">Moyagram</div><div class="icons"><div class="actwrap"><button id="actb" aria-label="activity">' + svg("heartO") + '<i class="dot"></i></button><div class="actpill" id="actpill"></div></div><button id="dmb" class="dmbtn" aria-label="direct">' + svg("dmO") + '</button><button id="addp" aria-label="new post">' + svg("plus") + "</button></div></div>");
     top.querySelector("#addp").onclick = function () { NG.composeMenu(); };
+    top.querySelector("#dmb").onclick = function () { NG.selectTab("dm", true); }; // v1.29.5: Directs live here now, next to the heart
+    if (NG.paintDmBadge) NG.paintDmBadge();
     if (NG.bindHeart) NG.bindHeart(top);
     page.appendChild(top);
     page.appendChild(el('<div class="stories" id="tray">' + trayHtmlSkeleton() + "</div>"));

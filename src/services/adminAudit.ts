@@ -29,6 +29,7 @@ export const ADMIN_ACTIONS: Record<string, Spec> = {
   // — users / money
   jeton_send: { title: "ژتون ارسال کرد", target: "user", label: "گیرنده", rest: (p) => `مقدار: ${p[1]} ژتون` },
   jeton_deduct: { title: "ژتون کسر کرد", target: "user", label: "از کاربر", rest: (p) => `مقدار: ${p[1]} ژتون` },
+  jeton_mass_send: { title: "ژتون گروهی ارسال کرد", target: "text", label: "گروه گیرنده", rest: (p) => `به ازای هر نفر: ${p[1]} ژتون — دریافت‌کننده: ${p[2]} نفر` },
   set_level: { title: "سطح کاربر را تغییر داد", target: "text" },
   ban_user: { title: "کاربر را بن کرد", target: "user", label: "کاربر" },
   unban_user: { title: "بن کاربر را برداشت", target: "user", label: "کاربر" },

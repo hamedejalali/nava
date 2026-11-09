@@ -1,4 +1,5 @@
 import { gunzipSync } from "node:zlib";
+import { fetchWithTimeout } from "../../utils/fetchTimeout.js";
 import { InputFile } from "grammy";
 import { C, col } from "./common.js";
 import { env } from "../../config/env.js";
@@ -26,7 +27,7 @@ export async function loadGiftSticker(giftId: string, v: string): Promise<{ buff
   if (!gift || gift.sticker.uniqueId !== v) return null;
   const file = await botApi().getFile(gift.sticker.fileId);
   if (!file.file_path) return null;
-  const res = await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
+  const res = await fetchWithTimeout(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
   if (!res.ok) return null;
   let buffer = Buffer.from(await res.arrayBuffer());
   if (buffer.length > MAX_STICKER_BYTES) return null;
@@ -51,7 +52,7 @@ export async function freeStickerFileId(api: { getFile: (id: string) => Promise<
     if (env.OWNER_ID === undefined) return gift.sticker.fileId;
     const file = await api.getFile(gift.sticker.fileId);
     if (!file.file_path) return gift.sticker.fileId;
-    const res = await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
+    const res = await fetchWithTimeout(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
     if (!res.ok) return gift.sticker.fileId;
     const buf = Buffer.from(await res.arrayBuffer());
     const sent = await api.sendSticker(env.OWNER_ID, new InputFile(buf, `gift.${f}`));

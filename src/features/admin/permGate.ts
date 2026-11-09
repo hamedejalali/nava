@@ -24,7 +24,9 @@ export const CALLBACK_PERMS: Array<[prefix: string, need: Need]> = [
   ["admin:userlist", "users"], ["admin:user:ban", "ban"], ["admin:user:unban", "ban"], ["admin:user:toggleverify", "verify"], ["admin:user", "users"],
   ["admin:report", "reports"], ["pr:", "reports"],
   ["admin:editreq", "users"], ["modimg:", "users"],
-  ["admin:relic", "jeton"], ["admin:level", "jeton"],
+  // v1.29.2: chat-photo moderation buttons (they were not listed, so the gate never ran for them)
+  ["photomod:delete", "users"], ["photomod:ban", "ban"],
+  ["admin:relic:mass", "owner"], ["admin:relic", "jeton"], ["admin:level", "jeton"],
   ["admin:pricing", "pricing"], ["adm:shop", "pricing"],
   ["admin:rg", "reactionGate"],
   ["admin:guides", "guides"], ["admin:support_id", "guides"], ["admin:channels", "guides"], ["adm:route", "guides"], ["adm:emo", "guides"],
@@ -36,7 +38,7 @@ export const CALLBACK_PERMS: Array<[prefix: string, need: Need]> = [
 ];
 
 export const FLOW_PERMS: Record<string, Need> = {
-  ban: "ban", unban: "ban", broadcast: "broadcast", import_users: "data", level: "jeton", moderators: "owner", pricing: "pricing",
+  ban: "ban", unban: "ban", broadcast: "broadcast", import_users: "data", level: "jeton", jetonmass: "owner", moderators: "owner", pricing: "pricing",
   reset_user: "resetUser", user_lookup: "users", verify: "verify", emoji: "guides", reactiongate: "reactionGate", navagifts: "nava",
   maint_allow: "settings", navagram: "nava", official_add: "owner", shop: "pricing", route: "guides", seed_batch: "seeds",
   seed_add: "seeds", seed_edit: "seeds", badges: "badges", appvar: "settings", owner_profile: "owner", short_names: "owner",

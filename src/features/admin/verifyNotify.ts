@@ -1,4 +1,5 @@
 import type { Api } from "grammy";
+import { logError } from "../../utils/safeLog.js";
 import { getAppVar } from "../../services/appVars.js";
 import { env } from "../../config/env.js";
 import { textEmoji } from "../../config/emojis.js";
@@ -19,7 +20,7 @@ export async function sendPhotoOrText(api: Api, chatId: number, photo: string | 
       return true;
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("[verifyNotify] sendPhoto failed, falling back to text:", err);
+      logError("MG-VF-002", "sendPhoto failed, falling back to text", err);
     }
   }
   try {

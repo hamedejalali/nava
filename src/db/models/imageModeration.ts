@@ -21,6 +21,8 @@ export interface ImageModerationDoc {
   createdAt: Date;
   reviewedAt?: Date;
   reviewingAdmin?: number;
+  /** v1.29.0: the photo went live at once (no approval step); the staff card only carries «عدم تأیید» to take it back. */
+  appliedAtOnce?: boolean;
 }
 
 async function col(): Promise<Collection<ImageModerationDoc>> {
@@ -57,6 +59,7 @@ export async function createModerationRecord(input: {
   status: ModerationStatus;
   aiScore?: number;
   aiClassification?: string;
+  appliedAtOnce?: boolean;
 }): Promise<ImageModerationDoc> {
   const doc: ImageModerationDoc = { _id: randomUUID(), createdAt: new Date(), ...input };
   const c = await col();
@@ -82,4 +85,15 @@ export async function decideModerationRecord(id: string, decision: "approved" | 
   const existing = await c.findOne({ _id: id });
   if (!existing) return { status: "not_found" };
   return { status: "already_decided" };
+}
+
+/** v1.29.0: staff pressed «عدم تأیید» on a photo that is ALREADY live. Atomic approved → rejected (a second tap, or a tap after a
+ *  newer photo replaced it, is a no-op). Returns the record when this call revoked it. */
+export async function revokeAppliedRecord(id: string, decidedBy: number): Promise<ImageModerationDoc | null> {
+  const c = await col();
+  return c.findOneAndUpdate(
+    { _id: id, status: "approved", appliedAtOnce: true },
+    { $set: { status: "rejected", reviewedAt: new Date(), reviewingAdmin: decidedBy } },
+    { returnDocument: "after" },
+  );
 }

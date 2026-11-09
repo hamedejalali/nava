@@ -441,20 +441,22 @@ test("name & age changes asked in the Mini App follow the bot's rule: owner appr
   assert.equal((await call(1, { action: "request_change", field: "nickname", value: "علی" })).payload.error, "same_value");
   assert.equal((await call(1, { action: "request_change", field: "phone", value: "1" })).status, 400);
 
+  // v1.29.0: a new name is live at once; staff get a copy with ONE «عدم تأیید» button; pressing it gives the old name back
   const ok = await call(1, { action: "request_change", field: "nickname", value: "علیرضا" });
-  assert.equal(ok.payload.status, "pending");
-  assert.equal(col("users").byId(1).nickname, "علی"); // NOT applied yet
+  assert.equal(ok.payload.status, "applied");
+  assert.equal(col("users").byId(1).nickname, "علیرضا");
   const toOwner = sentApi("sendMessage", 900).at(-1)!;
   assert.match(toOwner.payload.text, /علیرضا/);
-  const approveData = toOwner.payload.reply_markup.inline_keyboard[0][0].callback_data as string;
-  assert.match(approveData, /^admin:editreq:approve:/);
-  assert.equal((await call(1, { action: "request_change", field: "nickname", value: "رضا" })).status, 409); // one pending request per field
-  assert.equal((await call(1, { action: "me" })).payload.me.pendingName, "علیرضا");
-
-  await h.callback(900, approveData);
-  assert.equal(col("users").byId(1).nickname, "علیرضا");
+  assert.equal(toOwner.payload.reply_markup.inline_keyboard.flat().length, 1);
+  const rejectData = toOwner.payload.reply_markup.inline_keyboard[0][0].callback_data as string;
+  assert.match(rejectData, /^admin:editreq:reject:/);
   assert.equal((await call(2, { action: "profile", id: "user_AAA1" })).payload.profile.name, "علیرضا");
   assert.equal((await call(1, { action: "me" })).payload.me.pendingName, null);
+  await h.callback(900, rejectData);
+  assert.equal(col("users").byId(1).nickname, "علی");
+  assert.match(String(h.of("sendMessage", 1).at(-1)!.payload.text), /عدم رعایت قوانین/);
+  await h.callback(900, rejectData); // second tap: nothing happens twice
+  assert.equal(col("users").byId(1).nickname, "علی");
 
   assert.equal((await call(1, { action: "request_change", field: "age", value: 30 })).payload.status, "pending");
   assert.equal(col("users").byId(1).age, 25);

@@ -113,17 +113,21 @@ test("photo upload: safe image auto-approved, flagged goes to admins as pending,
   assert.equal(ok, "approved");
   assert.equal(col("users").byId(1).profilePhotoFileId, "BIG1");
   await assert.rejects(S.uploadProfilePhoto(col("users").byId(1) as any, jpeg, { api, check: async () => ({ serviceUnavailable: false, flagged: false, score: 0, classification: "safe" }), recipients: async () => [900] }), (e: any) => e.code === "too_fast");
-  // flagged user 3 -> pending + admin copy with approve/reject buttons, photo NOT changed
-  const pend = await S.uploadProfilePhoto(col("users").byId(3) as any, jpeg, { api, check: async () => ({ serviceUnavailable: true, flagged: true, score: 1, classification: "x" }), recipients: async () => [900] });
-  assert.equal(pend, "pending");
-  assert.equal(col("users").byId(3).profilePhotoFileId, "P3");
-  assert.ok(sent.some((s) => s.chat === 900 && s.o?.reply_markup));
-  assert.equal(col("image_moderation").all().filter((d: any) => d.status === "pending").length, 1);
+  // v1.29.0: even a flagged photo is live at once; the staff copy carries ONE button (عدم تأیید), no approve button
+  const live = await S.uploadProfilePhoto(col("users").byId(3) as any, jpeg, { api, check: async () => ({ serviceUnavailable: true, flagged: true, score: 1, classification: "x" }), recipients: async () => [900] });
+  assert.equal(live, "approved");
+  assert.notEqual(col("users").byId(3).profilePhotoFileId, "P3");
+  const card = sent.filter((s) => s.chat === 900 && s.o?.reply_markup).at(-1)!;
+  const rows = card.o.reply_markup.inline_keyboard;
+  assert.equal(rows.flat().length, 1);
+  assert.match(rows[0][0].callback_data, /^modimg:reject:/);
+  assert.equal(col("image_moderation").all().filter((d: any) => d.status === "pending").length, 0);
   const { getProfile } = await import("../../src/services/nava/profile.js");
-  assert.equal((await getProfile(col("users").byId(3) as any, "user_AAA3"))!.photoPending, true);
+  assert.equal((await getProfile(col("users").byId(3) as any, "user_AAA3"))!.photoPending, false);
   await assert.rejects(async () => S.decodeImage("data:image/jpeg;base64,AAAA"), (e: any) => e.code === "bad_image");
   await assert.rejects(async () => S.decodeImage(Buffer.alloc(500, 1).toString("base64")), (e: any) => e.code === "bad_image");
-  await assert.rejects(S.uploadProfilePhoto(col("users").byId(4) as any, jpeg, { api, check: async () => ({ serviceUnavailable: false, flagged: false, score: 0, classification: "safe" }), recipients: async () => [] }), (e: any) => e.code === "unavailable");
+  // nobody to receive the staff copy: the upload still works
+  assert.equal(await S.uploadProfilePhoto(col("users").byId(4) as any, jpeg, { api, check: async () => ({ serviceUnavailable: false, flagged: false, score: 0, classification: "safe" }), recipients: async () => [] }), "approved");
 });
 
 test("whoami: staff -> monitor role; normal user -> social app; unregistered / forged -> rejected", async () => {

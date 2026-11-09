@@ -1,0 +1,2 @@
+# Mobile / slow-network checklist (manual, NOT VERIFIED by the engineer)
+Real phone inside Telegram (iOS + Android), Chrome DevTools "Slow 4G" + 4× CPU throttle, offline toggle: first load, tab switches, feed scroll with lazy images, DM, games, onboarding resume, update-reload after a version bump (service worker `ng-1.29.6`). Check: text readable at 200 % font, tap targets ≥ 44 px, RTL layout, safe-area insets, no horizontal scroll, reduced-motion respected. Record device, OS, result.

@@ -65,7 +65,7 @@ export async function staffModerate(staffId: number, anonId: unknown, op: StaffO
       break;
     }
     case "photo_remove":
-      await users.updateOne({ _id: id }, { $unset: { profilePhotoFileId: "", profilePhotoAt: "" } });
+      await users.updateOne({ _id: id }, { $unset: { profilePhotoFileId: "", profilePhotoAt: "", profilePostCaption: "" } });
       await logAdminAction(staffId, "miniapp_photo_remove", String(id));
     {
       const why = typeof extra.reason === "string" && extra.reason.trim() ? `\nدلیل: ${extra.reason.trim().slice(0, 200)}` : "";

@@ -10,6 +10,8 @@ import { MAX_AGE, MIN_AGE } from "../features/matching/profileEdit.js";
 import { dictionary } from "../i18n/index.js";
 import { buildMainMenuReplyKeyboard } from "../features/menu/mainMenu.js";
 import type { TelegramWebAppUser } from "../utils/telegramWebApp.js";
+import type { Api } from "grammy";
+import { resumePendingAnonForUser } from "../features/anonMessages/index.js";
 
 /**
  * Registration INSIDE the Mini App for people who opened it before finishing the bot's questions.
@@ -92,6 +94,10 @@ export async function onboardSave(tg: TelegramWebAppUser, input: OnboardInput, a
     const t = dictionary("fa");
     await api.sendMessage(tg.id, t.onboarding.completionMessage as string, { parse_mode: "HTML" }).catch(() => {});
     await api.sendMessage(tg.id, t.onboarding.chooseFromMenu as string, { reply_markup: buildMainMenuReplyKeyboard("fa") }).catch(() => {});
+    // v1.29.4 (F-23): a link to an anonymous message that was opened before registration continues now, exactly like after the bot's
+    // own onboarding. Only reached by the one call whose guarded update completed the account; the continuation itself is
+    // lease-protected, re-checks age band / blocks / bans, never throws.
+    await resumePendingAnonForUser(api as unknown as Api, tg.id);
   }
   return { status: "completed" };
 }

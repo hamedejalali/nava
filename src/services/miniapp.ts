@@ -1,4 +1,6 @@
 import { alertChannelProblem, checkMembership } from "../features/forcejoin/membership.js";
+import { logError } from "../utils/safeLog.js";
+import { TELEGRAM_API_TIMEOUT_S, fetchWithTimeout } from "../utils/fetchTimeout.js";
 import { Api } from "grammy";
 import { env } from "../config/env.js";
 import { getDb } from "../db/connect.js";
@@ -16,7 +18,7 @@ export const MAX_EXCLUDE = 200;
 let api: Api | null = null;
 export function botApi(): Api {
   if (!api) {
-    api = new Api(env.BOT_TOKEN);
+    api = new Api(env.BOT_TOKEN, { timeoutSeconds: TELEGRAM_API_TIMEOUT_S.miniapp });
     // nothing addressed to a default (seed) member may reach Telegram (see services/seeds/guard.ts)
     api.config.use(seedGuardTransformer);
   }
@@ -29,7 +31,7 @@ export function ensureMiniappIndexesOnce(): void {
   indexesEnsured = true;
   ensureChatRequestIndexes().catch((err) => {
     indexesEnsured = false;
-    console.error("[miniapp] index setup failed (will retry on next request):", err);
+    logError("MG-MA-001", "index setup failed (will retry on next request)", err);
   });
 }
 
@@ -131,7 +133,7 @@ export async function findEligibleTarget(viewerId: number, anonId: unknown): Pro
 export async function downloadTelegramFile(fileId: string): Promise<{ buffer: Buffer; contentType: string } | null> {
   const file = await botApi().getFile(fileId);
   if (!file.file_path) return null;
-  const res = await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
+  const res = await fetchWithTimeout(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`);
   if (!res.ok) return null;
   const buffer = Buffer.from(await res.arrayBuffer());
   const lower = file.file_path.toLowerCase();
