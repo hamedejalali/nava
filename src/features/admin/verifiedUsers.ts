@@ -1,6 +1,7 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { buttonIcon } from "../../config/emojis.js";
+import { userButtonLabel } from "./users.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { countVerifiedUsers, listVerifiedUsersPage } from "../../db/models/user.js";
 import { isAdmin } from "./constants.js";
@@ -25,7 +26,9 @@ async function renderList(ctx: NavaContext, page: number, edit: boolean) {
   const nav = [];
   if (safePage > 0) nav.push(glassButton("قبلی", `${CB.list}${safePage - 1}`, "primary"));
   if (safePage < totalPages - 1) nav.push(glassButton("بعدی", `${CB.list}${safePage + 1}`, "primary"));
-  const reply_markup = nav.length > 0 ? inlineKeyboard([nav]) : undefined;
+  const rows = users.map((u) => [glassButton(userButtonLabel(u), `admin:user:view:${u._id}`, "primary")]);
+  if (nav.length > 0) rows.push(nav);
+  const reply_markup = rows.length > 0 ? inlineKeyboard(rows) : undefined;
 
   if (edit) {
     await ctx.editMessageText(text, { reply_markup }).catch(() => {});

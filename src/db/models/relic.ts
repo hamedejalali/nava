@@ -413,7 +413,7 @@ export async function creditPurchaseOnce(
   });
 }
 
-export type StarsCreditResult = "credited" | "duplicate" | "order_consumed";
+export type StarsCreditResult = "credited" | "duplicate" | "order_consumed" | "user_missing";
 
 /**
  * v1.28 — the ONE place a Stars payment becomes ژتون. In a single transaction:
@@ -421,6 +421,7 @@ export type StarsCreditResult = "credited" | "duplicate" | "order_consumed";
  *   2. the ledger row `purchase:<chargeId>` is inserted (unique → a redelivered charge is a no-op),
  *   3. the balance is credited.
  * "duplicate"      = this very charge was already processed (Telegram retry) → nothing happens;
+ * "user_missing"  = the paying user has no document (v1.29.8): rolled back, nothing credited, the caller keeps an exception record.
  * "order_consumed" = a DIFFERENT charge already fulfilled this order (forwarded / reused invoice) → nothing is credited (rolled back);
  *                    the caller keeps a durable exception record of the real payment for manual reconciliation.
  * Legacy payloads without an order (`orderId` undefined) keep the old per-charge idempotency.
@@ -447,7 +448,11 @@ export async function creditStarsPaymentOnce(args: { orderId?: string; userId: n
         if (err?.code === 11000) throw new TxAbort("duplicate");
         throw err;
       }
-      await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: relic } }, { session });
+      // v1.29.8 (audit F-18): the ledger row and the balance must agree. If the user document is gone, NOTHING is credited and the whole
+      // transaction (order claim + ledger row) rolls back, so the ledger never says "credited" for money that was not added.
+      const bal = await usersCol.updateOne({ _id: userId }, { $inc: { relicBalance: relic } }, { session });
+      if (bal.matchedCount !== 1) throw new TxAbort("user_missing");
+      
       return "credited" as const;
     });
   } catch (err) {

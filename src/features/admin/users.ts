@@ -37,19 +37,19 @@ function formatFullProfile(u: UserDoc, balance: number): string {
   ].join("\n");
 }
 
-function profileActionsKeyboard(targetId: number) {
+function profileActionsKeyboard(targetId: number, banned?: boolean) {
+  // v1.29.7: only the action that makes sense (a banned user gets «آن‌بن», everybody else «بن»); unknown state keeps both
+  const ban = glassButton("🚫 بن", `admin:user:ban:${targetId}`, "danger");
+  const unban = glassButton("🔓 آن‌بن", `admin:user:unban:${targetId}`, "success");
   return inlineKeyboard([
-    [
-      glassButton("🚫 بن", `admin:user:ban:${targetId}`, "danger"),
-      glassButton("🔓 آن‌بن", `admin:user:unban:${targetId}`, "success"),
-    ],
+    banned === undefined ? [ban, unban] : [banned ? unban : ban],
     [glassButton("☑️ وریفای/لغو وریفای", `admin:user:toggleverify:${targetId}`, "primary")],
   ]);
 }
 
 async function showFullProfile(ctx: NavaContext, target: UserDoc) {
   const balance = await getRelicBalance(target._id);
-  await ctx.reply(formatFullProfile(target, balance), { reply_markup: profileActionsKeyboard(target._id) });
+  await ctx.reply(formatFullProfile(target, balance), { reply_markup: profileActionsKeyboard(target._id, !!target.banned) });
 }
 
 export function registerAdminUsers(composer: Composer<NavaContext>) {
@@ -82,6 +82,15 @@ export function registerAdminUsers(composer: Composer<NavaContext>) {
     await ctx.answerCallbackQuery({ text: updated?.verified ? "وریفای شد ✅" : "وریفای برداشته شد" });
     // The user gets a notice (with photo) about the change.
     await notifyVerificationChange(ctx.api, targetId, !!updated?.verified);
+  });
+
+  // v1.29.7: every row of a user list is a glass button that opens that user's full profile card
+  composer.callbackQuery(/^admin:user:view:(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    await ctx.answerCallbackQuery();
+    const target = await getUser(Number(ctx.match![1]));
+    if (!target) return void (await ctx.reply("این کاربر دیگه پیدا نمیشه."));
+    await showFullProfile(ctx, target);
   });
 
   composer.callbackQuery(/^admin:userlist:(\d+)$/, async (ctx) => {
@@ -172,8 +181,15 @@ async function sendUserListPage(ctx: NavaContext, page: number) {
   const navRow = [];
   if (page > 0) navRow.push(glassButton("◀️ قبلی", `admin:userlist:${page - 1}`, "primary"));
   if (page < totalPages - 1) navRow.push(glassButton("بعدی ▶️", `admin:userlist:${page + 1}`, "primary"));
+  const rows = users.map((u) => [glassButton(userButtonLabel(u), `admin:user:view:${u._id}`, u.banned ? "danger" : "primary")]);
+  if (navRow.length) rows.push(navRow);
 
   await ctx.reply(`👥 کاربران (صفحه ${page + 1}/${totalPages} — مجموع ${total})\n\n${lines.join("\n") || "خالی"}`, {
-    reply_markup: navRow.length > 0 ? inlineKeyboard([navRow]) : undefined,
+    reply_markup: rows.length > 0 ? inlineKeyboard(rows) : undefined,
   });
+}
+
+/** short label of a user row button (nickname · anon id; banned users are marked) */
+export function userButtonLabel(u: { nickname?: string | null; anonId?: string; banned?: boolean }): string {
+  return `${u.banned ? "🚫 " : ""}${String(u.nickname ?? "-").slice(0, 24)} · ${u.anonId ?? ""}`.trim();
 }

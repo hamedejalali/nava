@@ -18,7 +18,8 @@ import { createChatRequest } from "../src/db/models/chatRequest.js";
 import { sendChatRequestToTarget } from "../src/features/matching/chatRequest.js";
 import { getDb } from "../src/db/connect.js";
 import { getSupportLink } from "../src/features/support/index.js";
-import { checkRateLimit } from "../src/utils/rateLimit.js";
+import { logError } from "../src/utils/safeLog.js";
+import { checkRateLimit, memoryRateLimit } from "../src/utils/rateLimit.js";
 import { env } from "../src/config/env.js";
 import { onboardCities, onboardSave, onboardState } from "../src/services/miniOnboarding.js";
 import { pickGuestCards, markMatchSeen, markMatchSeenById, pickMemberCards, sanitizeMatchExclude } from "../src/services/matchCards.js";
@@ -228,8 +229,9 @@ async function miniappHandler(req: VercelRequest, res: VercelResponse) {
       try {
         const rl = await checkRateLimit(tg.id, "miniapp-guest", 20, 60_000);
         if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
-      } catch {
-        /* limiter down: fail open, like the rest of the app */
+      } catch (err) {
+        logError("MG-RL-001", "Mini App rate limiter unavailable (in-memory fallback used)", err);
+        if (!memoryRateLimit(tg.id, "miniapp-guest", 20, 60_000).allowed) return void res.status(429).json({ error: "too_fast" });
       }
       return void res.status(200).json(present({ cards: await pickGuestCards(), bot: env.BOT_USERNAME?.replace(/^@/, "") ?? null }));
     }
@@ -241,8 +243,9 @@ async function miniappHandler(req: VercelRequest, res: VercelResponse) {
       try {
         const rl = await checkRateLimit(tg.id, "miniapp-onboard", 40, 60_000);
         if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
-      } catch {
-        /* limiter down: fail open */
+      } catch (err) {
+        logError("MG-RL-001", "Mini App rate limiter unavailable (in-memory fallback used)", err);
+        if (!memoryRateLimit(tg.id, "miniapp-onboard", 40, 60_000).allowed) return void res.status(429).json({ error: "too_fast" });
       }
       if (action === "onboard_cities") {
         const cities = onboardCities(body.province);
@@ -294,12 +297,14 @@ async function miniappHandler(req: VercelRequest, res: VercelResponse) {
     if (acting && (ACTING_NEVER.includes(action) || (!isOfficial(me) && ACTING_PLAIN_SEED_NEVER.includes(action)))) return void res.status(403).json({ error: "forbidden" });
     // Abuse protection (v1.16.3): per-person budget, counted in MongoDB so it holds across serverless instances.
     // Generous (a person scrolling the app makes a few calls per second at most); fails OPEN if the limiter
-    // itself is unavailable so a limiter outage never locks everybody out.
+    // itself is unavailable so a limiter outage never locks everybody out — v1.29.8: it falls back to a bounded per-instance counter with
+    // the SAME ceiling instead of letting everything through (a lone instance can no longer be hammered without limit).
     try {
       const rl = await checkRateLimit(viewer.user._id, "miniapp", MINIAPP_CALLS_PER_MINUTE, 60_000);
       if (!rl.allowed) return void res.status(429).json({ error: "too_fast" });
     } catch (err) {
-      console.error("[miniapp] rate limiter unavailable:", err instanceof Error ? err.name : "unknown");
+      logError("MG-RL-001", "Mini App rate limiter unavailable (in-memory fallback used)", err);
+      if (!memoryRateLimit(viewer.user._id, "miniapp", MINIAPP_CALLS_PER_MINUTE, 60_000).allowed) return void res.status(429).json({ error: "too_fast" });
     }
     // v1.29.0: using the Mini App counts as activity (the «کم‌فعالیت‌ها» jeton send and «آخرین بازدید» read lastActivityAt). Throttled: one write / 10 min.
     if (action !== "pulse") {

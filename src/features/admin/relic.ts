@@ -57,6 +57,11 @@ export function registerAdminRelic(composer: Composer<NavaContext>) {
   composer.on("message:text", async (ctx, next) => {
     if (!isAdmin(ctx)) return next();
 
+    if (ctx.message.text.trim() === ADMIN_MENU_LABELS.jetonManual && isOwner(ctx)) {
+      await ctx.reply("آیدی عددی تلگرام کاربر مورد نظر رو بفرست:", { reply_markup: cancelKeyboard() });
+      await setStep(ctx.from!.id, { stage: "await_user" });
+      return;
+    }
     if (ctx.message.text.trim() === ADMIN_MENU_LABELS.relic) {
       // v1.29.0: the owner gets the bulk-send menu (the old single-user +/- stays as its last button); other admins keep the old flow
       if (isOwner(ctx)) {

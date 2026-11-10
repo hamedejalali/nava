@@ -52,7 +52,11 @@ export function buildRegistry(mods: readonly GameModule[], legacyPrefixes: reado
       if (def.guest) guest.add(name);
       if (def.actingBlocked !== false) acting.add(name);
     }
-    Object.assign(errors, m.errors ?? {});
+    // v1.29.8 (audit F-19): two modules may not silently overwrite each other's error codes (the later one used to win)
+    for (const [k, v] of Object.entries(m.errors ?? {})) {
+      if (Object.prototype.hasOwnProperty.call(errors, k)) throw new Error(`duplicate error code "${k}" (game "${m.id}")`);
+      errors[k] = v;
+    }
   }
   return { actions: new Set(handlers.keys()), guestActions: guest, actingNever: acting, errors, handlers };
 }

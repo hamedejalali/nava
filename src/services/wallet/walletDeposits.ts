@@ -1,3 +1,4 @@
+import { logError } from "../../utils/safeLog.js";
 import type { Api } from "grammy";
 import { getDb } from "../../db/connect.js";
 import { runInTransaction, TxAbort } from "../../db/tx.js";
@@ -43,8 +44,11 @@ export interface DepositRow {
   notifiedAt?: Date;
   notifyLeaseUntil?: Date;
   notifyAttempts?: number;
+  /** v1.29.8: log-chat receipt lease / attempts (see announceCredit) */
+  logLeaseUntil?: Date;
+  logAttempts?: number;
   notifyFailed?: string;
-  /** the receipt in the log chat went out */
+  /** the receipt in the log chat was ACCEPTED by Telegram (v1.29.8: written after the send) */
   logNotifiedAt?: Date;
 }
 
@@ -55,6 +59,8 @@ interface SyncDoc {
   lastOkAt?: Date;
   lastError?: string;
   lastErrorAt?: Date;
+  /** v1.29.7: how many runs in a row failed (reset by the first success). A single timeout is normal; the monitor only alerts on a streak. */
+  errorStreak?: number;
   lockUntil?: Date;
   alertedAuthAt?: Date;
 }
@@ -191,7 +197,7 @@ export async function announceCredit(api: Pick<Api, "sendMessage">, o: Extract<C
   const rows = d.collection<any>(DEPOSITS);
   const now = new Date();
   const claim = await rows.updateOne(
-    { _id: o.row._id, notifiedAt: { $exists: false }, $or: [{ notifyLeaseUntil: { $exists: false } }, { notifyLeaseUntil: { $lt: now } }] },
+    { _id: o.row._id, notifiedAt: { $exists: false }, notifyAttempts: { $not: { $gte: MAX_NOTIFY_ATTEMPTS } }, $or: [{ notifyLeaseUntil: { $exists: false } }, { notifyLeaseUntil: { $lt: now } }] } as any,
     { $set: { notifyLeaseUntil: new Date(now.getTime() + 60_000) } },
   );
   if (claim.modifiedCount === 1) {
@@ -208,32 +214,50 @@ export async function announceCredit(api: Pick<Api, "sendMessage">, o: Extract<C
       }
     }
   }
-  const logClaim = await rows.updateOne({ _id: o.row._id, logNotifiedAt: { $exists: false } }, { $set: { logNotifiedAt: new Date() } });
-  if (logClaim.modifiedCount !== 1) return;
+  // v1.29.8 (audit A-02): the log-chat receipt is now a durable step of its own. `logNotifiedAt` means "Telegram ACCEPTED the receipt" and is
+  // written only after the send; a short lease (`logLeaseUntil`) keeps two workers from sending it twice; a crash between claim and send,
+  // a failed send, or a log chat that was not configured yet no longer loses the receipt — `retryPendingAnnouncements` finds it again.
+  // Semantics are at-least-once (a crash AFTER Telegram accepted but BEFORE the mark can repeat one receipt); the ledger credit is untouched.
   const logChat = await getLogChatId("wallet").catch(() => undefined);
-  if (logChat !== undefined) {
-    const lines = [
-      "🧾 <b>رسید واریز از ولت</b>",
-      `تراکنش ولت: <code>${o.row._id}</code>`,
-      `کاربر: <code>${o.userId}</code>`,
-      `مبلغ واریزی به مویا: ${o.amount} ژتون`,
-      ...(o.row.fee !== undefined ? [`کارمزد: ${o.row.fee} ژتون`] : []),
-      ...(o.row.totalCharged !== undefined ? [`کسر شده از ولت کاربر: ${o.row.totalCharged} ژتون`] : []),
-      `زمان: ${o.row.walletCompletedAt ?? o.row.creditedAt.toISOString()}`,
-    ];
-    try {
-      await api.sendMessage(logChat, lines.join("\n"), { parse_mode: "HTML" });
-    } catch {
-      await rows.updateOne({ _id: o.row._id }, { $unset: { logNotifiedAt: "" } }).catch(() => {}); // receipt retried with the next announce
-    }
-  } 
+  if (logChat === undefined) return; // nothing claimed: it is retried once a log chat exists (bounded by the 3-day window)
+  const logNow = new Date();
+  const logClaim = await rows.updateOne(
+    { _id: o.row._id, logNotifiedAt: { $exists: false }, logAttempts: { $not: { $gte: MAX_NOTIFY_ATTEMPTS } }, $or: [{ logLeaseUntil: { $exists: false } }, { logLeaseUntil: { $lt: logNow } }] } as any,
+    { $set: { logLeaseUntil: new Date(logNow.getTime() + 60_000) } },
+  );
+  if (logClaim.modifiedCount !== 1) return;
+  const lines = [
+    "🧾 <b>رسید واریز از ولت</b>",
+    `تراکنش ولت: <code>${o.row._id}</code>`,
+    `کاربر: <code>${o.userId}</code>`,
+    `مبلغ واریزی به مویا: ${o.amount} ژتون`,
+    ...(o.row.fee !== undefined ? [`کارمزد: ${o.row.fee} ژتون`] : []),
+    ...(o.row.totalCharged !== undefined ? [`کسر شده از ولت کاربر: ${o.row.totalCharged} ژتون`] : []),
+    `زمان: ${o.row.walletCompletedAt ?? o.row.creditedAt.toISOString()}`,
+  ];
+  try {
+    await api.sendMessage(logChat, lines.join("\n"), { parse_mode: "HTML" });
+    await rows.updateOne({ _id: o.row._id }, { $set: { logNotifiedAt: new Date() }, $unset: { logLeaseUntil: "" } });
+  } catch (err) {
+    logError("MG-WL-001", "wallet deposit receipt to the log chat failed (will retry)", err);
+    await rows.updateOne({ _id: o.row._id }, { $unset: { logLeaseUntil: "" }, $inc: { logAttempts: 1 } }).catch(() => {});
+  }
 }
 
 /** Re-announces credited deposits whose notice never got through (credit itself is long done and idempotent). */
 export async function retryPendingAnnouncements(api: Pick<Api, "sendMessage">, limit = 20): Promise<number> {
   const rows = (await db()).collection<DepositRow>(DEPOSITS);
+  // the receipt branch only counts while a log chat exists (otherwise those rows would be "pending" forever without being sendable)
+  const logChat = await getLogChatId("wallet").catch(() => undefined);
   const pending = await rows
-    .find({ notifiedAt: { $exists: false }, creditedAt: { $gt: new Date(Date.now() - 3 * 86_400_000) }, notifyAttempts: { $not: { $gte: MAX_NOTIFY_ATTEMPTS } } } as any)
+    .find({
+      creditedAt: { $gt: new Date(Date.now() - 3 * 86_400_000) },
+      // v1.29.8: either the user notice OR the log-chat receipt is still outstanding
+      $or: [
+        { notifiedAt: { $exists: false }, notifyAttempts: { $not: { $gte: MAX_NOTIFY_ATTEMPTS } } },
+        ...(logChat !== undefined ? [{ logNotifiedAt: { $exists: false }, logAttempts: { $not: { $gte: MAX_NOTIFY_ATTEMPTS } } }] : []),
+      ],
+    } as any)
     .limit(limit)
     .toArray();
   for (const row of pending) await announceCredit(api, { credited: true, userId: row.userId, amount: row.amount, balanceAfter: row.balanceAfter ?? 0, row });
@@ -286,12 +310,12 @@ export async function syncWalletDeposits(api: Pick<Api, "sendMessage">, opts: { 
       // the filter is inclusive: a page that only repeats the last item means we are done
       if (list.length < PAGE) break;
     }
-    await c.updateOne({ _id: CURSOR_ID }, { $set: { lastOkAt: new Date() }, $unset: { lastError: "", lockUntil: "" } }, { upsert: true });
+    await c.updateOne({ _id: CURSOR_ID }, { $set: { lastOkAt: new Date(), errorStreak: 0 }, $unset: { lastError: "", lockUntil: "" } }, { upsert: true });
     await retryPendingAnnouncements(api).catch(() => {});
     return { ran: true, fetched, credited };
   } catch (err: any) {
     const code = err instanceof WalletApiError ? err.code : "ERROR";
-    await c.updateOne({ _id: CURSOR_ID }, { $set: { lastError: code, lastErrorAt: new Date() }, $unset: { lockUntil: "" } }, { upsert: true });
+    await c.updateOne({ _id: CURSOR_ID }, { $set: { lastError: code, lastErrorAt: new Date() }, $inc: { errorStreak: 1 }, $unset: { lockUntil: "" } }, { upsert: true });
     // wrong id / key (401): tell the owner, at most once per hour. timeouts / 5xx are not failures: the next run asks again.
     if (err instanceof WalletApiError && err.status === 401) {
       const doc = await c.findOne({ _id: CURSOR_ID });

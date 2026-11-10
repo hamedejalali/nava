@@ -26,6 +26,9 @@ export const ERROR_CODES = {
   "MG-BK-004": "import failed",
   "MG-RG-001": "reaction gate check failed (user let through)",
   "MG-IN-001": "invite banner photo could not be sent",
+  "MG-AGE-001": "age-band re-check of a running chat failed",
+  "MG-WL-001": "wallet deposit receipt to the log chat failed (will retry)",
+  "MG-RL-001": "Mini App rate limiter unavailable (in-memory fallback used)",
 } as const;
 export type ErrorCode = keyof typeof ERROR_CODES;
 

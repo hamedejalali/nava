@@ -1,3 +1,4 @@
+import { mapLimit } from "../../utils/mapLimit.js";
 import { ageBandDiscoveryFilter, C, SocialError, col, escapeRegex, findVisibleUser, hiddenOwnerIds, isAnonId, lockedAmong, toBriefs, usersCol, visibleUserFilter, type Brief } from "./common.js";
 import type { PostDoc } from "./posts.js";
 
@@ -38,8 +39,9 @@ export async function explore(viewerId: number, offsetRaw?: unknown): Promise<{ 
   const lockedTiles = await lockedAmong(viewerId, page);
   if (page.length) {
     const posts = await col<PostDoc>(C.posts);
-    const rows = await Promise.all(
-      page.filter((u: any) => !lockedTiles.has(u._id)).map((u: any) => posts.find({ ownerId: u._id } as any, { projection: { ownerId: 1, mediaId: 1 } }).sort({ createdAt: -1 }).limit(1).toArray()),
+    // v1.29.8: at most 8 of these indexed lookups in flight (the pool is 10 per instance); results and queries are unchanged
+    const rows = await mapLimit(
+      page.filter((u: any) => !lockedTiles.has(u._id)), 8, (u: any) => posts.find({ ownerId: u._id } as any, { projection: { ownerId: 1, mediaId: 1 } }).sort({ createdAt: -1 }).limit(1).toArray(),
     );
     for (const [r] of rows) if (r) latest.set(r.ownerId, r.mediaId);
   }

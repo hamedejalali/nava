@@ -25,12 +25,16 @@ beforeEach(() => {
 const bal = (id: number) => col("users").byId(id).relicBalance;
 const textsTo = (id: number) => h.of("sendMessage", id).map((c) => String(c.payload.text));
 
+const MENU_LABEL: Record<string, string> = { inactive: "😴 ارسال به کم‌فعالیت‌ها", gender: "👫 ارسال بر اساس جنسیت", users: "🎯 ارسال به کاربر مشخص" };
 async function startFlow(button: string) {
   await h.text(OWNER_ID, "🪙 مدیریت ژتون");
   const menu = h.of("sendMessage", OWNER_ID).filter((c) => /مدیریت ژتون —/.test(String(c.payload.text))).at(-1)!;
-  const btns = menu.payload.reply_markup.inline_keyboard.flat().map((b: any) => b.callback_data);
-  assert.ok(btns.includes("admin:relic:mass:inactive") && btns.includes("admin:relic:mass:gender") && btns.includes("admin:relic:mass:users"));
-  await h.callback(OWNER_ID, `admin:relic:mass:${button}`);
+  // v1.29.7: the options are REPLY-keyboard buttons (not an inline keyboard) and the panel's own back button is among them
+  assert.equal(menu.payload.reply_markup.inline_keyboard, undefined);
+  const labels = menu.payload.reply_markup.keyboard.flat().map((b: any) => b.text);
+  for (const l of Object.values(MENU_LABEL)) assert.ok(labels.includes(l), l);
+  assert.ok(labels.includes("➕➖ تعدیل دستی یک کاربر") && labels.includes("↩️ بازگشت به پنل"));
+  await h.text(OWNER_ID, MENU_LABEL[button]!);
 }
 
 test("J1. inactive users: days → amount → message → (no 2nd) → confirm; only the chosen message, one log line", async () => {

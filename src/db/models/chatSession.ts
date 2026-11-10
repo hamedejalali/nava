@@ -21,7 +21,7 @@ export interface ChatSessionDoc {
   endedAt?: Date;
   endedBy?: number; // telegramId of whoever pressed "پایان چت"
   /** why it ended (absent on sessions closed by older versions) */
-  endReason?: "user_end" | "undelivered" | "banned";
+  endReason?: "user_end" | "undelivered" | "banned" | "age_band";
   /** Guards the 1-Relic cashback (Feature "CHAT REFUND") against being
    *  awarded twice because of duplicate Telegram updates/retries. */
   cashbackIssued?: boolean;

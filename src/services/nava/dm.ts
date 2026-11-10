@@ -1,3 +1,4 @@
+import { mapLimit } from "../../utils/mapLimit.js";
 import { canContact } from "../ageBand.js";
 import { InputFile, type Api } from "grammy";
 import { getDb } from "../../db/connect.js";
@@ -118,16 +119,20 @@ export async function overview(me: any): Promise<DmOverview> {
   const byId = new Map<number, Brief>();
   partners.filter((p: any) => !p.banned).forEach((p: any, i: number) => byId.set(p._id, briefs[i]!));
   const c = await msgs();
-  const items: ThreadItem[] = [];
-  for (const s of sessions) {
+  // v1.29.8 (audit A-04): the per-thread lookups (last message, unread count) are independent and each one is a cheap indexed query, so
+  // they now run in a bounded parallel batch (6 at a time, below the pool size of 10) instead of one after another. Same queries, same
+  // results, same order of work per thread — only the waiting changes (up to ~80 sequential round trips before).
+  const rows = await mapLimit(sessions, 6, async (s): Promise<ThreadItem | null> => {
     const pid = otherParticipant(s, me._id)!;
     const cleared = ((isA(s, me._id) ? (s as any).clearA : (s as any).clearB) as number | undefined) ?? 0;
-    if (cleared > 0 && (s.dmSeq ?? 0) <= cleared) continue; // deleted by me and nothing new since
-    const [last] = await c.find({ sessionId: s._id, seq: { $gt: cleared } }).sort({ seq: -1 }).limit(1).toArray();
-    if (cleared > 0 && !last) continue;
+    if (cleared > 0 && (s.dmSeq ?? 0) <= cleared) return null; // deleted by me and nothing new since
     const myRead = (isA(s, me._id) ? s.readA : s.readB) ?? 0;
-    const unread = s.active ? await c.countDocuments({ sessionId: s._id, senderId: pid, seq: { $gt: myRead }, kind: { $ne: "system" } } as any) : 0;
-    items.push({
+    const [[last], unread] = await Promise.all([
+      c.find({ sessionId: s._id, seq: { $gt: cleared } }).sort({ seq: -1 }).limit(1).toArray(),
+      s.active ? c.countDocuments({ sessionId: s._id, senderId: pid, seq: { $gt: myRead }, kind: { $ne: "system" } } as any) : Promise.resolve(0),
+    ]);
+    if (cleared > 0 && !last) return null;
+    return {
       sid: s._id,
       partner: byId.get(pid) ?? null,
       partnerGone: !byId.has(pid),
@@ -136,8 +141,9 @@ export async function overview(me: any): Promise<DmOverview> {
       last: last ? { kind: last.kind, text: last.deleted ? undefined : last.text, mine: last.senderId === me._id, at: last.at.getTime() } : null,
       unread,
       at: (last?.at ?? s.createdAt).getTime(),
-    });
-  }
+    };
+  });
+  const items: ThreadItem[] = rows.filter((r): r is ThreadItem => r !== null);
   items.sort((a, b) => Number(b.active) - Number(a.active) || b.at - a.at);
   const reqs = await requestCounts(me._id);
   let botChat = false;

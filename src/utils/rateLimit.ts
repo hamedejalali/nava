@@ -47,3 +47,21 @@ export async function peekRateLimit(userId: number, bucket: string, windowMs: nu
   const doc = await col.findOne({ _id: `${userId}:${bucket}:${windowStart}` });
   return doc?.count ?? 0;
 }
+
+/**
+ * v1.29.8 (audit A-01): per-instance fallback used ONLY when the MongoDB limiter itself throws. It is not shared across serverless
+ * instances (so the effective ceiling is limit × warm instances) but it can never be "unlimited", and a limiter outage still does not lock
+ * everybody out. Memory is bounded (old windows pruned, hard cap on keys; over the cap new keys are refused = fail closed for newcomers).
+ */
+const MEM_MAX_KEYS = 5000;
+const memHits = new Map<string, number>();
+export function memoryRateLimit(userId: number, bucket: string, limit: number, windowMs: number, now = Date.now()): RateLimitResult {
+  const windowStart = Math.floor(now / windowMs) * windowMs;
+  if (memHits.size > MEM_MAX_KEYS / 2) for (const k of memHits.keys()) if (Number(k.split("|")[2]) < windowStart) memHits.delete(k);
+  const id = `${userId}|${bucket}|${windowStart}`;
+  if (!memHits.has(id) && memHits.size >= MEM_MAX_KEYS) return { allowed: false, justExceeded: false };
+  const count = (memHits.get(id) ?? 0) + 1;
+  memHits.set(id, count);
+  return { allowed: count <= limit, justExceeded: count === limit + 1 };
+}
+export function _resetMemoryRateLimit(): void { memHits.clear(); }

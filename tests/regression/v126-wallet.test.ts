@@ -157,3 +157,14 @@ test("W9. shop: «ژتون» menu is ONE message edited in place; wallet screen 
   await h.callback(7, "shop:home");
   assert.equal(h.of("sendMessage", 7).length, sentBefore, "no new message was sent while browsing");
 });
+
+test("W-streak (v1.29.7). failed runs are counted in a row, and the first successful run resets the counter", async () => {
+  mode = "timeout";
+  for (let i = 0; i < 3; i++) await dep.syncWalletDeposits(api() as any, { force: true });
+  assert.equal(col("wallet_sync").byId("cursor").errorStreak, 3);
+  assert.equal(col("wallet_sync").byId("cursor").lastError, "NETWORK");
+  mode = "ok";
+  await dep.syncWalletDeposits(api() as any, { force: true });
+  assert.equal(col("wallet_sync").byId("cursor").errorStreak, 0);
+  assert.equal(col("wallet_sync").byId("cursor").lastError, undefined);
+});

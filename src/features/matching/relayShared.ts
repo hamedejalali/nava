@@ -1,6 +1,7 @@
 import type { NavaContext } from "../../bot-context.js";
 import { getSession, otherParticipant, type ChatSessionDoc } from "../../db/models/chatSession.js";
 import { setActiveChatSession } from "../../db/models/user.js";
+import { enforceAgeBandOnSession } from "../../services/ageChangeCleanup.js";
 
 /**
  * Shared "is this user actually in a live chat, and who's the partner"
@@ -31,6 +32,10 @@ export async function getActiveSessionAndPartner(
 
   const partnerId = otherParticipant(session, ctx.from!.id);
   if (!partnerId) return null;
+
+  // v1.29.8 (audit A-03): the age-band policy is re-checked from the database before EVERY relayed message, so a chat that was allowed
+  // when it started cannot continue after an approved age change moved one side across the minor / adult line.
+  if (await enforceAgeBandOnSession(ctx.api, session._id, ctx.from!.id)) return null;
 
   return { session, partnerId };
 }

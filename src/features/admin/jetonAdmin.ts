@@ -1,7 +1,8 @@
 import type { Composer } from "grammy";
 import type { NavaContext } from "../../bot-context.js";
 import { cancelKeyboard } from "../common/userFlows.js";
-import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
+import { glassButton, glassReplyButton, inlineKeyboard, replyKeyboard } from "../../ui/keyboard.js";
+import { ADMIN_CATEGORY_LABELS, ADMIN_MENU_LABELS } from "./menu.js";
 import { getDb } from "../../db/connect.js";
 import { toAsciiDigits } from "../../utils/digits.js";
 import { isOwner } from "./constants.js";
@@ -28,14 +29,18 @@ interface Data {
   messages?: string[];
 }
 
+/** v1.29.7: the options live on the panel's reply keyboard (like every other panel topic). The back button is the panel's own «↩️ بازگشت به پنل»
+ *  (so the keyboard is recognised as an admin keyboard and is restored correctly after a cancelled step). */
 export function jetonMenu() {
+  const L = ADMIN_MENU_LABELS;
   return {
     text: "🪙 مدیریت ژتون — یکی رو انتخاب کن 👇",
-    reply_markup: inlineKeyboard([
-      [glassButton("😴 ارسال به کم‌فعالیت‌ها", `${P}inactive`, "primary")],
-      [glassButton("👫 ارسال بر اساس جنسیت", `${P}gender`, "primary")],
-      [glassButton("🎯 ارسال به کاربر / کاربران مشخص", `${P}users`, "primary")],
-      [glassButton("➕➖ تعدیل دستی یک کاربر", "admin:relic", "success")],
+    reply_markup: replyKeyboard([
+      [glassReplyButton(L.jetonInactive, "primary")],
+      [glassReplyButton(L.jetonGender, "primary")],
+      [glassReplyButton(L.jetonUsers, "primary")],
+      [glassReplyButton(L.jetonManual, "success")],
+      [glassReplyButton(ADMIN_CATEGORY_LABELS.back, "danger")],
     ]),
   };
 }
@@ -94,6 +99,21 @@ async function run(ctx: NavaContext, jobId: string) {
   }
 }
 
+async function startMode(ctx: NavaContext, act: "inactive" | "users" | "gender") {
+  const id = ctx.from!.id;
+  if (act === "inactive") {
+    await save(id, "days", { mode: "inactive" });
+    await ctx.reply("کاربرانی که چند روز اخیر فعالیت نداشتن؟ تعداد روز رو بفرست (مثلاً 7):", { reply_markup: cancelKeyboard() });
+  } else if (act === "users") {
+    await save(id, "ids", { mode: "users" });
+    await ctx.reply("آیدی عددی کاربر یا کاربرها رو بفرست (هر کدوم تو یک خط، یا با فاصله / ویرگول جدا):", { reply_markup: cancelKeyboard() });
+  } else {
+    await save(id, "gender", { mode: "gender" });
+    // a list of choices → glass inline buttons; the red cancel stays on the reply keyboard (it is not replaced by this inline message)
+    await ctx.reply("برای کدوم جنسیت؟", { reply_markup: inlineKeyboard([[glassButton("👧 دختر", `${P}g:female`, "danger"), glassButton("👦 پسر", `${P}g:male`, "primary")], [glassButton("❌ لغو", `${P}cancel`, "danger")]]) });
+  }
+}
+
 export function registerAdminJeton(composer: Composer<NavaContext>) {
   composer.callbackQuery(new RegExp(`^${P}(inactive|users|gender|nomsg|add2|skip2|confirm|cancel)$`), async (ctx) => {
     if (!isOwner(ctx)) return void (await ctx.answerCallbackQuery().catch(() => {}));
@@ -105,21 +125,7 @@ export function registerAdminJeton(composer: Composer<NavaContext>) {
       await ctx.editMessageText("لغو شد.").catch(() => {});
       return;
     }
-    if (act === "inactive") {
-      await save(id, "days", { mode: "inactive" });
-      await ctx.reply("کاربرانی که چند روز اخیر فعالیت نداشتن؟ تعداد روز رو بفرست (مثلاً 7):", { reply_markup: cancelKeyboard() });
-      return;
-    }
-    if (act === "users") {
-      await save(id, "ids", { mode: "users" });
-      await ctx.reply("آیدی عددی کاربر یا کاربرها رو بفرست (هر کدوم تو یک خط، یا با فاصله / ویرگول جدا):", { reply_markup: cancelKeyboard() });
-      return;
-    }
-    if (act === "gender") {
-      await save(id, "gender", { mode: "gender" });
-      await ctx.reply("برای کدوم جنسیت؟", { reply_markup: inlineKeyboard([[glassButton("👧 دختر", `${P}g:female`, "danger"), glassButton("👦 پسر", `${P}g:male`, "primary")]]) });
-      return;
-    }
+    if (act === "inactive" || act === "users" || act === "gender") return void (await startMode(ctx, act));
     const flow = await getAdminFlow(id);
     if (!flow || flow.flow !== FLOW) return void (await ctx.reply("این مرحله دیگه فعال نیست؛ از «🪙 مدیریت ژتون» دوباره شروع کن."));
     const d = (flow.data ?? {}) as Data;
@@ -158,9 +164,15 @@ export function registerAdminJeton(composer: Composer<NavaContext>) {
 
   composer.on("message:text", async (ctx, next) => {
     if (!isOwner(ctx)) return next();
+    const t0 = ctx.message.text.trim();
+    const L = ADMIN_MENU_LABELS;
+    if (t0 === L.jetonInactive || t0 === L.jetonGender || t0 === L.jetonUsers) {
+      await startMode(ctx, t0 === L.jetonInactive ? "inactive" : t0 === L.jetonGender ? "gender" : "users");
+      return;
+    }
     const flow = await getAdminFlow(ctx.from!.id);
     if (!flow || flow.flow !== FLOW) return next();
-    const text = ctx.message.text.trim();
+    const text = t0;
     if (isFlowCancelSignal(text)) {
       await setAdminFlow(ctx.from!.id, null);
       if (text.startsWith("/")) return next();

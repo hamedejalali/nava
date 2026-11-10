@@ -198,7 +198,9 @@ test("B1. admin panel «🏅 بج‌ها»: enter a numeric id, toggle badges fr
   await h.text(OWNER_ID, "99999");
   assert.ok(h.of("sendMessage", OWNER_ID).some((c: any) => /پیدا نشد/.test(String(c.payload.text))));
   await h.text(OWNER_ID, "11");
-  const kb = h.last("sendMessage", OWNER_ID)!.payload.reply_markup.inline_keyboard.flat();
+  // v1.29.7: the id prompt now shows the red cancel keyboard, so the panel keyboard is restored by a message that comes AFTER the picker
+  const picker = h.of("sendMessage", OWNER_ID).filter((c: any) => c.payload.reply_markup?.inline_keyboard).at(-1)!;
+  const kb = picker.payload.reply_markup.inline_keyboard.flat();
   const crown = kb.find((b: any) => /شش‌ضلعی طلایی/.test(b.text));
   assert.ok(crown, "badge buttons shown");
   await h.callback(OWNER_ID, crown.callback_data);

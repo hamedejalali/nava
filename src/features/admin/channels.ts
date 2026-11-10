@@ -49,8 +49,9 @@ async function renderChannelsScreen(ctx: NavaContext) {
       ? "هیچ کانالی تنظیم نشده."
       : channels.map((c, i) => `${i + 1}. ${c.isActive ? "✅" : "⛔"} ${c.title} (${c.handle})`).join("\n");
 
+  // v1.29.7: each button names its channel (before, every row read just «غیرفعال کردن / حذف» and you could not tell which one it touched)
   const rows = channels.map((c) => [
-    glassButton(c.isActive ? "غیرفعال کردن" : "فعال کردن", `${CB.toggle}${c._id}`, c.isActive ? "danger" : "success"),
+    glassButton(`${c.isActive ? "✅" : "⛔"} ${String(c.title).slice(0, 22)}`, `${CB.toggle}${c._id}`, c.isActive ? "success" : "danger"),
     glassButton("🗑 حذف", `${CB.remove}${c._id}`, "danger"),
   ]);
 
@@ -58,7 +59,7 @@ async function renderChannelsScreen(ctx: NavaContext) {
     rows.push([glassButton("➕ افزودن کانال", CB.add, "primary")]);
   }
 
-  await ctx.reply(`کانال‌های جوین اجباری:\n\n${lines}`, { reply_markup: inlineKeyboard(rows) });
+  await ctx.reply(`کانال‌های جوین اجباری:\n\n${lines}\n\n(دکمه‌ی نام کانال = روشن/خاموش کردنش)`, { reply_markup: inlineKeyboard(rows) });
 }
 
 export function registerAdminChannels(composer: Composer<NavaContext>) {

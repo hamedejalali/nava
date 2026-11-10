@@ -171,7 +171,7 @@ test("P10. collectOps counts overdue deliveries / stale leases / payment excepti
 test("P11. conditions: missing CRON_SECRET, stale cron, backlog, stale leases, payments — and a never-run cron is NOT an outage", () => {
   const th = { jobBacklog: 20, apiErrorRatePct: 20, apiMinRequests: 10, apiAvgLatencyMs: 2500 };
   const base: any = { cron: { secretConfigured: true, lastRun: { "expire-searches": NOW.toISOString(), "process-broadcasts": null } }, jobs: { available: true, value: { matchDeliveriesOverdue: 0, matchDeliveriesStaleLease: 0, searchNoticesOverdue: 0, searchNoticesStaleLease: 0, broadcastJobsStale: 0, jetonJobsStale: 0, capped: false } },
-    payments: { available: true, value: { starsExceptions24h: 0, walletUnmatched: 0, walletUnnotifiedOver15min: 0, walletSyncFailing: false, capped: false } }, api: { available: false, reason: "x" }, rum: { available: false, reason: "x" } };
+    payments: { available: true, value: { starsExceptions24h: 0, walletUnmatched: 0, walletUnnotifiedOver15min: 0, walletSyncFailing: false, walletSyncError: null, capped: false } }, api: { available: false, reason: "x" }, rum: { available: false, reason: "x" } };
   assert.deepEqual(Ops.evaluateOps(base, th, NOW), [], "healthy + never-run cron = silent");
   const noSecret = Ops.evaluateOps({ ...base, cron: { secretConfigured: false, lastRun: {} } }, th, NOW);
   assert.deepEqual(noSecret.map((c) => c.key), ["cron_secret_missing"]);
@@ -179,7 +179,7 @@ test("P11. conditions: missing CRON_SECRET, stale cron, backlog, stale leases, p
   const stale = Ops.evaluateOps({ ...base, cron: { secretConfigured: true, lastRun: { "expire-searches": ago(40 * 3600_000).toISOString(), "process-broadcasts": null } } }, th, NOW);
   assert.deepEqual(stale.map((c) => c.key), ["cron_stale:expire-searches"]);
   const bad = Ops.evaluateOps({ ...base, jobs: { available: true, value: { ...base.jobs.value, matchDeliveriesOverdue: 25, broadcastJobsStale: 1 } },
-    payments: { available: true, value: { starsExceptions24h: 2, walletUnmatched: 1, walletUnnotifiedOver15min: 1, walletSyncFailing: true, capped: false } },
+    payments: { available: true, value: { starsExceptions24h: 2, walletUnmatched: 1, walletUnnotifiedOver15min: 1, walletSyncFailing: true, walletSyncError: "NETWORK", capped: false } },
     api: { available: true, value: { last5min: { requests: 50, errors: 20, errorRatePct: 40, avgLatencyMs: 4000, maxLatencyMs: 9000, slowOver1s: 30 }, last60min: {} } } }, th, NOW).map((c) => c.key).sort();
   assert.deepEqual(bad, ["api_error_rate", "api_slow", "job_backlog", "stale_leases", "stars_exceptions", "wallet_sync", "wallet_unmatched", "wallet_unnotified"].sort());
 });
@@ -189,7 +189,7 @@ test("P12. notification-storm guard: at most 3 alerts per evaluation, each condi
   // force many conditions at once
   snap.database = { available: false, reason: "x" };
   snap.ops = { available: true, value: { cron: { secretConfigured: false, lastRun: {} }, jobs: { available: true, value: { matchDeliveriesOverdue: 99, matchDeliveriesStaleLease: 1, searchNoticesOverdue: 0, searchNoticesStaleLease: 0, broadcastJobsStale: 0, jetonJobsStale: 0, capped: false } },
-    payments: { available: true, value: { starsExceptions24h: 1, walletUnmatched: 1, walletUnnotifiedOver15min: 1, walletSyncFailing: true, capped: false } }, api: { available: false, reason: "x" }, rum: { available: false, reason: "x" } } };
+    payments: { available: true, value: { starsExceptions24h: 1, walletUnmatched: 1, walletUnnotifiedOver15min: 1, walletSyncFailing: true, walletSyncError: "NETWORK", capped: false } }, api: { available: false, reason: "x" }, rum: { available: false, reason: "x" } } };
   const sentTexts: string[] = [];
   const first = await M.runAlertCheck({ now: () => NOW, send: async (t) => { sentTexts.push(t); } }, snap);
   assert.equal(first.length, 3, "capped");

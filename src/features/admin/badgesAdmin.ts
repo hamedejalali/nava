@@ -4,6 +4,7 @@ import { BADGES, MAX_BADGES, cleanBadges } from "../../config/badges.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { getUser } from "../../db/models/user.js";
 import { setBadgesById } from "../../services/nava/staffMod.js";
+import { cancelKeyboard } from "../common/userFlows.js";
 import { isAdmin } from "./constants.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
@@ -38,7 +39,7 @@ export function registerAdminBadges(composer: Composer<NavaContext>) {
     const text = ctx.message.text.trim();
     if (text === ADMIN_MENU_LABELS.badges) {
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "await_id" });
-      await ctx.reply("آیدی عددی تلگرام کاربر رو بفرست (برای لغو: /cancel):");
+      await ctx.reply("آیدی عددی تلگرام کاربر رو بفرست (برای لغو دکمه‌ی قرمز «❌ لغو» رو بزن):", { reply_markup: cancelKeyboard() });
       return;
     }
     const flow = await getAdminFlow(ctx.from!.id);

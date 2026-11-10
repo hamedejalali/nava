@@ -1,0 +1,20 @@
+# v1.29.8 — release gate in CI (audit A-09). Runs the same single command as locally; it does not deploy anything and uses no secrets.
+# The tests use fake MongoDB / Telegram: a green run is NOT proof of real infrastructure behaviour (see docs/RELEASE_PROCESS.md).
+name: verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm run verify:ci

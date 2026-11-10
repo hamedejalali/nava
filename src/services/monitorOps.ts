@@ -94,7 +94,7 @@ export interface OpsSnapshot {
     matchDeliveriesOverdue: number; matchDeliveriesStaleLease: number; searchNoticesOverdue: number; searchNoticesStaleLease: number;
     broadcastJobsStale: number; jetonJobsStale: number; capped: boolean;
   }>;
-  payments: Metric<{ starsExceptions24h: number; walletUnmatched: number; walletUnnotifiedOver15min: number; walletSyncFailing: boolean; capped: boolean }>;
+  payments: Metric<{ starsExceptions24h: number; walletUnmatched: number; walletUnnotifiedOver15min: number; walletSyncFailing: boolean; walletSyncError: string | null; capped: boolean }>;
   api: Metric<{ last5min: ApiWindow; last60min: ApiWindow }>;
   rum: Metric<{ last24h: RumWindow }>;
 }
@@ -167,8 +167,15 @@ export async function collectOps(now: Date, env: { CRON_SECRET?: string } = proc
         count(db, "wallet_deposits", { notifiedAt: { $exists: false }, creditedAt: { $lte: t(15 * min) } }),
         db.collection<any>("wallet_sync").findOne({ _id: "cursor" } as any),
       ]);
-      const failing = !!(sync?.lastErrorAt && (!sync.lastOkAt || new Date(sync.lastErrorAt) > new Date(sync.lastOkAt)) && new Date(sync.lastErrorAt) >= t(6 * 60 * min));
-      return ok({ starsExceptions24h: ex, walletUnmatched: um, walletUnnotifiedOver15min: un, walletSyncFailing: failing, capped: [ex, um, un].some((x) => x >= COUNT_CAP) });
+      // v1.29.7: a lone timeout is normal (the next run just asks again) — alert only after 3 failed runs in a row, the last one recent,
+      // and no successful run in the last 30 minutes.
+      const failing = !!(
+        sync?.lastErrorAt && (sync.errorStreak ?? 1) >= 3 &&
+        (!sync.lastOkAt || new Date(sync.lastErrorAt) > new Date(sync.lastOkAt)) &&
+        new Date(sync.lastErrorAt) >= t(6 * 60 * min) && (!sync.lastOkAt || new Date(sync.lastOkAt) < t(30 * min))
+      );
+      const walletSyncError = failing && typeof sync?.lastError === "string" ? String(sync.lastError).slice(0, 64) : null;
+      return ok({ starsExceptions24h: ex, walletUnmatched: um, walletUnnotifiedOver15min: un, walletSyncFailing: failing, walletSyncError, capped: [ex, um, un].some((x) => x >= COUNT_CAP) });
     } catch { return na("payment counters unreadable"); }
   })();
 
@@ -189,6 +196,19 @@ export interface OpsThresholds { jobBacklog: number; apiErrorRatePct: number; ap
 export interface OpsCondition { key: string; text: string; cooldownMs: number }
 
 /** Long cooldowns for conditions that do not change minute to minute (a missing secret is the same problem tomorrow): no notification storms. */
+/** Plain-Persian explanation of a failing wallet sync: what it means, what it affects, what to do. */
+export function walletSyncText(code: string | null): string {
+  const c = (code ?? "").toUpperCase();
+  let why: string; let fix: string;
+  if (c === "NETWORK") { why = "سرور ولت چند بار پشت‌سرهم جواب نداد (timeout یا قطعی شبکه)."; fix = "معمولاً خودش درست می‌شود. اگر بیشتر از یک ساعت ماند، وضعیت سرویس ولت را چک کن."; }
+  else if (c.includes("401") || c.includes("UNAUTH") || c.includes("403") || c.includes("FORBID") || c.includes("SIGNATURE")) { why = "ولت اطلاعات اتصال ربات را قبول نمی‌کند (احراز هویت رد شد)."; fix = "در Vercel مقدارهای WALLET_INTEGRATION_ID و WALLET_API_SECRET را با پنل ولت مقایسه کن."; }
+  else if (c.includes("429")) { why = "ولت به‌خاطر تعداد زیاد درخواست موقتاً ربات را محدود کرده است."; fix = "معمولاً بعد از چند دقیقه خودش درست می‌شود."; }
+  else if (/HTTP_5\d\d/.test(c)) { why = "سرور ولت خطای داخلی داده است."; fix = "مشکل از سمت ولت است؛ بعداً دوباره بررسی می‌شود."; }
+  else if (c === "BAD_RESPONSE") { why = "جواب ولت قابل فهم نبود (فرمت غیرمنتظره)."; fix = "اگر ادامه پیدا کرد، آدرس/نسخه‌ی API ولت را چک کن."; }
+  else { why = `ولت خطای نامشخص داد${code ? ` (کد: ${code})` : ""}.`; fix = "لاگ‌های Vercel را ببین."; }
+  return `🔴 دریافت خودکار واریزهای ولت چند بار پشت‌سرهم ناموفق بود.\nعلت: ${why}\nاثر: واریز جدید کاربران فعلاً خودکار به حسابشان اضافه نمی‌شود. چیزی گم نمی‌شود و بعد از رفع مشکل همه‌ی واریزها خودکار ثبت می‌شوند.\nکار لازم: ${fix}`;
+}
+
 export function evaluateOps(o: OpsSnapshot, th: OpsThresholds, now: Date): OpsCondition[] {
   const out: OpsCondition[] = [];
   const DAY = 24 * 3600_000;
@@ -210,7 +230,7 @@ export function evaluateOps(o: OpsSnapshot, th: OpsThresholds, now: Date): OpsCo
     if (p.starsExceptions24h > 0) out.push({ key: "stars_exceptions", cooldownMs: 6 * 3600_000, text: `🔴 ${p.starsExceptions24h} پرداخت Stars با خطا/عدم‌تطابق در ۲۴ ساعت اخیر (نیاز به بررسی دستی).` });
     if (p.walletUnmatched > 0) out.push({ key: "wallet_unmatched", cooldownMs: 12 * 3600_000, text: `🔴 ${p.walletUnmatched} واریز کیف پول بدون تطبیق (نیاز به بررسی دستی).` });
     if (p.walletUnnotifiedOver15min > 0) out.push({ key: "wallet_unnotified", cooldownMs: 6 * 3600_000, text: `🟠 ${p.walletUnnotifiedOver15min} واریز اعتبار شده ولی اعلان رسید به کاربر نرسیده.` });
-    if (p.walletSyncFailing) out.push({ key: "wallet_sync", cooldownMs: 6 * 3600_000, text: "🔴 همگام‌سازی واریزهای کیف پول در حال شکست است." });
+    if (p.walletSyncFailing) out.push({ key: "wallet_sync", cooldownMs: 6 * 3600_000, text: walletSyncText(p.walletSyncError) });
   }
   if (o.api.available) {
     const w = o.api.value.last5min;

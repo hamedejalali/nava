@@ -99,6 +99,14 @@ export function registerStarsCheckout(composer: Composer<NavaContext>) {
     // any DB error propagates -> webhook answers 500 -> Telegram redelivers -> fulfilment resumes.
     const outcome = await creditStarsPaymentOnce({ orderId: resolved.orderId, userId: ctx.from!.id, chargeId, relic: resolved.relic, stars: resolved.price });
     if (outcome === "duplicate") return; // duplicate delivery, already credited
+    if (outcome === "user_missing") {
+      const firstTime = await recordStarsPaymentException({ _id: chargeId, userId: ctx.from!.id, amount: payment.total_amount, currency: String(payment.currency), reason: "user_missing", orderId: resolved.orderId });
+      if (firstTime && env.OWNER_ID) {
+        await ctx.api.sendMessage(env.OWNER_ID, `⚠️ پرداخت Stars برای کاربری که حسابش پیدا نشد\nکاربر: ${ctx.from!.id}\nمبلغ: ${payment.total_amount} ${payment.currency}\nکد پرداخت: ${chargeId}\nاعتباری داده نشد؛ نیاز به بررسی/بازپرداخت دستی.`).catch(() => {});
+      }
+      await ctx.reply("پرداختت دریافت شد، ولی حسابت پیدا نشد و ژتونی اضافه نشد. پشتیبانی بررسی می‌کنه 🙏").catch(() => {});
+      return;
+    }
     if (outcome === "order_consumed") {
       // a REAL payment for an order that was already fulfilled by another charge: nothing is credited, evidence is kept for manual refund/reconciliation
       const firstTime = await recordStarsPaymentException({ _id: chargeId, userId: ctx.from!.id, amount: payment.total_amount, currency: String(payment.currency), reason: "order_already_fulfilled", orderId: resolved.orderId });

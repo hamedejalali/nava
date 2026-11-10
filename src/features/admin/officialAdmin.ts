@@ -4,6 +4,7 @@ import { createOfficialAccount } from "../../db/models/seeds.js";
 import { isOwner } from "./constants.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
 import { getAdminFlow, isFlowCancelSignal, setAdminFlow } from "./flowState.js";
+import { cancelKeyboard } from "../common/userFlows.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 
 /** Owner-only «🏛 ساخت اکانت حقوقی»: a legal-entity account, run by the owner exactly like «Nava» (blue tick + gold coin, never a real person).
@@ -16,7 +17,7 @@ export function registerOfficialAdmin(composer: Composer<NavaContext>) {
     const text = ctx.message.text.trim();
     if (text === ADMIN_MENU_LABELS.officialAdd) {
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "name" });
-      await ctx.reply("نام اکانت حقوقی رو بفرست (مثلاً «پشتیبانی مویا»). برای لغو: /cancel");
+      await ctx.reply("نام اکانت حقوقی رو بفرست (مثلاً «پشتیبانی مویا»). برای لغو دکمه‌ی قرمز «❌ لغو» رو بزن.", { reply_markup: cancelKeyboard() });
       return;
     }
     const flow = await getAdminFlow(ctx.from!.id);
@@ -31,7 +32,7 @@ export function registerOfficialAdmin(composer: Composer<NavaContext>) {
       const name = text.replace(/\s+/g, " ").slice(0, 32);
       if (name.length < 2) return void (await ctx.reply("نام خیلی کوتاهه. دوباره بفرست."));
       await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "photo", data: { name } });
-      await ctx.reply("حالا عکس پروفایل رو بفرست (یا بنویس «رد» تا بعداً از مینی‌اپ بذاری).");
+      await ctx.reply("حالا عکس پروفایل رو بفرست (یا بنویس «رد» تا بعداً از مینی‌اپ بذاری).", { reply_markup: cancelKeyboard() });
       return;
     }
     if (flow.stage === "photo") {

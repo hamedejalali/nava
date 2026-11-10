@@ -22,6 +22,10 @@ export const ADMIN_MENU_LABELS = {
   search: "🔎 جستجوی کاربر",
   fullProfile: "👤 پروفایل کامل کاربر",
   relic: "🪙 مدیریت ژتون",
+  jetonInactive: "😴 ارسال به کم‌فعالیت‌ها",
+  jetonGender: "👫 ارسال بر اساس جنسیت",
+  jetonUsers: "🎯 ارسال به کاربر مشخص",
+  jetonManual: "➕➖ تعدیل دستی یک کاربر",
   level: "⭐ مدیریت Level",
   moderators: "🛡️ مدیریت Moderator / Admin",
   stats: "📊 آمار ربات",
@@ -83,6 +87,10 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.vars,
   ADMIN_MENU_LABELS.adminAccess,
   ADMIN_MENU_LABELS.officialAdd,
+  ADMIN_MENU_LABELS.jetonInactive,
+  ADMIN_MENU_LABELS.jetonGender,
+  ADMIN_MENU_LABELS.jetonUsers,
+  ADMIN_MENU_LABELS.jetonManual,
 ];
 
 /** Admin panel (v1.27): the main keyboard is SHORT — one button per topic. A topic opens a sub-keyboard made of the very

@@ -1,3 +1,4 @@
+import { enforceAgeBandOnSession } from "../../services/ageChangeCleanup.js";
 import { sendRestore } from "../common/keyboardState.js";
 import { isAdmin } from "../admin/constants.js";
 import type { Composer } from "grammy";
@@ -346,6 +347,9 @@ async function handleAdminDecision(ctx: NavaContext, requestId: string, decision
       await usersCollectionDirectSet(request.telegramId, { nickname: request.newValue });
     } else {
       await usersCollectionDirectSet(request.telegramId, { age: Number(request.newValue) });
+      // v1.29.8 (A-03): an approved age change may put the person in the other age band → end a running chat that is no longer allowed
+      const moved = await getUser(request.telegramId).catch(() => null);
+      if (moved?.activeChatSessionId) await enforceAgeBandOnSession(ctx.api, moved.activeChatSessionId, request.telegramId);
     }
     await ctx.api.sendMessage(request.telegramId, "✅ درخواست تغییر پروفایلت توسط ادمین تایید و اعمال شد.").catch(() => {});
   } else {

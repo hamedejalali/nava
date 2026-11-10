@@ -23,7 +23,7 @@ export async function closeSessionAtomic(
   sessionId: string,
   endedBy: number,
   refundFor: (session: ChatSessionDoc) => number[],
-  reason: "user_end" | "undelivered" | "banned" = "user_end",
+  reason: "user_end" | "undelivered" | "banned" | "age_band" = "user_end",
 ): Promise<CloseResult> {
   const db = await getDb();
   const sessions = db.collection<ChatSessionDoc>("chat_sessions");
