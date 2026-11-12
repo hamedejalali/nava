@@ -734,6 +734,31 @@
       }).catch(NG.netErr);
     }).catch(NG.netErr);
   };
+  /** opened from an inline invite (?go=ig_<token>): the host opens the table, the other player sits down; waits (polling) while the host has not entered yet */
+  NG.enterInvite = function (token) {
+    var timer = null, closeSheet = null, dead = false, tries = 0;
+    function stop() { dead = true; clearTimeout(timer); }
+    function showWait() {
+      closeSheet = NG.sheet('<div class="shd">منتظر دعوت‌کننده</div><div class="ctx">به‌محض اینکه نفر اول وارد بازی بشه، میز باز می‌شه و بازی شروع می‌شه. این صفحه رو نبند 🎲</div><div class="more-spin" style="margin:14px auto"><div class="spin"></div></div>', null, { onClose: stop });
+    }
+    function attempt(first) {
+      if (dead) return;
+      NG.api("game_invite", { token: token }).then(function (r) {
+        if (dead) return;
+        if (r.ok && r.data && r.data.gid) { stop(); if (closeSheet) closeSheet(); return openBoard(r.data.gid, r.data); }
+        var er = r.data && r.data.error;
+        if (er === "waiting_host") {
+          if (first) showWait();
+          if (++tries > 150) { stop(); if (closeSheet) closeSheet(); return NG.toast("دعوت‌کننده هنوز وارد بازی نشده؛ بعداً دوباره دکمه‌ی دعوت رو بزن."); }
+          timer = setTimeout(attempt, 4000); return;
+        }
+        stop(); if (closeSheet) closeSheet();
+        if (guestStop(r)) return;
+        NG.toast(er === "not_found" ? "این بازی دیگه در دسترس نیست." : NG.errText(r));
+      }).catch(function (e) { stop(); NG.netErr(e); });
+    }
+    attempt(true);
+  };
   NG.gamesForget = function (gid) { if (prevGames) delete prevGames[gid]; };
   function announceFinished(gid) {
     NG.api("game_state", { gid: gid }).then(function (r) {

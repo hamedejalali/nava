@@ -4,7 +4,7 @@ import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassReplyButton, replyKeyboard, styleForIndex, toRows } from "../../ui/keyboard.js";
 import { citiesForProvince, isValidCityForProvince } from "../../data/cities.js";
 import { setCityOnce, setCityPageIndex } from "../../db/models/user.js";
-import { showNicknameStep } from "./nickname.js";
+import { showNicknameStep, completeOnboardingWithNickname, isValidEnglishNickname } from "./nickname.js";
 import { deletePreviousPrompt, recordPrompt } from "../../utils/prompts.js";
 
 const COLUMNS = 2;
@@ -70,6 +70,12 @@ export function registerCityHandlers(composer: Composer<NavaContext>) {
     if (result.status !== "saved") return;
 
     await deletePreviousPrompt(ctx);
+    // v1.30.0: a person who already gave an English name (invite flow) is not asked again
+    const known = (result.user as any).nickname;
+    if (typeof known === "string" && isValidEnglishNickname(known)) {
+      await completeOnboardingWithNickname(ctx, known.trim());
+      return;
+    }
     await showNicknameStep(ctx, ctx.userLang);
   });
 }

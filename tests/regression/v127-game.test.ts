@@ -2,7 +2,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHarness, resetState } from "../harness/fakeTelegram.js";
-import { seedUser } from "../harness/fakeMongo.js";
+import { seedUser} from "../harness/fakeMongo.js";
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com/miniapp/", OWNER_ID: "1" });
 // these tests cover the settlement code of staked games (tables opened before stakes were switched off in v1.28.0)
@@ -18,7 +18,7 @@ beforeEach(() => {
   h.resetCalls();
   resetAppVarsCache();
   user(7, "علی");
-  user(8, "حامد");
+  user(8, "Hamed");
 });
 
 test("V1. the HOST opening his own link is NOT told «your friend invited you»", async () => {
@@ -37,7 +37,7 @@ test("V2. a friend gets the invitation text with the host's name and the stake",
   await h.text(7, `/start g_${view.gid}`);
   await h.settle();
   const all = h.of("sendMessage", 7).map((c) => String(c.payload.text)).join("\n");
-  assert.ok(all.includes("حامد") && all.includes("دعوت کرده"), all);
+  assert.ok(all.includes("Hamed") && all.includes("دعوت کرده"), all);
   assert.ok(all.includes("ژتون روی میز"), all);
 });
 

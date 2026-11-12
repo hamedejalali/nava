@@ -945,3 +945,9 @@ button:active>.ring,.story:active .ring{transform:scale(.93)}
   54%,100%{transform:rotateX(336deg) rotateY(388deg) rotateZ(0deg) translateY(0)}
 }
 @media (prefers-reduced-motion:reduce){.dice .cube{animation:none}}
+
+/* v1.30.0 — «complete your information» page for tabs a not-yet-registered person can see */
+.gcard{margin:auto;max-width:340px;padding:28px 22px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center;border-radius:22px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 30px rgba(0,0,0,.18);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.gcard-ic{font-size:52px;line-height:1}.gcard h3{margin:0;font-size:19px}.gcard-sub{font-weight:700;color:var(--text)}
+.gcard p{margin:0;color:var(--muted);line-height:1.9}.gcard-hint{font-size:13px;color:var(--muted);background:rgba(255,255,255,.06);border-radius:12px;padding:8px 10px;line-height:1.8}
+.gcard .btn{width:100%;margin-top:4px}

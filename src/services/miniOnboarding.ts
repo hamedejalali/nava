@@ -5,7 +5,7 @@ import { healOwnerIdentity } from "./nava/common.js";
 import { grantProfileCompletionRewardOnce } from "../db/models/relic.js";
 import { PROVINCES } from "../data/provinces.js";
 import { citiesForProvince, isValidCityForProvince } from "../data/cities.js";
-import { isValidPersianNickname } from "../features/onboarding/nickname.js";
+import { isValidEnglishNickname } from "../features/onboarding/nickname.js";
 import { MAX_AGE, MIN_AGE } from "../features/matching/profileEdit.js";
 import { dictionary } from "../i18n/index.js";
 import { buildMainMenuReplyKeyboard } from "../features/menu/mainMenu.js";
@@ -75,7 +75,7 @@ export async function onboardSave(tg: TelegramWebAppUser, input: OnboardInput, a
   if (!Number.isInteger(ageN) || ageN < MIN_AGE || ageN > MAX_AGE) return { status: "invalid", field: "age" };
   if (typeof input.province !== "string" || !PROVINCES.some((p) => p.id === input.province)) return { status: "invalid", field: "province" };
   if (typeof input.city !== "string" || !isValidCityForProvince(input.city, input.province)) return { status: "invalid", field: "city" };
-  if (typeof input.nickname !== "string" || !isValidPersianNickname(input.nickname)) return { status: "invalid", field: "nickname" };
+  if (typeof input.nickname !== "string" || !isValidEnglishNickname(input.nickname)) return { status: "invalid", field: "nickname" };
 
   const u = await ensureUser(tg);
   if (u.banned) return { status: "banned" };

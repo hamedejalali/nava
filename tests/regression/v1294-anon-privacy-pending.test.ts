@@ -341,7 +341,7 @@ test("L9. recovery point: a finished user whose continuation was interrupted get
 
 /* ============================================================== F-23 */
 const tgUser = (id: number) => ({ id, first_name: "N" }) as any;
-const goodInput = { gender: "male", age: 25, province: province.id, city: city.id, nickname: "علی" };
+const goodInput = { gender: "male", age: 25, province: province.id, city: city.id, nickname: "Ali" };
 
 async function openLinkAsNewUser(id: number, targetId: number) {
   await h.text(id, linkTo(targetId)); // new user: the bot stores the link and starts onboarding

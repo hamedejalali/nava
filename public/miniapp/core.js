@@ -3,7 +3,7 @@
   "use strict";
   var NG = (window.NG = {});
   /** this build's version — the server tells the app its current one (whoami / pulse); a mismatch means an update was released while the app was open */
-  NG.VER = "1.29.8";
+  NG.VER = "1.30.2";
   var tg = (NG.tg = window.Telegram && window.Telegram.WebApp);
   NG.initData = (tg && tg.initData) || "";
   var qs = (NG.qs = new URLSearchParams(location.search));
@@ -132,7 +132,7 @@
     chat_running: "اول چت رو پایان بده.", read_only: "این گفتگو فقط‌خواندنیه.", insufficient: "ژتون کافی نیست",
     forbidden: "اجازه‌ی این کار رو نداری.", comments_off: "کامنت‌ها برای این پست بسته شده.", not_found: "پیدا نشد (ممکنه حذف شده باشه).",
     share_unavailable: "الان اشتراک‌گذاری ممکن نیست.", unavailable: "فعلاً امکانش نیست.", self: "این کار روی خودت ممکن نیست.",
-    bad_gift: "این هدیه در دسترس نیست.", bad_name: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
+    bad_gift: "این هدیه در دسترس نیست.", waiting_host: "دعوت‌کننده هنوز وارد بازی نشده.", bad_name: "نام باید انگلیسی باشه (فقط حروف A-Z، حداکثر ۳۲ حرف).", bad_age: "سن باید عددی بین ۹ تا ۹۹ باشه.",
     same_value: "این مقدار همونیه که الان داری.", pending_request: "یه درخواست در حال بررسی داری.", bio_too_long: "بیوگرافی حداکثر ۳۰۰ کاراکتر.",
     taken: "این یوزرنیم قبلاً انتخاب شده", chat_ended: "این چت تموم شده.", contact_forbidden: "فرستادن آیدی/شماره/لینک تلگرام مجاز نیست.", busy: "الان توی یه بازی/چت دیگه‌ای هستی.", game_limit: "حداکثر ۵ بازی هم‌زمان می‌تونی داشته باشی.", same_opponent: "با این بازیکن همین الان یه بازی در جریان داری.", not_your_turn: "نوبت تو نیست.", illegal_move: "این حرکت مجاز نیست.",  sold_out: "این هدیه‌ی یکتا همین الان به شخص دیگه‌ای فروخته شد."
   };
@@ -188,7 +188,7 @@
   NG.loadLottie = function () {
     if (window.lottie) return Promise.resolve(window.lottie);
     if (!lottieP) lottieP = new Promise(function (ok, no) {
-      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.29.8";
+      var sc = document.createElement("script"); sc.src = "vendor/lottie_light.min.js?v=1.30.2";
       sc.onload = function () { ok(window.lottie); }; sc.onerror = function () { lottieP = null; no(new Error("lottie")); };
       document.head.appendChild(sc);
     });

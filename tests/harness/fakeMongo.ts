@@ -1074,6 +1074,11 @@ export interface SeedUserInput {
 }
 
 /** Inserts a fully-onboarded user straight into the fake DB. */
+/** v1.30.0: fixtures get English names by default (the bot's name gate would otherwise stop them). A test file that checks
+ *  service-level output with Persian display names calls this once at the top (service code has no name gate). */
+let keepPersianNames = false;
+export function keepPersianFixtureNames(): void { keepPersianNames = true; }
+
 export function seedUser(input: SeedUserInput): any {
   const { id, ...rest } = input;
   anonCounter++;
@@ -1088,7 +1093,7 @@ export function seedUser(input: SeedUserInput): any {
     age: 25,
     province: "تهران",
     city: "تهران",
-    nickname: `nick${id}`,
+    nickname: `Nick ${String(id).replace(/\d/g, (d) => "ABCDEFGHIJ"[Number(d)]).replace(/-/g, "M")}`,
     relicBalance: 10,
     relicInitialized: true,
     likesCount: 0,
@@ -1097,6 +1102,13 @@ export function seedUser(input: SeedUserInput): any {
     lastActivityAt: new Date(),
     ...rest,
   };
+  // v1.30.0: real names are English only; fixtures written with Persian names get a plain Latin spelling (pass legacyPersianName: true to keep one)
+  if (!keepPersianNames && !(doc as any).legacyPersianName && typeof doc.nickname === "string" && !/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(doc.nickname)) {
+    const MAP: Record<string, string> = { آ: "A", ا: "A", ب: "B", پ: "P", ت: "T", ث: "S", ج: "J", چ: "C", ح: "H", خ: "K", د: "D", ذ: "Z", ر: "R", ز: "Z", ژ: "J", س: "S", ش: "S", ص: "S", ض: "Z", ط: "T", ظ: "Z", ع: "A", غ: "G", ف: "F", ق: "G", ک: "K", گ: "G", ل: "L", م: "M", ن: "N", و: "V", ه: "H", ی: "I", "\u200c": " " };
+    const lat = [...doc.nickname].map((c) => MAP[c] ?? (/\d/.test(c) ? "ABCDEFGHIJ"[Number(c)] : /[A-Za-z ]/.test(c) ? c : "")).join("").trim().replace(/ +/g, " ");
+    doc.nickname = lat || "Test";
+  }
+  delete (doc as any).legacyPersianName;
   return col("users").seed(doc);
 }
 

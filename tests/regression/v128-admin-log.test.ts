@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createHarness, resetState, ADMIN_ID } from "../harness/fakeTelegram.js";
-import { seedUser } from "../harness/fakeMongo.js";
+import { seedUser, keepPersianFixtureNames } from "../harness/fakeMongo.js";
+keepPersianFixtureNames();
 
 await createHarness({});
 const { describeAdminAction, ADMIN_ACTIONS } = await import("../../src/services/adminAudit.js");

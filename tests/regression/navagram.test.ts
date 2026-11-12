@@ -4,7 +4,8 @@ import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { createHarness, resetState } from "../harness/fakeTelegram.js";
-import { seedUser, col } from "../harness/fakeMongo.js";
+import { seedUser, col, keepPersianFixtureNames } from "../harness/fakeMongo.js";
+keepPersianFixtureNames();
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com", BOT_USERNAME: "NavaTestBot" });
 const { default: handler } = await import("../../api/miniapp.js");
@@ -438,19 +439,20 @@ test("name & age changes asked in the Mini App follow the bot's rule: owner appr
   assert.equal(bad.payload.error, "bad_name");
   assert.equal((await call(1, { action: "request_change", field: "age", value: 8 })).payload.error, "bad_age");
   assert.equal((await call(1, { action: "request_change", field: "age", value: 100 })).payload.error, "bad_age");
-  assert.equal((await call(1, { action: "request_change", field: "nickname", value: "علی" })).payload.error, "same_value");
+  assert.equal((await call(1, { action: "request_change", field: "nickname", value: "علیرضا" })).payload.error, "bad_name"); // v1.30.0: Persian is no longer accepted
   assert.equal((await call(1, { action: "request_change", field: "phone", value: "1" })).status, 400);
 
   // v1.29.0: a new name is live at once; staff get a copy with ONE «عدم تأیید» button; pressing it gives the old name back
-  const ok = await call(1, { action: "request_change", field: "nickname", value: "علیرضا" });
+  const ok = await call(1, { action: "request_change", field: "nickname", value: "Alireza" });
   assert.equal(ok.payload.status, "applied");
-  assert.equal(col("users").byId(1).nickname, "علیرضا");
+  assert.equal(col("users").byId(1).nickname, "Alireza");
+  assert.equal((await call(1, { action: "request_change", field: "nickname", value: "Alireza" })).payload.error, "same_value");
   const toOwner = sentApi("sendMessage", 900).at(-1)!;
-  assert.match(toOwner.payload.text, /علیرضا/);
+  assert.match(toOwner.payload.text, /Alireza/);
   assert.equal(toOwner.payload.reply_markup.inline_keyboard.flat().length, 1);
   const rejectData = toOwner.payload.reply_markup.inline_keyboard[0][0].callback_data as string;
   assert.match(rejectData, /^admin:editreq:reject:/);
-  assert.equal((await call(2, { action: "profile", id: "user_AAA1" })).payload.profile.name, "علیرضا");
+  assert.equal((await call(2, { action: "profile", id: "user_AAA1" })).payload.profile.name, "Alireza");
   assert.equal((await call(1, { action: "me" })).payload.me.pendingName, null);
   await h.callback(900, rejectData);
   assert.equal(col("users").byId(1).nickname, "علی");
@@ -499,6 +501,8 @@ test("avatars / photos are signed capability URLs; telegram file ids never reach
 /* ===================================================== bot-side fixes */
 
 test("accepted chat request: both people get «chat accepted, you can talk now» — NOT «I found you a partner»", async () => {
+  await col("users").updateOne({ _id: { $in: [1, 2] } } as any, { $set: { nickname: "Ali Test" } });
+  await col("users").updateOne({ _id: 2 } as any, { $set: { nickname: "Sara Test" } });
   const req = await createChatRequest(1, 2);
   assert.equal(req.status, "created");
   const token = (req as any).request._id;

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { setInviteGid } from "./invites.js";
 import { getDb } from "../../db/connect.js";
 import { isBlockedEitherWay } from "../../db/models/blocks.js";
 import { canContact } from "../ageBand.js";
@@ -553,6 +554,34 @@ export async function resign(me: any, gid: unknown): Promise<GameView> {
   await settle(g._id);
   await announceEnd(g._id, me._id);
   return view(me, (await c.findOne({ _id: g._id }))!);
+}
+
+/* ------------------------------------------------------------------ inline invites (v1.30.0) */
+
+/** Seats a person at the table of an inline invite. The HOST opens (or re-opens) a free table; the other person sits down at it.
+ *  Both ways go through the existing create()/join(): blocks, one-open-table, same-opponent and the age-band rule (fresh reads, fail closed). */
+export async function enterInvite(me: any, inv: { _id: string; hostId: number; gid?: string | null }, guest: boolean): Promise<GameView> {
+  await ensureIdx();
+  const c = await games();
+  if (me._id === inv.hostId) {
+    if (inv.gid) {
+      const g = await c.findOne({ _id: inv.gid });
+      if (g && g.status !== "finished" && g.players.includes(me._id)) return view(me, g);
+    }
+    const v = await create(me, 0);
+    await setInviteGid(inv._id, v.gid);
+    return v;
+  }
+  if (!inv.gid) throw new SocialError("waiting_host");
+  const g = await c.findOne({ _id: inv.gid });
+  if (!g || g.status === "finished") throw new SocialError("waiting_host");
+  if (g.players.includes(me._id)) return view(me, g);
+  if (g.status !== "waiting") throw new SocialError("not_found"); // the seat is taken
+  // age separation from FRESH reads of both accounts: invite entrants always have an age on file; unknown / cross-band = neutral «not found»
+  const usersC = await usersCol();
+  const [meNow, host] = await Promise.all([usersC.findOne({ _id: me._id }), usersC.findOne({ _id: g.players[0] })]);
+  if (!meNow || !host || (meNow as any).banned || (host as any).banned || !canContact(meNow as any, host as any)) throw new SocialError("not_found");
+  return join(me, inv.gid, guest);
 }
 
 /* ------------------------------------------------------------------ invite links (v1.27) */

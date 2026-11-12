@@ -4,7 +4,8 @@ import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { createHarness, resetState, OWNER_ID, ADMIN_ID } from "../harness/fakeTelegram.js";
-import { seedUser, col } from "../harness/fakeMongo.js";
+import { seedUser, col, keepPersianFixtureNames } from "../harness/fakeMongo.js";
+keepPersianFixtureNames();
 
 const h = await createHarness({ NAVA_MINIAPP_URL: "https://nava.example.com", BOT_USERNAME: "NavaTestBot" });
 const { default: handler } = await import("../../api/miniapp.js");

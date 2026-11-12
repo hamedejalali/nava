@@ -61,6 +61,8 @@ import { telegramRetryTransformer } from "./ui/telegramRetry.js";
 import { rememberBotUsername } from "./config/botInfo.js";
 import { loadEmojiConfig } from "./db/models/emojiConfig.js";
 import { resumeIfBroken } from "./features/onboarding/repair.js";
+import { enforceEnglishName } from "./features/onboarding/englishName.js";
+import { registerInviteStart, registerInlineGames } from "./features/games/inviteStart.js";
 import { keyboardStateTransformer, restoreKeyboardIfDone } from "./features/common/keyboardState.js";
 import { registerGameShareStart } from "./features/games/shareStart.js";
 import { registerAnonMessages } from "./features/anonMessages/index.js";
@@ -127,6 +129,10 @@ export function createBot(): Bot<NavaContext> {
     // eslint-disable-next-line no-console
     logError("MG-BOT-001", "Index setup failed (will retry on next cold start)", err);
   });
+
+  // v1.30.0: «@bot » → the games list. Registered BEFORE the context enrichment on purpose: typing in an inline box must not create an
+  // account (or a «new user» notice to the admins); it only READS the user (ban / maintenance) and answers.
+  registerInlineGames(bot);
 
   // ---- Context enrichment ----
   // Loads/creates the user's DB record before any feature handler runs, and
@@ -278,6 +284,12 @@ export function createBot(): Bot<NavaContext> {
   });
 
   const features = new Composer<NavaContext>();
+  // ---- v1.30.0: (after the rate limiter, so a spammer costs no reply per message) names are English only; an old non-English name must be changed first (owner/admins exempt) ----
+  bot.use(async (ctx, next) => {
+    if (await enforceEnglishName(ctx)) return;
+    await next();
+  });
+
   bot.use(restoreKeyboardIfDone); // after every handler: bring the main/admin keyboard back once an input step is over
   registerFlowInterrupt(features); // a menu tap / command always ends a pending "waiting for text" step
   registerFlowCancel(features); // the red "❌ لغو" glass button used by every such step
@@ -310,6 +322,7 @@ export function createBot(): Bot<NavaContext> {
   registerChatMediaRelay(features); // stickers/gifs/voice/video/video-notes/audio inside an active chat
   registerChatReactions(features); // mirrors real message_reaction updates onto the original sender's copy
   registerChatRelay(features); // before onboarding: in-chat messages must never be misread as onboarding input
+  registerInviteStart(features); // v1.30.0: /start ig_<token> (inline game invite) + its name/age questions — before the generic /start
   registerGameShareStart(features); // /start g_<gid> (shared game link) before the generic /start
   registerAnonMessages(features); // before onboarding (its /start payload) and before the photo uploader
   registerFeedbackFlow(features);

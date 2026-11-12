@@ -50,7 +50,7 @@ beforeEach(async () => {
   ensureSocialIndexesOnce();
   await ensureChatRequestIndexes();
   await new Promise((r) => setTimeout(r, 20));
-  seedUser({ id: 1, anonId: "user_AAA1", nickname: "علی", relicBalance: 200, relicInitialized: true, miniUsername: "ali", miniUsernameLower: "ali" });
+  seedUser({ id: 1, anonId: "user_AAA1", nickname: "Ali", relicBalance: 200, relicInitialized: true, miniUsername: "ali", miniUsernameLower: "ali" });
   seedUser({ id: 2, anonId: "user_AAA2", nickname: "سارا", relicBalance: 200, relicInitialized: true, miniUsername: "sara", miniUsernameLower: "sara" });
   seedUser({ id: 3, anonId: "user_AAA3", nickname: "نیما", relicBalance: 200, relicInitialized: true });
 });
@@ -62,12 +62,12 @@ test("G1. anonymous gift: receiver sees «ناشناس», no sender name/id anyw
   assert.equal(r.payload.gift.anonymous, true);
   const note = sentApi("sendMessage", 2)[0]!.payload;
   assert.match(note.text, /ناشناس/);
-  assert.doesNotMatch(note.text, /ali|علی/);
+  assert.doesNotMatch(note.text, /ali|Ali/i);
   assert.equal(note.reply_markup, undefined);
   const list = (await call(2, { action: "gifts", id: "user_AAA2" })).payload;
   assert.equal(list.items[0].from, null);
   assert.equal(JSON.stringify(list).includes("user_AAA1"), false);
-  assert.equal(JSON.stringify(list).includes("علی"), false);
+  assert.equal(JSON.stringify(list).includes("Ali"), false);
 });
 
 test("G2. named gift: public id is opaque (no Telegram id inside); notification carries the «پیام به فرستنده» button", async () => {
@@ -82,7 +82,7 @@ test("G2. named gift: public id is opaque (no Telegram id inside); notification 
   assert.match(btn.text, /پیام به فرستنده/);
   const list = (await call(2, { action: "gifts", id: "user_AAA2" })).payload;
   assert.equal(list.items[0].id, pub);
-  assert.equal(list.items[0].from.name, "علی");
+  assert.equal(list.items[0].from.name, "Ali");
 });
 
 test("G3. a UNIQUE gift can be bought only once; a race between two buyers gives it to exactly one and charges once", async () => {

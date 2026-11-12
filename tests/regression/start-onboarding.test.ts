@@ -3,7 +3,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHarness, resetState, OWNER_ID, ADMIN_ID } from "../harness/fakeTelegram.js";
-import { seedUser, col } from "../harness/fakeMongo.js";
+import { seedUser, col} from "../harness/fakeMongo.js";
 
 const h = await createHarness();
 const { fa } = await import("../../src/i18n/locales/fa.js");
@@ -33,7 +33,7 @@ async function completeOnboarding(id: number) {
   await h.text(id, "25");
   await h.text(id, province.nameFa);
   await h.text(id, city.nameFa);
-  await h.text(id, "علی");
+  await h.text(id, "Ali");
 }
 
 test("1. owner sends /start -> admin welcome, no onboarding", async () => {
@@ -59,12 +59,12 @@ test("2. a brand-new non-owner sends /start -> record created + language screen 
 });
 
 test("3. an existing, fully registered non-owner sends /start -> main menu, nothing is reset", async () => {
-  seedUser({ id: NEW, nickname: "قدیمی", languageCode: "fa", relicBalance: 40, relicInitialized: true });
+  seedUser({ id: NEW, nickname: "Old", languageCode: "fa", relicBalance: 40, relicInitialized: true });
   await h.text(NEW, "/start");
   assert.match(lastText(NEW), new RegExp(fa.onboarding.chooseFromMenu.slice(0, 8)));
   const u = user(NEW);
   assert.equal(u.onboardingStep, "COMPLETED");
-  assert.equal(u.nickname, "قدیمی");
+  assert.equal(u.nickname, "Old");
   assert.equal(u.relicBalance, 40);
 });
 
@@ -101,7 +101,7 @@ test("5+6. language -> gender -> age -> province -> city -> nickname completes o
   assert.equal(u.gender, "male");
   assert.equal(u.age, 25);
   assert.equal(u.province, province.id);
-  assert.equal(u.nickname, "علی");
+  assert.equal(u.nickname, "Ali");
   assert.ok(u.relicBalance >= 5);
   const tx = col("relic_transactions").all().filter((t: any) => t.userId === NEW);
   assert.equal(new Set(tx.map((t: any) => t._id)).size, tx.length);

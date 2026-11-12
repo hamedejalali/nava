@@ -6,6 +6,8 @@ import { buttonIcon } from "../../config/emojis.js";
 import { setGenderOnce, type Gender } from "../../db/models/user.js";
 import { GENDER_CALLBACK_PREFIX } from "./constants.js";
 import { showGuide1AndAge } from "./age.js";
+import { showProvinceStep } from "./province.js";
+import { getDb } from "../../db/connect.js";
 import { recordPrompt, deletePreviousPrompt } from "../../utils/prompts.js";
 
 export function buildGenderKeyboard(lang: Parameters<typeof dictionary>[0]) {
@@ -71,6 +73,13 @@ export function registerGenderHandlers(composer: Composer<NavaContext>) {
 
     await ctx.answerCallbackQuery();
     await deletePreviousPrompt(ctx); // removes the gender-question message
+    // v1.30.0: a person who already gave an age (invite flow) skips the guide + age question
+    if (typeof (result.user as any).age === "number") {
+      const db = await getDb();
+      await db.collection<any>("users").updateOne({ _id: ctx.from!.id, onboardingStep: "GUIDE1_SHOWN" }, { $set: { onboardingStep: "AGE_DONE" } });
+      await showProvinceStep(ctx, lang);
+      return;
+    }
     await showGuide1AndAge(ctx, lang);
   });
 }

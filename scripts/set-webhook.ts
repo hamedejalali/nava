@@ -23,7 +23,8 @@ const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     // "message_reaction" is REQUIRED for real in-chat reaction mirroring
     // (v1.8.0, src/features/matching/reactions.ts) — without it Telegram
     // never delivers message_reaction updates at all.
-    allowed_updates: ["message", "callback_query", "pre_checkout_query", "message_reaction"],
+    // "inline_query" (v1.30.0): typing @bot in any chat lists the games (the game-invite flow). Re-run this script after updating.
+    allowed_updates: ["message", "callback_query", "pre_checkout_query", "message_reaction", "inline_query"],
     drop_pending_updates: false,
     // Telegram defaults this to 40 when omitted, and caps in-flight
     // webhook deliveries to this bot at that number — every second a

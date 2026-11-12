@@ -15,9 +15,9 @@ const labels = (id: number) =>
 beforeEach(() => {
   resetState();
   h.resetCalls();
-  user(7, "علی", { gender: "male" });
-  user(8, "سارا");
-  user(9, "مریم", { city: "شیراز", province: "فارس" });
+  user(7, "Ali", { gender: "male" });
+  user(8, "Sara");
+  user(9, "Maryam", { city: "شیراز", province: "فارس" });
   user(10, "نرگس", { banned: true });
 });
 
@@ -38,10 +38,10 @@ test("S2. search by nickname returns only visible users and the red cancel keybo
   assert.equal(prompt.payload.reply_markup.keyboard[0].length, 1);
   assert.ok(String(prompt.payload.reply_markup.keyboard[0][0].text).includes("لغو"));
   h.resetCalls();
-  await h.text(7, "سارا");
+  await h.text(7, "Sara");
   await h.settle();
   const l = labels(7).join("|");
-  assert.ok(l.includes("سارا"), l);
+  assert.ok(l.includes("Sara"), l);
   h.resetCalls();
   await h.text(7, "/start");
   await h.settle();
@@ -59,23 +59,23 @@ test("S4. nearby: same city fallback without a location, distance order with one
   await h.text(7, "افراد نزدیک");
   await h.settle();
   let l = labels(7).join("|");
-  assert.ok(l.includes("سارا") && !l.includes("مریم"), l);
+  assert.ok(l.includes("Sara") && !l.includes("Maryam"), l);
   resetState();
   h.resetCalls();
-  user(7, "علی", { gender: "male", location: { lat: 35.7, lng: 51.4, updatedAt: new Date() } });
-  user(8, "سارا", { location: { lat: 35.8, lng: 51.4, updatedAt: new Date() } });
-  user(9, "مریم", { location: { lat: 29.6, lng: 52.5, updatedAt: new Date() } });
+  user(7, "Ali", { gender: "male", location: { lat: 35.7, lng: 51.4, updatedAt: new Date() } });
+  user(8, "Sara", { location: { lat: 35.8, lng: 51.4, updatedAt: new Date() } });
+  user(9, "Maryam", { location: { lat: 29.6, lng: 52.5, updatedAt: new Date() } });
   await h.text(7, "افراد نزدیک");
   await h.settle();
   l = labels(7).join("|");
-  assert.ok(l.indexOf("سارا") < l.indexOf("مریم"), l);
+  assert.ok(l.indexOf("Sara") < l.indexOf("Maryam"), l);
   assert.ok(l.includes("کیلومتر"), l);
 });
 
 test("S5. profile «درخواست چت» button works: confirm → request reaches the target", async () => {
   await h.text(7, "جستجوی کاربران");
   await h.callback(7, "usr:q");
-  await h.text(7, "سارا");
+  await h.text(7, "Sara");
   await h.callback(7, "usr:v:8");
   await h.settle();
   const kb = h.of("sendPhoto", 7).concat(h.of("sendMessage", 7)).flatMap((c) => (c.payload.reply_markup?.inline_keyboard ?? []).flat()) as any[];

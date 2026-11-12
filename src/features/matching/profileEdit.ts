@@ -8,7 +8,7 @@ import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { PROVINCES } from "../../data/provinces.js";
 import { citiesForProvince, isValidCityForProvince } from "../../data/cities.js";
 import { usersCollectionDirectSet, setUserLocation, getUser } from "../../db/models/user.js";
-import { isValidPersianNickname } from "../onboarding/nickname.js";
+import { isValidEnglishNickname } from "../onboarding/nickname.js";
 import { createEditRequest, decideEditRequest, revokeAppliedEditRequest } from "../../db/models/editRequests.js";
 import {  } from "../admin/constants.js";
 import { getRecipients } from "../../services/channelRouting.js";
@@ -125,7 +125,7 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
   composer.callbackQuery(EDIT_CALLBACKS.requestNickname, async (ctx) => {
     await ctx.answerCallbackQuery();
     await setAwaiting(ctx.from!.id, "nickname_request");
-    await ctx.reply("نام مستعار جدیدی که می‌خوای رو بفرست؛ بلافاصله اعمال میشه.", { reply_markup: cancelKeyboard() });
+    await ctx.reply("نام مستعار جدیدی که می‌خوای رو (فقط حروف انگلیسی) بفرست؛ بلافاصله اعمال میشه.", { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(EDIT_CALLBACKS.requestAge, async (ctx) => {
@@ -204,8 +204,8 @@ export function registerProfileEdit(composer: Composer<NavaContext>) {
     }
 
     if (awaiting === "nickname_request") {
-      if (!isValidPersianNickname(raw)) {
-        await ctx.reply("این نام مستعار معتبر نیست (فقط حروف فارسی، حداکثر ۳۲ کاراکتر).", { reply_markup: cancelKeyboard() });
+      if (!isValidEnglishNickname(raw)) {
+        await ctx.reply("این نام مستعار معتبر نیست (فقط حروف انگلیسی و فاصله، حداکثر ۳۲ کاراکتر).", { reply_markup: cancelKeyboard() });
         return;
       }
       await setAwaiting(ctx.from!.id, null);

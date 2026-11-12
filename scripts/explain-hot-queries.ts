@@ -19,6 +19,8 @@ const cases: Array<[string, Record<string, unknown>, Record<string, 1 | -1>, num
   ["explore tile: latest post of one owner", { ownerId: 1 }, { createdAt: -1 }, 1, "mini_posts"],
   ["dm overview: my mini-app sessions", { origin: "miniapp", $or: [{ userA: 1 }, { userB: 1 }] }, { createdAt: -1 }, 40, "chat_sessions"],
   ["dm overview: last message of a thread", { sessionId: "x", seq: { $gt: 0 } }, { seq: -1 }, 1, "dm_messages"],
+  // v1.30.2: must now show IXSCAN (partial indexes banned_users / seed_hidden_users), not COLLSCAN
+  ["hiddenOwnerIds: banned or hidden members", { $or: [{ banned: true }, { seedHidden: true }] }, { _id: 1 }, 1000, "users"],
   ["feed: my posts newest first", { ownerId: 1 }, { createdAt: -1 }, 20, "mini_posts"],
 ];
 try {

@@ -5,6 +5,7 @@ import { setChannelsExempt } from "../../db/models/user.js";
 import { listActiveChannels } from "../../db/models/channel.js";
 import { isMemberOfAll } from "./guard.js";
 import { FORCE_JOIN_VERIFY_CALLBACK } from "./constants.js";
+import { continueInviteAfterJoin } from "../games/inviteStart.js";
 import { resumePendingAnon } from "../anonMessages/index.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
 
@@ -29,6 +30,9 @@ export function registerForceJoin(composer: Composer<NavaContext>) {
     const t = dictionary(lang);
     const verifiedText = requireLocked(lang, "forceJoin.verifiedMessage", t.forceJoin.verifiedMessage);
     await ctx.reply(verifiedText, { parse_mode: "HTML", reply_markup: buildMainMenuReplyKeyboard(lang) });
+
+    // v1.30.0: continue a game invite (/start ig_<token>) that was waiting for the channels
+    if (await continueInviteAfterJoin(ctx)) return;
 
     // Continue an anonymous-message link the user opened before joining.
     await resumePendingAnon(ctx);

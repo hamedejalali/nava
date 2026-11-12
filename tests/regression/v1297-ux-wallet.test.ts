@@ -3,7 +3,8 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHarness, resetState, OWNER_ID } from "../harness/fakeTelegram.js";
-import { seedUser, col } from "../harness/fakeMongo.js";
+import { seedUser, col, keepPersianFixtureNames } from "../harness/fakeMongo.js";
+keepPersianFixtureNames();
 
 const h = await createHarness({});
 const Ops = await import("../../src/services/monitorOps.js");

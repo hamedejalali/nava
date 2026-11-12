@@ -156,6 +156,12 @@ export async function ensureUserIndexes(): Promise<void> {
     // indexing `verified` for every user) keeps this essentially free on
     // writes for the vast majority of documents.
     { key: { verified: 1, createdAt: -1 }, name: "verified_createdAt", partialFilterExpression: { verified: true } },
+    // v1.30.2 (audit): `hiddenOwnerIds()` (nearly every feed / post / story / profile / follow call) runs
+    // find({ $or: [{ banned: true }, { seedHidden: true }] }). Neither field had an index, so every one of those calls scanned the whole
+    // `users` collection. Partial indexes hold only the (few) banned / hidden accounts → the query becomes two tiny index reads and the
+    // indexes cost nothing on ordinary user writes. Additive; rollback = drop the two indexes (or just redeploy the old version).
+    { key: { banned: 1 }, name: "banned_users", partialFilterExpression: { banned: true } },
+    { key: { seedHidden: 1 }, name: "seed_hidden_users", partialFilterExpression: { seedHidden: true } },
   ]);
   // NOTE: searchUsers() also matches by `nickname` and `username`, which
   // are deliberately left WITHOUT an index — that's a rare, manual,

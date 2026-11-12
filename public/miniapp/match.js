@@ -14,6 +14,21 @@
   }
   NG.openBotForSignup = openBot;
   /** every section except the game and the Matching preview: "register in the bot first" with a «ثبت‌نام» button (opens the bot, closes the mini-app) */
+  /** v1.30.0: what a tab shows to somebody whose profile is not finished yet (instead of a popup): a clear «complete your information» card. */
+  var GUEST_PAGE = {
+    home: ["🏠", "فید و استوری‌ها", "برای دیدن پست‌ها و استوری‌ها و لایک و کامنت، اطلاعاتت (از جمله عکس پروفایل) باید کامل باشه."],
+    explore: ["🧭", "جستجو و کشف آدم‌ها", "برای دیدن پروفایل‌ها و جستجوی کاربران، اطلاعات و عکس پروفایلت باید کامل باشه."],
+    dm: ["💬", "پیام‌ها", "برای پیام دادن و دیدن گفتگوها، اول اطلاعاتت رو کامل کن."],
+    profile: ["👤", "پروفایل من", "پروفایلت هنوز کامل نشده: جنسیت، استان، شهر و عکس پروفایل رو تکمیل کن تا پروفایلت ساخته بشه."],
+  };
+  NG.guestPage = function (page, t) {
+    if (!page || page.getAttribute("data-guest")) return;
+    page.setAttribute("data-guest", "1");
+    var d = GUEST_PAGE[t] || GUEST_PAGE.home;
+    var n = el('<div class="gcard"><div class="gcard-ic">' + d[0] + '</div><h3>اطلاعاتت رو کامل کن</h3><div class="gcard-sub">' + esc(d[1]) + "</div><p>" + esc(d[2]) + '</p><div class="gcard-hint">داخل ربات، دکمه‌ی «▶️ شروع» رو بزن تا مرحله‌ها یکی‌یکی کامل بشن. بازی کردن همین الان هم ممکنه 🎲</div><button class="btn blue tall">رفتن به ربات</button></div>');
+    n.querySelector("button").onclick = function () { NG.haptic("sel"); openBot(); try { Telegram.WebApp.close(); } catch (e) {} };
+    page.innerHTML = ""; page.appendChild(n);
+  };
   NG.guestGate = function (text) {
     NG.confirm("ثبت‌نام لازمه", text || "برای استفاده از این قسمت لطفاً ابتدا در ربات ثبت‌نام کنید.", "ثبت‌نام", function () {
       openBot();

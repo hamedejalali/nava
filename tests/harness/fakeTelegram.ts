@@ -78,6 +78,8 @@ export interface Harness {
   file(userId: number, kind: FileKind, fileId?: string): Promise<number>;
   callback(userId: number, data: string, onMessageId?: number, chatIdOverride?: number): Promise<void>;
   reaction(userId: number, chatId: number, messageId: number, emoji?: string): Promise<void>;
+  /** an inline query typed as «@bot <query>» (v1.30.0) */
+  inline(userId: number, query?: string): Promise<void>;
   /** Make a given Bot API method throw (e.g. 403 blocked by user) for a chat. */
   failFor(method: string, chatId: number, description?: string): void;
   /** Make a Bot API method return a given result (e.g. getAvailableGifts). */
@@ -212,6 +214,10 @@ export async function createHarness(extraEnv: Record<string, string | undefined>
           },
         },
       });
+      await h.settle();
+    },
+    async inline(userId, query = "") {
+      await bot.handleUpdate({ update_id: updateId++, inline_query: { id: `iq-${updateId}`, from: from(userId), query, offset: "" } });
       await h.settle();
     },
     async reaction(userId, chatId, messageId, emoji = "👍") {

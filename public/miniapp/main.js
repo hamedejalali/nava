@@ -55,8 +55,9 @@
   NG.onScreens = function (n) { if (tabbar) tabbar.classList.toggle("away", n > 0); if (NG.setFabAway) NG.setFabAway(n > 0); };
 
   NG.selectTab = function (t, user) {
-    // not registered in the bot yet: only the Matching preview is open; everything else says "register first"
-    if (NG.guest && t !== "match") { NG.haptic("err"); NG.guestGate(); return; }
+    // v1.30.0: a person who has not finished the profile still SEES every tab; where a photo / age / full profile is needed the page is a styled
+    // «complete your information» card (the data itself stays closed on the server). Only the Matching preview shows real cards.
+    if (NG.guest && t !== "match" && NG.guestPage) NG.guestPage(pages[t], t);
     if (user) NG.haptic("sel");
     var pg = pages[t];
     if (t === current && user) {
@@ -77,6 +78,7 @@
     requestAnimationFrame(function () {
       setTimeout(function () {
         if (current !== tt) return;
+        if (NG.guest && tt !== "match") return;
         if (tt === "explore" && !expl.loaded && !expl.loading) loadExplore(true);
         if (tt === "match") { if (!matchV) matchV = NG.matchView(pages.match); else matchV.reload(); }
         if (tt === "dm") { if (!dmV) dmV = NG.dmView(pages.dm); else dmV.reload(); }
@@ -242,6 +244,8 @@
   function deepLink() {
     var sp = "";
     try { sp = (NG.tg && NG.tg.initDataUnsafe && NG.tg.initDataUnsafe.start_param) || NG.qs.get("tgWebAppStartParam") || NG.qs.get("go") || ""; } catch (e) {}
+    var ig = /^ig_([A-Za-z0-9_-]{16})$/.exec(sp);
+    if (ig) { setTimeout(function () { if (NG.enterInvite) NG.enterInvite(ig[1]); }, 500); return; }
     var gm = /^g_([A-Za-z0-9_-]{4,16})$/.exec(sp);
     if (gm) { setTimeout(function () { if (NG.joinGameByLink) NG.joinGameByLink(gm[1]); }, 500); return; }
     var m = /^([pqu])_([A-Za-z0-9_-]{1,64})$/.exec(sp);

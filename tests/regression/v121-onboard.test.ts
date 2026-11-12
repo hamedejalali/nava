@@ -50,7 +50,7 @@ beforeEach(async () => {
   ensureSocialIndexesOnce();
   await new Promise((r) => setTimeout(r, 20));
 });
-const good = { gender: "female", age: 24, province: "تهران", city: "تهران", nickname: "مریم" };
+const good = { gender: "female", age: 24, province: "تهران", city: "تهران", nickname: "Maryam" };
 
 test("OB1. a brand-new Telegram user (no bot /start yet) gets the question lists", async () => {
   const r = await call(777, { action: "onboard_state" });
@@ -67,20 +67,20 @@ test("OB2. saving finishes the account exactly like the bot: COMPLETED, fa, prof
   const r = await call(777, { action: "onboard_save", ...good });
   assert.deepEqual(r.payload, { status: "completed" });
   const u = col("users").byId(777);
-  assert.deepEqual([u.onboardingStep, u.languageCode, u.gender, u.age, u.province, u.city, u.nickname], ["COMPLETED", "fa", "female", 24, "تهران", "تهران", "مریم"]);
+  assert.deepEqual([u.onboardingStep, u.languageCode, u.gender, u.age, u.province, u.city, u.nickname], ["COMPLETED", "fa", "female", 24, "تهران", "تهران", "Maryam"]);
   assert.equal(col("relic_transactions").all().filter((t: any) => t.type === "PROFILE_COMPLETION_REWARD").length, 1);
   assert.ok(sentApi("sendMessage", 777).length >= 2, "completion message + main menu");
   // afterwards the normal app works for him
   assert.equal((await call(777, { action: "me" })).status, 200);
   // second save / double tap: nothing changes, no second bonus
-  const again = await call(777, { action: "onboard_save", ...good, nickname: "دیگری" });
+  const again = await call(777, { action: "onboard_save", ...good, nickname: "Digari" });
   assert.deepEqual(again.payload, { status: "already" });
-  assert.equal(col("users").byId(777).nickname, "مریم");
+  assert.equal(col("users").byId(777).nickname, "Maryam");
   assert.equal(col("relic_transactions").all().filter((t: any) => t.type === "PROFILE_COMPLETION_REWARD").length, 1);
 });
 
 test("OB3. validation: bad gender/age/province/city/nickname are refused and nothing is saved", async () => {
-  for (const [bad, field] of [[{ gender: "x" }, "gender"], [{ age: 5 }, "age"], [{ age: 120 }, "age"], [{ age: "ab" }, "age"], [{ province: "نیست" }, "province"], [{ city: "شیراز" }, "city"], [{ nickname: "Maryam" }, "nickname"], [{ nickname: "" }, "nickname"]] as const) {
+  for (const [bad, field] of [[{ gender: "x" }, "gender"], [{ age: 5 }, "age"], [{ age: 120 }, "age"], [{ age: "ab" }, "age"], [{ province: "نیست" }, "province"], [{ city: "شیراز" }, "city"], [{ nickname: "مریم" }, "nickname"], [{ nickname: "" }, "nickname"]] as const) {
     const r = await call(777, { action: "onboard_save", ...good, ...bad });
     assert.equal(r.status, 400);
     assert.equal(r.payload.error, `invalid_${field}`);

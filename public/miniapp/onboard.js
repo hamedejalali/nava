@@ -3,8 +3,8 @@
 (function () {
   "use strict";
   var NG = window.NG, el = NG.el, esc = NG.esc, num = NG.num;
-  var NICK_RE = /^[آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی‌ ]+$/;
-  var BAD = { invalid_gender: "جنسیت رو انتخاب کن.", invalid_age: "سن معتبر نیست.", invalid_province: "استان معتبر نیست.", invalid_city: "شهر معتبر نیست.", invalid_nickname: "نام باید فارسی باشه (حداکثر ۳۲ حرف).", banned: "حساب شما مسدود شده.", already: "ثبت‌نامت قبلاً کامل شده." };
+  var NICK_RE = /^[A-Za-z]+(?: [A-Za-z]+)*$/;
+  var BAD = { invalid_gender: "جنسیت رو انتخاب کن.", invalid_age: "سن معتبر نیست.", invalid_province: "استان معتبر نیست.", invalid_city: "شهر معتبر نیست.", invalid_nickname: "نام باید انگلیسی باشه (فقط حروف A-Z، حداکثر ۳۲ حرف).", banned: "حساب شما مسدود شده.", already: "ثبت‌نامت قبلاً کامل شده." };
 
   NG.openOnboarding = function () {
     var S = { gender: null, age: "", province: null, provinceName: "", city: null, cityName: "", nickname: "", minAge: 9, maxAge: 99, provinces: [], cities: [] };
@@ -66,11 +66,11 @@
       }).catch(function () { NG.netErr(); });
     }
     function stepName() {
-      title("اسم مستعارت چیه؟", "فارسی بنویس؛ همین اسم به بقیه نشون داده می‌شه.");
+      title("اسم مستعارت چیه؟", "با حروف انگلیسی بنویس (مثلاً Sara)؛ همین اسم به بقیه نشون داده می‌شه.");
       var inp = el('<input class="inp obi" maxlength="32" placeholder="نام مستعار" value="' + esc(S.nickname) + '">'); body.appendChild(inp);
       var msg = el('<div class="gerr" id="obe"></div>'); body.appendChild(msg);
       var btn = next(5, "تکمیل ثبت‌نام", false);
-      function chk() { S.nickname = inp.value.replace(/\s+/g, " ").trim(); var ok = S.nickname.length > 0 && S.nickname.length <= 32 && NICK_RE.test(S.nickname); btn.disabled = !ok; msg.textContent = S.nickname && !ok ? "فقط حروف فارسی مجازه." : ""; msg.classList.toggle("show", !!msg.textContent); }
+      function chk() { S.nickname = inp.value.replace(/\s+/g, " ").trim(); var ok = S.nickname.length > 0 && S.nickname.length <= 32 && NICK_RE.test(S.nickname); btn.disabled = !ok; msg.textContent = S.nickname && !ok ? "فقط حروف انگلیسی (A-Z) مجازه." : ""; msg.classList.toggle("show", !!msg.textContent); }
       inp.oninput = chk; chk();
       btn.onclick = function () {
         if (busy || btn.disabled) return; busy = true; btn.disabled = true;

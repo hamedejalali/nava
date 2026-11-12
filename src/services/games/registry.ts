@@ -12,10 +12,20 @@ export interface GameActionDef {
   actingBlocked?: boolean;
 }
 
+/** A game that can be offered through the inline «@bot» list (v1.30.0). `enter` seats the person at that invite's table. */
+export interface GameInvite {
+  /** one line under the title in the inline list */
+  description: string;
+  /** host: creates / re-opens the table; any other player: sits down. Throw SocialError("waiting_host") when the host has not entered yet. */
+  enter(me: any, invite: { _id: string; hostId: number; gameKey: string; gid?: string | null }, ctx: { guest: boolean }): Promise<unknown>;
+}
+
 export interface GameModule {
   /** short lowercase id, e.g. "chess". Every action name MUST start with `${id}_` (backgammon keeps its legacy `game_` names) */
   id: string;
   title: string;
+  /** present = this game appears in the inline invite list */
+  invite?: GameInvite;
   /** whitelisted API actions of this game */
   actions: Record<string, GameActionDef>;
   /** error code → HTTP status for the codes this game throws */

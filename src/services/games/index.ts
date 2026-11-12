@@ -14,6 +14,9 @@ export const GAME_ERRORS: Record<string, number> = REG.errors;
 /** what a not-yet-registered person (a "guest") may do */
 export const GAME_GUEST_ACTIONS: readonly string[] = [...REG.guestActions];
 
+/** games offered in the inline invite list */
+export const INVITE_GAMES = GAME_MODULES.filter((m) => !!m.invite);
+
 export const isGameAction = (a: string): boolean => REG.actions.has(a);
 
 export async function gamePulse(me: any): Promise<unknown> {

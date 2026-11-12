@@ -217,7 +217,7 @@ async function onboardThroughRealBot(id: number, age: string, firstMessage: stri
   await h.text(id, age);
   await h.text(id, province.nameFa);
   await h.text(id, city.nameFa);
-  await h.text(id, "علی");                 // setNicknameOnce() -> completion -> resumePendingAnon(ctx)
+  await h.text(id, "Ali");                 // setNicknameOnce() -> completion -> resumePendingAnon(ctx)
 }
 
 test("O1. REAL onboarding path: a new user who came through a link finishes onboarding and the compose step opens exactly once", async () => {
@@ -258,7 +258,7 @@ test("O3. REAL onboarding path: the target blocks the person while they are stil
   await h.text(NEW, link(2));
   await blockUser(2, NEW);
   await h.callback(NEW, "lang:fa"); await h.callback(NEW, "gender:male");
-  await h.text(NEW, "25"); await h.text(NEW, province.nameFa); await h.text(NEW, city.nameFa); await h.text(NEW, "علی");
+  await h.text(NEW, "25"); await h.text(NEW, province.nameFa); await h.text(NEW, city.nameFa); await h.text(NEW, "Ali");
   assert.ok(texts(NEW).includes(ANON_UNAVAILABLE_TEXT));
   assert.equal(col("anon_msg_flow").all().length, 0);
   assert.equal(anonDocs().length, 0);

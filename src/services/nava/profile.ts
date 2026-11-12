@@ -3,7 +3,7 @@ import { levelDisplay } from "../../config/levels.js";
 import { createEditRequest } from "../../db/models/editRequests.js";
 import {  } from "../../features/admin/constants.js";
 import { getRecipients } from "../channelRouting.js";
-import { isValidPersianNickname } from "../../features/onboarding/nickname.js";
+import { isValidEnglishNickname } from "../../features/onboarding/nickname.js";
 import { MAX_AGE, MIN_AGE, applyNicknameNow, notifyRecipientsOfEditRequest } from "../../features/matching/profileEdit.js";
 import { botApi } from "../miniapp.js";
 import { C, SocialError, col, findVisibleUser, hiddenOwnerIds, isAnonId, isOfficial, isStaffId, lockedOwnerIds, toBriefs, usersCol, type Brief } from "./common.js";
@@ -183,7 +183,7 @@ export async function requestProfileChange(
   }
   let value: string;
   if (field === "nickname") {
-    if (typeof raw !== "string" || !isValidPersianNickname(raw)) throw new SocialError("bad_name");
+    if (typeof raw !== "string" || !isValidEnglishNickname(raw)) throw new SocialError("bad_name");
     value = raw.trim();
     if (value === (user.nickname ?? "")) throw new SocialError("same_value");
     // v1.29.0: a new name is live at once (like the bot); the staff copy carries one «عدم تأیید نام» button
