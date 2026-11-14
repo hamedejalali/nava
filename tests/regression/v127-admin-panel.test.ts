@@ -23,7 +23,7 @@ beforeEach(() => {
 test("A1. main panel is short and has channels + texts + settings; the old combined button is gone", async () => {
   await h.text(OWNER_ID, "/start");
   const t = texts(h.last("sendMessage", OWNER_ID));
-  for (const x of ["👥 کاربر ها", "📢 پیام و گزارش", "🪙 ژتون‌ها", "🌙 مویاگرام", "🎭 ممبرهای پیش‌فرض", "📡 کانال‌ها", "📝 متن‌ها", "⚙️ تنظیمات ربات"]) assert.ok(t.includes(x), x);
+  for (const x of ["👥 کاربر ها", "📢 پیام و گزارش", "🪙 ژتون‌ها", "🌙 مویاگرام", "🎭 ممبرهای پیش‌فرض", "📡 کانال‌ها", "🎨 طراحی داخلی ربات", "⚙️ تنظیمات ربات"]) assert.ok(t.includes(x), x);
   assert.ok(!t.some((x) => x.includes("راهنما / کانال جوین")));
   assert.ok(!t.includes("📊 آمار ربات") && !t.includes("🔌 اتصال ولت") && !t.includes("🛡️ مدیریت و لاگ"));
   assert.ok(t.length <= 12, `main panel has ${t.length} buttons`);
@@ -32,7 +32,7 @@ test("A1. main panel is short and has channels + texts + settings; the old combi
 test("A2. settings holds stats / wallet / data / staff; sub-topics return to settings", async () => {
   await h.text(OWNER_ID, "⚙️ تنظیمات ربات");
   const s = texts(h.last("sendMessage", OWNER_ID));
-  for (const x of ["📊 آمار ربات", "🔌 اتصال ولت", "💾 داده‌ها", "🛡️ مدیریت و لاگ", "🧩 متغیرها و تصاویر", "✨ ایموجی‌ها", "🔌 روشن / خاموش کردن ربات"]) assert.ok(s.includes(x), x);
+  for (const x of ["📊 آمار ربات", "🔌 اتصال ولت", "💾 داده‌ها", "🛡️ مدیریت و لاگ", "🧩 متغیرها و تصاویر", "🔌 روشن / خاموش کردن ربات"]) assert.ok(s.includes(x), x);
   await h.text(OWNER_ID, "🛡️ مدیریت و لاگ");
   const st = texts(h.last("sendMessage", OWNER_ID));
   assert.ok(st.includes("🔑 دسترسی ادمین‌ها") && st.includes("↩️ بازگشت به تنظیمات ربات"));
@@ -45,9 +45,12 @@ test("A2. settings holds stats / wallet / data / staff; sub-topics return to set
 test("A3. «📝 متن‌ها» lists every editable text; «📡 کانال‌ها» gathers all channel settings", async () => {
   const { KEYBOARD_REV } = await import("../../src/config/version.js");
   await col("kb_state").updateOne({ _id: OWNER_ID } as any, { $set: { kind: "admin", rev: KEYBOARD_REV } }, { upsert: true }); // already on the current keyboard (no one-time refresh message)
-  await h.text(OWNER_ID, "📝 متن‌ها");
-  const t = texts(h.last("sendMessage", OWNER_ID));
-  for (const x of ["📖 متن راهنما", "⚖️ قوانین", "🛟 آیدی پشتیبانی", "🛠 متن خاموشی ربات", "🛒 متن‌ها و دکمه‌های منوی خرید"]) assert.ok(t.includes(x), x);
+  await h.text(OWNER_ID, "🎨 طراحی داخلی ربات");
+  assert.ok(texts(h.last("sendMessage", OWNER_ID)).includes("✏️ ویرایش متن‌ها"));
+  await h.text(OWNER_ID, "✏️ ویرایش متن‌ها");
+  await h.callback(OWNER_ID, "ui:t:0", h.last("sendMessage", OWNER_ID).message_id ?? 1);
+  const t = JSON.stringify(h.of("editMessageText", OWNER_ID).map((c) => c.payload.reply_markup));
+  for (const x of ["متن راهنما", "قوانین", "آیدی پشتیبانی", "متن خاموشی ربات", "منوی خرید"]) assert.ok(t.includes(x), x);
   h.resetCalls();
   await h.text(OWNER_ID, "📡 کانال‌ها");
   const c = texts(h.last("sendMessage", OWNER_ID));

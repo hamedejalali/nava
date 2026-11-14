@@ -28,6 +28,8 @@ export const ERROR_CODES = {
   "MG-IN-001": "invite banner photo could not be sent",
   "MG-AGE-001": "age-band re-check of a running chat failed",
   "MG-WL-001": "wallet deposit receipt to the log chat failed (will retry)",
+  "MG-UH-001": "unhandled error while processing an update (user side)",
+  "MG-UH-002": "unhandled error while processing an update (owner/admin side)",
   "MG-RL-001": "Mini App rate limiter unavailable (in-memory fallback used)",
 } as const;
 export type ErrorCode = keyof typeof ERROR_CODES;

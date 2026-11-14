@@ -32,7 +32,7 @@ function buildPartnerTypeKeyboard(lang: Language) {
 async function sendPinnedPromoOnce(ctx: NavaContext): Promise<void> {
   if (ctx.dbUser?.pinnedPromoMessageId) return; // already sent + pinned for this user
 
-  const text = await getContent("pinnedPromo", DEFAULT_PINNED_PROMO);
+  const text = await getContent("pinnedPromo", DEFAULT_PINNED_PROMO, ctx.userLang);
   const sent = await ctx.reply(text);
 
   await setPinnedPromoMessageId(ctx.from!.id, sent.message_id);

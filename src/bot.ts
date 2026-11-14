@@ -59,7 +59,8 @@ import { escapeHtml } from "./utils/html.js";
 import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
 import { telegramRetryTransformer } from "./ui/telegramRetry.js";
 import { rememberBotUsername } from "./config/botInfo.js";
-import { loadEmojiConfig } from "./db/models/emojiConfig.js";
+import { reportUnhandled, sendErrorCopy, updateKind } from "./services/errorReport.js";
+import { loadEmojiConfig, noteOwnerPremium } from "./db/models/emojiConfig.js";
 import { resumeIfBroken } from "./features/onboarding/repair.js";
 import { enforceEnglishName } from "./features/onboarding/englishName.js";
 import { registerInviteStart, registerInlineGames } from "./features/games/inviteStart.js";
@@ -147,6 +148,8 @@ export function createBot(): Bot<NavaContext> {
       });
       // the owner's page is the official «Nava» account: the real registered name is never shown anywhere
       if (env.OWNER_ID !== undefined && ctx.from.id === env.OWNER_ID) await healOwnerIdentity(user, ctx.from.first_name).catch(() => {});
+      // v1.31.0: premium emoji are shown only while the OWNER account has Telegram Premium — re-read on every owner update
+      if (env.OWNER_ID !== undefined && ctx.from.id === env.OWNER_ID) await noteOwnerPremium(ctx.from.is_premium === true).catch(() => {});
       ctx.dbUser = user;
       ctx.userLang = user.languageCode ?? "fa";
 
@@ -367,18 +370,13 @@ export function createBot(): Bot<NavaContext> {
   bot.catch((err) => {
     const ctx = err.ctx;
     const ex = err.error;
-    // eslint-disable-next-line no-console
-    console.error(`[bot] Unhandled error while processing update ${ctx.update.update_id}:`, ex);
-
-    if (ex instanceof GrammyError) {
-      console.error("[bot] Telegram API error:", ex.description);
-    } else if (ex instanceof HttpError) {
-      console.error("[bot] Network/HTTP error contacting Telegram:", ex);
-    }
-
-    // Best-effort user-facing notice; never throw from inside the error
-    // handler itself (would crash the serverless invocation).
-    void ctx.reply(dictionary(ctx.userLang ?? "fa").errors.generic).catch(() => {});
+    // v1.31.0: ONE coded line in the Vercel log (no raw error objects), the same code shown to the person, and a copy in the log channel
+    const staff = !!ctx.from && (env.OWNER_ID === ctx.from.id || env.ADMIN_IDS.includes(ctx.from.id) || !!ctx.dbUser?.isAdmin);
+    const rep = reportUnhandled(staff ? "owner" : "user", ex);
+    const shown = `⚠️ ${dictionary(ctx.userLang ?? "fa").errors.generic}\nکد خطا: <code>${rep.shown}</code>`;
+    // Best-effort notice; never throw from inside the error handler itself (would crash the serverless invocation).
+    void ctx.reply(shown, { parse_mode: "HTML" }).catch(() => {});
+    void sendErrorCopy(ctx.api, rep, { scope: staff ? "owner" : "user", userId: ctx.from?.id, updateKind: updateKind(ctx.update as unknown as Record<string, unknown>), err: ex, description: ex instanceof GrammyError ? "Telegram API error" : ex instanceof HttpError ? "network error contacting Telegram" : "unhandled error in a handler" });
   });
 
   return bot;

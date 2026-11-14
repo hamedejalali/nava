@@ -7,6 +7,7 @@ import { buttonIcon } from "../../config/emojis.js";
 import { listAllChannels, addChannel, toggleChannelActive, removeChannel } from "../../db/models/channel.js";
 import { isAdmin } from "./constants.js";
 import { isFlowCancelSignal } from "./flowState.js";
+import { channelRefFromMessage, CHANNEL_REF_HELP } from "./channelRef.js";
 
 const CB = {
   open: "admin:channels",
@@ -72,7 +73,7 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
   composer.callbackQuery(CB.add, async (ctx) => {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
-    await ctx.reply("یوزرنیم عمومی کانال رو بفرست (مثلا @nava). ربات باید ادمین اون کانال باشه.", {
+    await ctx.reply(CHANNEL_REF_HELP, {
       reply_markup: cancelKeyboard(),
     });
     await setAwaitingChannel(ctx.from!.id, true);
@@ -101,12 +102,12 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
     await renderChannelsScreen(ctx);
   });
 
-  composer.on("message:text", async (ctx, next) => {
+  composer.on("message", async (ctx, next) => {
     if (!isAdmin(ctx)) return next();
     const waiting = await isAwaitingChannel(ctx.from!.id);
     if (!waiting) return next();
 
-    const raw = ctx.message.text.trim();
+    const raw = (ctx.message.text ?? ctx.message.caption ?? "").trim();
 
     if (isFlowCancelSignal(raw)) {
       await setAwaitingChannel(ctx.from!.id, false);
@@ -115,12 +116,12 @@ export function registerAdminChannels(composer: Composer<NavaContext>) {
       return;
     }
 
-    const username = raw.replace(/^@/, "").replace(/^https?:\/\/t\.me\//, "");
-
-    if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(username)) {
-      await ctx.reply("یوزرنیم معتبر نیست. یه یوزرنیم عمومی مثل @nava بفرست یا لغو کن.");
+    const ref = channelRefFromMessage(ctx.message);
+    if (!ref || !ref.startsWith("@")) {
+      await ctx.reply(`${CHANNEL_REF_HELP}\n(کانال باید عمومی باشه تا دکمه‌ی عضویت لینک داشته باشه.)`, { reply_markup: cancelKeyboard() });
       return;
     }
+    const username = ref.slice(1);
 
     try {
       const chat = await ctx.api.getChat(`@${username}`);

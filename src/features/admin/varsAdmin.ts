@@ -60,6 +60,7 @@ const GROUPS: Array<{ id: string; title: string; vars: VarDef[] }> = [
     ],
   },
 ];
+export const IMAGE_VARS = GROUPS.find((g) => g.id === "img")!.vars;
 const ALL = GROUPS.flatMap((g) => g.vars);
 const find = (k: string) => ALL.find((v) => v.key === k);
 const P = "adm:vars:";

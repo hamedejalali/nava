@@ -26,6 +26,16 @@ const ONOFF = (v: string) => (v === "true" || v === "on" ? "روشن" : "خام�
 const DEST: Record<string, string> = { mgmt: "کانال مدیریت", dm: "پیام خصوصی به ادمین‌ها", off: "غیرفعال" };
 
 export const ADMIN_ACTIONS: Record<string, Spec> = {
+  // — v1.31.0 «طراحی داخلی ربات»
+  text_set: { title: "متنی را ویرایش کرد", target: "text", label: "متن" },
+  text_reset: { title: "متنی را به پیش‌فرض برگرداند", target: "text", label: "متن" },
+  button_label_set: { title: "نام یک دکمه را تغییر داد", target: "text", label: "دکمه" },
+  button_style_set: { title: "رنگ یک دکمه را تغییر داد", target: "text", label: "دکمه" },
+  button_hide_toggle: { title: "نمایش یک دکمه را تغییر داد", target: "text", label: "دکمه" },
+  button_reset: { title: "یک دکمه را به حالت اول برگرداند", target: "text", label: "دکمه" },
+  button_add: { title: "دکمه‌ی جدید ساخت", target: "text", label: "دکمه" },
+  button_delete: { title: "یک دکمه را حذف کرد", target: "text", label: "دکمه" },
+  button_reply_set: { title: "پیام یک دکمه را تغییر داد", target: "text", label: "دکمه" },
   // — users / money
   jeton_send: { title: "ژتون ارسال کرد", target: "user", label: "گیرنده", rest: (p) => `مقدار: ${p[1]} ژتون` },
   jeton_deduct: { title: "ژتون کسر کرد", target: "user", label: "از کاربر", rest: (p) => `مقدار: ${p[1]} ژتون` },

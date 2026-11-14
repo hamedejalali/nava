@@ -30,6 +30,8 @@ Search the Vercel runtime logs for the code. Codes are stable; never reuse one.
 | MG-IN-001 | invite banner photo could not be sent | stale `file_id` |
 | MG-AGE-001 | age-band re-check of a running chat failed | database error while re-checking / closing (fail-safe: chat left as is, retried on the next message) |
 | MG-WL-001 | wallet deposit receipt to the log chat failed (will retry) | Telegram refused / timed out; retried up to 10 times |
+| MG-UH-001 | unhandled error while processing an update (user side) | any exception escaping a handler; the user sees `MG-UH-001·XXXXXX` and a copy goes to the log channel |
+| MG-UH-002 | unhandled error while processing an update (owner/admin side) | same, for the owner / an admin |
 | MG-RL-001 | Mini App rate limiter unavailable (in-memory fallback used) | `rate_limits` write failed |
 
 Other log lines that are intentionally NOT coded (already print only `err.name`, never a message): `[monitor] …`, `[cron] … failed`, `[miniapp] rate limiter unavailable`.

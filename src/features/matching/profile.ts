@@ -17,6 +17,7 @@ import { env } from "../../config/env.js";
 import { distanceKm, formatDistanceFa } from "../../utils/geo.js";
 import { formatPresenceFa } from "../../utils/presence.js";
 import { escapeHtml } from "../../utils/html.js";
+import { profileTemplate, renderTemplate } from "../../services/textOverrides.js";
 
 const GENDER_LABEL: Record<string, string> = { male: "پسر", female: "دختر" };
 const VIEW_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
@@ -80,6 +81,26 @@ export function buildProfileText(lang: Language, target: UserDoc, viewer?: UserD
   // Every user-controlled value is HTML-escaped: this message is sent with
   // parse_mode HTML, and one stray "<" or "&" in a bio used to make
   // Telegram reject the whole profile.
+  // v1.31.0: the owner can replace the whole card layout (per language) from «طراحی داخلی ربات»; {variables} are filled here
+  const tpl = profileTemplate(lang);
+  if (tpl) {
+    const mini2 = (target as UserDoc & { miniUsername?: string }).miniUsername;
+    const km2 = viewer?.location && target.location ? distanceKm(viewer.location, target.location) : undefined;
+    return renderTemplate(tpl, {
+      name: `${escapeHtml(target.nickname ?? "-")}${nameBadge}`,
+      age: escapeHtml(String(target.age ?? "-")),
+      gender: escapeHtml(genderText),
+      province: escapeHtml(target.province ?? "-"),
+      city: escapeHtml(target.city ?? "-"),
+      level: levelDisplay(target.level),
+      bio: target.bio ? escapeHtml(target.bio) : "",
+      trust: verifiedLine,
+      online: presenceLine,
+      id: `<code>${target.anonId}</code>`,
+      mini: mini2 ? `<code>@${escapeHtml(mini2)}</code>` : "",
+      distance: km2 === undefined ? "" : `${distanceLabel} ${formatDistanceFa(km2)}`,
+    });
+  }
   const lines = [
     `${nameLine} ${escapeHtml(target.nickname ?? "-")}${nameBadge}`,
     `${ageLine} ${escapeHtml(target.age ?? "-")}`,

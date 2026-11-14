@@ -38,7 +38,7 @@ export const DEFAULT_RULES =
   "👈درصورت گزارش صحیح کاربر متخلف 💰 5 ژتون بعنوان هدیه دریافت میکنید.\n\n" +
   "🔸 - ‏ راهنما : /help";
 
-const LABELS: Record<ContentKey, string> = {
+export const CONTENT_LABELS: Record<ContentKey, string> = {
   guideText: "متن راهنما",
   guide1: "راهنمای شماره یک",
   pinnedPromo: "پیام پین",
@@ -48,7 +48,7 @@ const LABELS: Record<ContentKey, string> = {
   maintenanceText: "متن خاموشی ربات",
 };
 
-function defaultFor(key: ContentKey): string {
+export function defaultFor(key: ContentKey): string {
   if (key === "guide1") return fa.onboarding.guide1!;
   if (key === "pinnedPromo") return DEFAULT_PINNED_PROMO;
   if (key === "rules") return DEFAULT_RULES;
@@ -63,8 +63,8 @@ export function registerAdminGuides(composer: Composer<NavaContext>) {
   composer.callbackQuery(ADMIN_CALLBACKS.openGuideMenu, async (ctx) => {
     if (!isAdmin(ctx)) return;
     await ctx.answerCallbackQuery();
-    const { textsMenu } = await import("./panel.js");
-    await ctx.reply("📝 کدوم متن رو ویرایش می‌کنی؟", { reply_markup: textsMenu() });
+    const { openEditHub } = await import("./innerDesign.js");
+    await openEditHub(ctx);
   });
 
   const beginEdit = async (ctx: NavaContext, key: ContentKey) => {
@@ -72,7 +72,7 @@ export function registerAdminGuides(composer: Composer<NavaContext>) {
     await ctx.answerCallbackQuery();
 
     const current = await getContent(key, defaultFor(key));
-    await ctx.reply(current ? `متن فعلی «${LABELS[key]}»:\n\n${current}` : `«${LABELS[key]}» هنوز تنظیم نشده.`);
+    await ctx.reply(current ? `متن فعلی «${CONTENT_LABELS[key]}»:\n\n${current}` : `«${CONTENT_LABELS[key]}» هنوز تنظیم نشده.`);
 
     const sent = await ctx.reply("متن جدید رو بفرست:", {
       reply_markup: cancelKeyboard(),
@@ -119,6 +119,6 @@ export function registerAdminGuides(composer: Composer<NavaContext>) {
 
     await setContent(session.editingKey, newText, ctx.from!.id);
     await clearEdit(ctx.from!.id);
-    await ctx.reply(`✅ «${LABELS[session.editingKey]}» ذخیره شد.`);
+    await ctx.reply(`✅ «${CONTENT_LABELS[session.editingKey]}» ذخیره شد.`);
   });
 }

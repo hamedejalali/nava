@@ -14,6 +14,7 @@
 | 5 | «خب حالا میخوام یه اپدیت خفن بدیم» — English-only names, forced change of Persian names, inline game invite flow, name+age entry condition — *summary + quotes only*; owner answers: «اجباری تا تغییر», «فقط حروف لاتین و فاصله», «هر بازیکن با تکمیل کردن اسم و سنش میتونه وارد بازی شه» | v1.30.0 | `docs/AUDIT_v1.30.0.md` |
 | 6 | Systematic audit of v1.30.0 (full text below, verbatim) | v1.30.1 | `docs/AUDIT_v1.30.1.md` |
 | 7 | Security / stability / scalability audit of v1.30.1 (full text below, verbatim) | v1.30.2 | `docs/AUDIT_v1.30.2.md` |
+| 8 | `isPrivate` index review of v1.30.2 (full text below, verbatim) | v1.30.3 | `docs/AUDIT_v1.30.3.md` |
 
 ## Verbatim: item 4 — the independent audit REPORT attached to that request (`docs/INDEPENDENT_AUDIT_v1.29.7.md`)
 
@@ -529,3 +530,329 @@ Only change to data structures: two partial indexes on `users` (created at cold 
 ## F. Files of unclear purpose (not deleted)
 `src/ui/cancelButton.ts` (no importer found), `src/services/brandMigration.ts` (one-off migration, only `find({}).toArray()` on `content`); `scripts/migrate-brand.ts`.
 
+
+
+---
+
+## Verbatim: item 8 — the `isPrivate` index request on v1.30.2
+
+Hi Claude,
+
+I independently reviewed v1.30.2 and found one potentially missed performance issue.
+
+Please investigate and address the following, strictly within the existing project scope:
+
+1. Inspect `lockedOwnerIds()` in `src/services/nava/common.ts`. It queries users with `isPrivate: true` and is used by posts, stories, profile, and follow services.
+2. Check all user-model indexes and actual query patterns. There appears to be no index for `isPrivate`.
+3. If justified by the query pattern, add an appropriate partial index for `isPrivate: true`. Keep the change minimal and consistent with the existing index design.
+4. Update `scripts/explain-hot-queries.ts` so it clearly detects and reports whether the relevant query uses `IXSCAN` or `COLLSCAN`. Do not merely print an expected result; make the check meaningful.
+5. Add regression tests for the index definition and relevant behavior. Clearly distinguish simulated test results from real MongoDB query-plan verification.
+6. Review whether this change introduces meaningful write overhead or migration risks.
+
+Important:
+- Inspect the actual code before making changes.
+- Do not make unrelated changes or introduce new features.
+- Preserve all user data, balances, transaction records, settings, and existing functionality.
+- Do not modify F-01 or F-17 policies.
+- Do not enable wagering or staked gameplay.
+- Keep all components modular and avoid affecting unrelated features.
+- Do not claim performance improvements without actual MongoDB execution-plan evidence.
+- Do not use production credentials or modify production data.
+
+After implementation:
+- Run all available relevant checks and tests.
+- If dependencies or database access prevent a test, state that explicitly; never report it as passed.
+- Update the version and changelog appropriately.
+- Provide the updated full project ZIP.
+- Update the cumulative history/report: include this prompt verbatim and your complete implementation report directly beneath it.
+- Explain exactly which files changed, why they changed, test results, remaining risks, and rollback steps.
+
+Please keep the changes focused and minimal. You are the implementation engineer; I am reviewing this work as the project owner, with ChatGPT acting as senior technical project manager and independent auditor.
+
+### Report for item 8 (as delivered, v1.30.3)
+
+# v1.30.3 — review of the `isPrivate` index (owner/auditor finding on v1.30.2)
+
+Tests are MOCK tests. **No real MongoDB execution plan was produced in this environment** (no database access), so no performance improvement is claimed.
+
+## 1. Verdict on the finding: the premise is not correct — the index already exists
+- `lockedOwnerIds()` (`src/services/nava/common.ts:108-118`) runs `users.find({ isPrivate: true, _id: { $ne: viewerId } }, { projection: { _id: 1 } })`.
+- A partial index for exactly this predicate is already defined: `{ isPrivate: 1 }`, name **`private_pages`**, `partialFilterExpression: { isPrivate: true }` — `src/services/miniappSocial.ts:55`, inside `ensureSocialIndexesOnce()`.
+- It is created before any Mini App action is dispatched: `api/miniapp.ts:213` (`ensureSocialIndexesOnce()` runs on every Mini App request, once per cold start). All callers of `lockedOwnerIds` (`posts.ts`, `stories.ts`, `profile.ts`, `follow.ts`) are Mini App services, so they run behind that call. The query contains the literal `isPrivate: true`, so it satisfies the partial filter and is eligible for the index.
+- The earlier S-01 note in `AUDIT_v1.30.2.md` ("isPrivate has a partial index") was correct; the gap the reviewer saw is that the index is defined in a *different file* from the other `users` indexes (`ensureUserIndexes`, `src/db/models/user.ts`).
+
+## 2. Why no second index was added (a real risk, not just redundancy)
+MongoDB refuses to create an index whose key and options equal an existing one under a **different name** (`IndexOptionsConflict`, code 85). `ensureUserIndexes()` runs inside `Promise.all` at bot initialisation (`src/bot.ts:110`); adding `{ isPrivate: 1 }` there with another name would make start-up fail on every database that already has `private_pages`. Re-declaring it under the *same* name would be harmless but adds nothing, so nothing was added. Regression test **P1** pins "exactly one index on `isPrivate`, named `private_pages`" so a later well-meant duplicate fails in CI instead of in production.
+
+## 3. What did change
+| File | Change | Why |
+|---|---|---|
+| `scripts/queryPlan.ts` (new) | pure helpers `planStages`, `planVerdict`, `casePasses` | the verdict is read from the real winning plan (every stage, any depth, `$or` branches, sub-plans); `COLLSCAN` anywhere = `COLLSCAN`; no stages found = `UNKNOWN`, never a pass |
+| `scripts/explain-hot-queries.ts` | prints `PASS / FAIL / info` + verdict + stage chain per query; new cases `lockedOwnerIds: private pages`; a `MUST_INDEX` set (hidden owners, locked owners, explore tile, dm last message, feed) makes the script **exit with code 1** if any of them is not an `IXSCAN` on the database it is pointed at; still read-only, creates no index | the old script only printed a regex-extracted stage list and left the conclusion to the reader |
+| `tests/regression/v1303-private-index.test.ts` (new) | P1 index definition (simulated: the fake records definitions only); P2 `lockedOwnerIds` behaviour (locked / followed / own / non-private / staff); P3 verdict logic on **synthetic** explain documents | see section 5 |
+| version files, `CHANGELOG.md`, `docs/` | 1.30.3 | housekeeping |
+
+No production code under `src/` or `api/` changed.
+
+## 4. Write overhead and migration risk
+- `isPrivate` is written only when someone toggles page privacy (`src/services/nava/follow.ts:145`, a rare user action). A partial index only gets an entry when the document matches `isPrivate: true`, so ordinary user writes (activity, balance, etc.) pay **no** index maintenance. No new index = no extra overhead at all.
+- No migration: nothing in the database changes. Rollback: redeploy v1.30.2 (the script/test changes have no runtime effect).
+
+## 5. Simulated vs real evidence
+- **Simulated (what the test suite proves):** the index *definition* is present once and unchanged; `lockedOwnerIds` returns the right ids; the script's verdict function classifies synthetic plan documents correctly.
+- **NOT verified (needs a real MongoDB):** that the planner actually picks `private_pages` for this query, the returned/examined counters, and any latency. To obtain it, the owner runs, against **staging** only: `MONGODB_URI=<staging uri> MONGODB_DB=<db> npm run explain-queries` — the case `lockedOwnerIds: private pages` must print `PASS ... IXSCAN`; the run exits 1 otherwise. (The script does not create indexes, so the staging database must have been touched by the app once so `ensureSocialIndexesOnce()` ran.)
+
+## 6. Remaining risks (unchanged, already reported in v1.30.2)
+`lockedOwnerIds()` / `hiddenOwnerIds()` still return **every** private / banned id and feed them as `$nin` lists. The index makes the *lookup* cheap; the *size of the list* is a design limit at hundreds of thousands of private accounts (BSON 16 MB, slow `$nin`). Fixing it means a design change (owner decision) and was not attempted.
+
+
+
+## Verbatim: item 9 — «طراحی داخلی ربات» + standing rules (v1.31.0)
+
+Owner message (full text also in `docs/OWNER_RULES.md`):
+
+یکسری قوانین مینویسم ارجاع به تمام ربات هایم هست هر هوش مصنوعی که با من کار میکند بخواند این متن رو
+اگر رو پروژه اعمال نشده که اعمال کند
+اگرم از قبل هست به نحوی که میگم انجام دهد یا بپرسد از من 
+سوال بپرسید لطفا هرچی خواستید
+
+--
+
+دکمه هایی که برای کاربران نمایش داده می‌شود
+در پنل مالک نمایش داده نشود
+
+
+
+امنیت مالک مهم ترین چیزه کاربر به هیچ وجه با دستوراتی مثل
+/admin یا هرچیز
+به یوزرنیم مالک دسترسی پیدا نکند یا مثلا
+/panel
+/owner
+
+
+
+در پنل ادمین دکمه جدید ایجاد شود
+با نام طراحی داخلی ربات
+این دکمه قراره دیزاین داخلی ربات رو انجام بده
+دکمه اول که داخل این دکمه باید ایجاد کنی
+دکمه (طراحی دکمه های ربات)
+این دیزاین فقط صرفه برا ویرایش دکمه هایی هست که کاربر میبینه نه سمت پنل
+برای ربات مویاگرام
+دکمه های صفحه اصلی کیبرد باتن
+همون پروفایل و به یه ناشناس وصلم کن و.. رو
+
+ربات پریمیوم ولت هم همون دکمه های صفحه اصلی کیبرد باتن
+
+
+ربات یوتوپیا پی 
+دکمه های کیبرد باتن صفحه اصلی مثل خرید تلگرام پریمیوم و...
+ینی همین دکمه رو ویرایش کن و ببر ادغام کن
+دکمه‌های منوی اصلی
+
+ربات اپلودر این دکمه رو نداره ینی دکمه طراحی دکمه های ربات)
+ولی همچنان دکمه طراحی داخلی ربات رو داره
+
+ربات مسنجر هم دکمه های اصلی کیبرد باتن
+
+بصورت دکمه شیشه ای نمایش میده برام
+هرکدومو بخوام میزنم روش اسمشو عوض میکنم
+رنگشو عوض میکنم
+و دکمه جدید بخوام ایجاد میکنم و میگم بعد از اینکه کاربر اون دکمه جدید رو زد چه پیامی براش ارسال شه
+
+دکمه دوم داخل دکمه طراحی داخلی ربات
+دکمه اموجی پریمیوم ها هست
+که وقتی میزنی روش
+اموجی پریمیوم ربات خاموش و روشن میشه
+
+دکمه سوم داخل دکمه طراحی داخلی ربات
+دکمه ویرایش متن ها هست
+در این قسمت تمام پیام ها ، اسم دکمه های کیبرد باتن و کیبرد شیشه ای
+همگی متن ها ینی
+که فقط برای کاربر نمایش داده میشوند
+ینی هر متنی هر اسم دکمه ای هر پیامی هرچیزی که کاربر میبیند
+میخوام برام تو هر دکمه شیشه ای
+وقتی میزنه رو دکمه ویرایش متن ها
+سه تا دکمه نمایش داده شه
+یکیش ویرایش متن ها
+یکیش ویرایش دکمه ها
+یکیش ویرایش عکس ها
+رو هرکدوم که میزنم یه لیست باز شه
+بصورت دو دکمه شیشه ای کنار هم بقیه هم تو ردیف بعدی به همین شکل
+با نام دکمه مشخص و واضح که توضیح دهد اون دکمه مربوط به ویرایش کدوم دکمه یا متن هست
+زیرشم دکمه شیشه ای صفحه بعدی
+و صفحه قبلی
+
+لطفا وقتی رو هرکدوم زده میشه همون متن پیام ادیت شه و پیام جدیدی ارسال نشه برام
+
+هرجا قرار بود متنی بفرستم
+کیبرد باتن قرمز با نام لغو نمایش داده شه
+اگر متنی قرار بود ست بشه پیش‌نمایش و تایید گرفته شه از من
+که رو هرکدوم زدم اسم دکمه رنگ دکمه رنگ متن یا هرچیزی رو ویرایش کنم
+وقتی متن یا دکمه رو خواستم ویرایش کنم برای مثال اگر زدم رو ویرایش متن فلان پیام
+داخل متن
+--
+سلام عزیزم خوش اومدی -😌 - ایدی عددی اموجی پریمیوم- اینجا مثلا یه اینتر میزنم
+-♦️-ایدی عددی اموجی پریمیوم- لطفا اسم خودتو وارد کن.
+--
+هرچیزی که داخل - - - میذارم اگر
+ از دکمه اموجی پریمیوم روشن بود و مالک اکانت پریمیوم داشت
+همیشه چک کند که مالک پریمیوم دارد یا نه اگر نداشت پریمیوم
+ربات خودکار اموجی ساده نمایش دهد
+
+هرچیزی که داخل پرانتز میذارم
+اگر پریمیوم روشن بود که اموجی پریمیومی که ایدی عددیشو گذاشتمو نمایش بده
+اگرم خاموش بود که اموجی ساده که داخل - - - هست رو نمایش بده
+
+پس ترکیب این شد
+-اموجی ساده -ایدی عددی اموجی پریمیوم-
+
+داخل این سه
+- - -
+
+
+
+تو متنی که برای کاربر ها قراره نمایش داده شه
+هرجا تو متن خودم اینتر زدم به معنای اینتر واقعی هست
+اگرم متن زیاد بود خود ربات متناسب با نمایش ریسپانسیو نمایش دهد پیام را
+
+
+برای دکمه هم همینطور
+مثلا دکمه پروفایل
+-😌 - ایدی عددی اموجی پریمیوم-پروفایل
+یا
+پروفایل-😌 - ایدی عددی اموجی پریمیوم-
+
+
+
+
+اگرم جایی ویرایش متن رو قبلا انجام دادیم دکمشو پاک کن و بیار داخل این دکمه
+
+دکمه ارسال پیام همگانی که داخل ربات هست بدون خراب کردنش 
+متنی که مالک قراره بفرسته که ارسال همگانی بشه
+هم همینطور موقع ارسال پیام همگانی عمل کند
+همون جریان -😌 - ایدی عددی اموجی پریمیوم-
+ینی من اگر متن جدیدی خواستم بفرستم
+مثلا این متن پیامه
+کد تخفیف امروز-😌 - ایدی عددی اموجی پریمیوم-
+بعد از ارسال
+ پیش‌نمایش نشون بده بهم و تایید بگیره ازم برای ارسال
+ارسال سالم
+لاگ ارسال با توضیحات کامل  که چند نفر کامل ارسال شد و متن پیام چی بود و به چند نفر ارسال نشد و دلیلش اون پیام در قالب یک پیام در چنل لاگ ارسال شه
+
+دکمه سوم هم که ویرایش عکس
+اگر عکسی داره ربات برای کاربر ارسال میکنه
+عکس هارو با نامش که چی هست
+وقتی میزنم روش برام ارسال شه و عکس جدید اگر خواستم ارسال کنم
+
+
+
+
+----
+
+جیزایی که گفتم اگر جای ازشون استفاده شده بپرس که بگم پاک کنی یا نه
+
+
+
+---
+برای سمت کاربر و سمت مالک
+لاگ ارور بذار که وقتی اروری هست نمایش داده شود براش با کد مخصوص اون لاگ
+و همان لحظه در کانال لاگ هم یک کپی از همان ارسال شود که من پیگیری کنم و حل کنم مشکلو
+
+---
+
+
+هرجا قراره لیستی نمایش داده شه بصورت دکمه شیشه ای نمایش داده شه
+
+هرجا هم ستینگی یا تنظیماتی هست کیبرد باتن بشه
+
+
+وقتی چت جی‌پی‌ تی یا من پرامپتی میدیم
+پرامپت ما رو پیست میکنی دقیق
+زیرشم 
+گزارش که چه کاری انجام دادی رو مینویسی داخل فایل میذاری
+
+
+فایل env.example رو نیاز نیست هرسری بفرستی
+مگر اینکه چیزی اضافه شده باشه داخلش
+
+
+برای قسمتی که تو ربات میخوایم یک کانال رو بعنوان مثلا جوین اجباری یا کانال پشتیبانی یا کانال لاگ ست کنیم
+
+اسم کانال گرفته شود چون بعدا تو لیست کانال ها بصورت دکمه شیشه ای در همان دکمه قراره نمایش داده شه
+که وقتی بزنه روش ویرایش کنه
+
+لینک کانال یا یوزرنیم یا فوروارد یک پیام از کانال برای ست کردن
+ از ایدی عددی کانال استفاده نشه
+
+
+
+
+
+
+Owner follow-up (verbatim, during implementation):
+
+> دوتا نکته میگم بعد ادامه بده
+> وقتی رو تکستی میزنم که ادیتش کنم
+> بعد از زدن اون دکمه سه تا زبان رو بهم نمایش بده هرکدومو انتخاب کردم اونو برا ویرایش بیاره
+> چون تعداد متن ها هم بالاس پروسه تغییر رو یکم ساده تر کن که سریع برم سراغ دکمه بعدی
+>
+> تکست هایی که
+> نام : Jjl ✅
+> سن : 29
+> جنسیت : پسر
+> استان : تهران
+> شهر : تهران
+> ⭐ سطح کاربر: 🌱 تازه‌وارد
+>
+> 📝 بیوگرافی : Slm
+>
+> ✅ (این کاربر مورد اعتماد می‌باشد و توسط ادمین تایید شده)
+> 🟢 آنلاین
+> 🆔 آیدی : user_QXtQlv
+>
+> 🏷 یوزرنیم مینی‌اپ: @hamede
+> مثل این
+> اونجاهایی که اسم متغییر هست
+> مثل آیدی
+> یه روشی که خودت میدونی بهتره رو بذار
+> یا مثلا اینجوری
+>
+> آیدی : x
+> من به اون ایکس دست نمیزنم ینی اسم متغییره
+
+Owner answers to scoping questions: «همه‌چیز در یک نسخه»، «منتقل و دکمه‌ی قدیمی حذف»، «نه کلا کاری به ولت یا باقی ربات ها نداشته باش فقط مویا»؛ for the new button's reply: «اینو متوجه نشدم ینی چی؟» (explained; text-only chosen as the default).
+
+### Report for item 9 (as delivered, v1.31.0)
+
+# v1.31.0 — «طراحی داخلی ربات» — گزارش پیاده‌سازی
+
+> تست‌ها **MOCK** هستند (Mongo و Telegram شبیه‌سازی‌شده). روی تلگرام و دیتابیس واقعی اجرا نشده.
+
+## تصمیم‌های مالک (از پرسش‌ها)
+یک نسخه‌ی یکجا؛ ویرایشگرهای قدیمی منتقل و دکمه‌ی قدیمی حذف؛ فقط مویا (ولت و ربات‌های دیگر دست‌نخورده)؛ دکمه‌ی جدید = فقط متن (با سینتکس ایموجی).
+
+## فایل‌های جدید
+`src/features/admin/innerDesign.ts` (هاب و ویرایشگرها)، `channelRef.ts`، `src/services/emojiSyntax.ts`، `textOverrides.ts`، `errorReport.ts`، `src/db/models/uiConfig.ts`، `tests/regression/v1310-inner-design.test.ts`.
+
+## فایل‌های تغییرکرده (مهم‌ها)
+`menu.ts` (دکمه‌ی هاب؛ «متن‌ها»/«ایموجی‌ها» از پنل برداشته شد)، `panel.ts`، `guides.ts`، `mainMenu.ts` + `mainMenuRouter.ts` (طرح دکمه‌ها و دکمه‌های سفارشی)، `broadcast.ts` + `broadcastProcessor.ts` + `db/models/broadcast.ts` (پیش‌نمایش، گزارش)، `routingAdmin.ts` + `channels.ts` (ثبت کانال)، `bot.ts` (خطای کددار، بررسی پریمیوم مالک)، `content.ts` (متن هر زبان)، `i18n/index.ts` (جایگزینی متن)، `profile.ts` (قالب)، `config/emojis.ts` (شناسه‌های سینتکس مالک)، `emojiConfig.ts`، `adminAudit.ts`، `safeLog.ts`، `docs/ERROR_CODES.md`.
+
+## رفتارهای مهم و محدودیت‌ها (صادقانه)
+1. **رنگ دکمه** در تلگرام فقط آبی/سبز/قرمز/پیش‌فرض است (محدودیت Bot API).
+2. **کیبورد قرمز «لغو»** فقط با ارسال یک پیام جدید قابل نمایش است (تلگرام اجازه‌ی تغییر کیبورد پاسخ با ویرایش پیام را نمی‌دهد)؛ بعد از پایان این پیام پاک می‌شود. بقیه‌ی صفحه‌ها با ویرایش همان پیام عوض می‌شوند. عکس‌ها هم برای «ارسال خود عکس» ناچار پیام جدیدند.
+3. **پریمیوم مالک**: وضعیت از آخرین پیام/کلیک خود مالک خوانده می‌شود (Bot API راه مستقیم دیگری ندارد). تا مالک یک بار به ربات پیام نداده باشد، ایموجی معمولی نشان داده می‌شود.
+4. شناسه‌ی ایموجی پریمیومِ نوشته‌شده با سینتکس مالک از فیلتر امنیتی خروجی رد می‌شود (فقط شناسه‌های نوشته‌شده توسط مالک؛ ورودی کاربر هرگز).
+5. هاب فقط مالک است؛ ادمین‌هایی که قبلاً مجوز «متن‌ها» داشتند دیگر آن را ندارند.
+6. متن‌های ثابت داخل کد که فقط **تابع** هستند (مثل «لایک N») قابل ویرایش نیستند؛ لیست متن‌ها فقط رشته‌های ثابت فهرست دیکشنری + متن‌های ذخیره‌پذیر قبلی + کارت پروفایل را نشان می‌دهد. متن‌های en/ar که قفل مالک‌اند خالی‌اند تا مالک پر کند.
+7. «ویرایش دکمه‌ها»: دکمه‌های منوی اصلی، دکمه‌های ساخته‌شده و دکمه‌های زیر پیام‌های ثابت (🔘). دکمه‌های منوی خرید در «🛒 منوی خرید» (همان ویرایشگر قبلی) می‌ماند.
+8. ربات ولت و ربات‌های دیگر لمس نشدند. دکمه‌های کاربر در پنل مالک تکرار نمی‌شوند (پنل کیبورد جدا دارد).
+9. اگر کانال لاگ تنظیم نباشد، گزارش همگانی/خطا به چت مالک می‌رود.
+
+## نبودِ تغییر
+F-01 / F-17 و سیاست شرط‌بندی دست نخورد. `.env.example` تغییری نکرد (متغیر جدید نیست) و فرستاده نمی‌شود. مهاجرت مخرب ندارد؛ کالکشن‌های جدید: `ui_buttons`، `ui_texts` (اضافه‌شونده).
+
+## برگشت
+دیپلوی نسخه‌ی 1.30.3؛ کالکشن‌های جدید بی‌اثر می‌مانند. متن‌های ذخیره‌شده در `content` سازگارند.
+
+## تست
+`tests/regression/v1310-inner-design.test.ts` (۹ تست) + به‌روزرسانی ۵ انتظار تست قدیمی که عمداً عوض شد (دکمه‌ی «متن‌ها»/«ایموجی‌ها» به هاب رفت؛ پیام لاگ همگانی).

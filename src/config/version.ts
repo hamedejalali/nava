@@ -10,7 +10,7 @@
  * It is shown on the (do-nothing) version button at the bottom of the
  * admin panel, so you can always see which build is really deployed.
  */
-export const BOT_VERSION = "1.30.2";
+export const BOT_VERSION = "1.31.0";
 
 /** Text on the admin panel's version button. */
 export const VERSION_BUTTON_LABEL = `🏷 نسخه ${BOT_VERSION}`;
@@ -20,4 +20,4 @@ export const VERSION_BUTTON_LABEL = `🏷 نسخه ${BOT_VERSION}`;
  * sends a new one, so after a release that renamed/moved buttons people would be stuck with dead buttons until /start.
  * Bump this ONLY when a keyboard's buttons change: every user then gets the fresh keyboard once, automatically, on their next tap/message.
  */
-export const KEYBOARD_REV = "1.27";
+export const KEYBOARD_REV = "1.31";

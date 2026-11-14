@@ -9,7 +9,7 @@ import { buildSupportButton } from "../support/index.js";
  *  button was a silent no-op even though the welcome message tells users
  *  to tap it. */
 export async function sendGuide(ctx: NavaContext): Promise<void> {
-  const text = await getContent("guide1", fa.onboarding.guide1!);
+  const text = await getContent("guide1", fa.onboarding.guide1!, ctx.userLang);
   const support = await buildSupportButton("آیدی پشتیبانی");
   await ctx.reply(text, { reply_markup: support ? inlineKeyboard([[support]]) : undefined });
 }

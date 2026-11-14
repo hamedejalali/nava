@@ -8,6 +8,7 @@ import { isAdmin } from "./constants.js";
 import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
+import { emojiSyntaxToHtml } from "../../services/emojiSyntax.js";
 
 const CB = { confirm: "admin:broadcast:confirm", cancel: "admin:broadcast:cancel" };
 
@@ -34,9 +35,11 @@ export function registerAdminBroadcast(composer: Composer<NavaContext>) {
 
     await setAdminFlow(ctx.from!.id, { flow: "broadcast", stage: "confirm", data: { message: text } });
 
-    await ctx.reply(`این پیام برای همه‌ی کاربران ارسال بشه؟\n\n"${text}"`, {
+    // v1.31.0: the PREVIEW is the message itself exactly as users will see it (emoji syntax + real newlines), with the confirmation under it
+    await ctx.reply(emojiSyntaxToHtml(text), {
+      parse_mode: "HTML",
       reply_markup: inlineKeyboard([
-        [glassButton("✅ ارسال کن", CB.confirm, "success"), glassButton("❌ لغو", CB.cancel, "danger")],
+        [glassButton("✅ تأیید و ارسال برای همه", CB.confirm, "success"), glassButton("❌ لغو", CB.cancel, "danger")],
       ]),
     });
   });
@@ -63,7 +66,8 @@ export function registerAdminBroadcast(composer: Composer<NavaContext>) {
     await logAdminAction(ctx.from!.id, "broadcast_created", job._id);
 
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText("⏳ شروع شد - اولین دسته داره ارسال می‌شه...").catch(() => {});
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    await ctx.reply("⏳ ارسال شروع شد؛ گزارش کامل در کانال لاگ ثبت می‌شه.");
 
     await processBroadcastBatch(ctx.api, job);
     const updated = await getBroadcastJob(job._id);

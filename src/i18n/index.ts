@@ -63,3 +63,50 @@ export function requireLocked<T>(lang: Language, path: string, value: T | undefi
   // Minimal, language-neutral placeholder — intentionally not "real" content.
   return "…" as unknown as T;
 }
+
+/* ---------------------------------------------------------------- v1.31.0 owner text overrides
+ * The owner edits fixed texts per language from «🎨 طراحی داخلی ربات». An override replaces ONE string leaf of a locale dictionary
+ * in memory (functions are never touched). The shipped default is remembered so clearing an override restores it exactly. */
+const shipped = new Map<string, unknown>();
+
+function walk(lang: Language, path: string): { parent: Record<string, any>; key: string } | null {
+  const parts = path.split(".");
+  let cur: any = locales[lang];
+  for (let i = 0; i < parts.length - 1; i++) {
+    cur = cur?.[parts[i]!];
+    if (!cur || typeof cur !== "object") return null;
+  }
+  return { parent: cur, key: parts[parts.length - 1]! };
+}
+
+/** value === undefined restores the shipped text. Only string leaves (or missing ones) can be overridden. */
+export function setDictionaryOverride(lang: Language, path: string, value: string | undefined): boolean {
+  const at = walk(lang, path);
+  if (!at) return false;
+  const id = `${lang}:${path}`;
+  const current = at.parent[at.key];
+  if (typeof current === "function") return false;
+  if (!shipped.has(id)) shipped.set(id, current);
+  at.parent[at.key] = value === undefined ? shipped.get(id) : value;
+  return true;
+}
+
+export function dictionaryString(lang: Language, path: string): string | undefined {
+  const at = walk(lang, path);
+  const v = at?.parent[at.key];
+  return typeof v === "string" ? v : undefined;
+}
+
+/** every plain-string leaf of the Persian dictionary (path → shipped text) — the list the owner's text editor shows */
+export function listDictionaryLeaves(): Array<{ path: string; text: string }> {
+  const out: Array<{ path: string; text: string }> = [];
+  const rec = (o: any, prefix: string) => {
+    for (const [k, v] of Object.entries(o)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      if (typeof v === "string") out.push({ path, text: (shipped.get(`fa:${path}`) as string | undefined) ?? v });
+      else if (v && typeof v === "object") rec(v, path);
+    }
+  };
+  rec(locales.fa, "");
+  return out;
+}

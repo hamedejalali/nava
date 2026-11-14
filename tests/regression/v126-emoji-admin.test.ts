@@ -34,7 +34,7 @@ test("E2. master switch from the panel beats the env default", async () => {
 });
 
 test("E3. owner sees the panel; the toggle callback flips the switch", async () => {
-  await h.text(1, "✨ ایموجی‌ها");
+  await h.text(1, "✨ ایموجی پریمیوم‌ها");
   await h.settle();
   assert.ok(h.of("sendMessage", 1).some((c) => /ایموجی‌ها/.test(c.payload.text)));
   await h.callback(1, "adm:emo:tg", 10);

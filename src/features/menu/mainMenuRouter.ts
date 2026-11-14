@@ -2,7 +2,8 @@ import { showSearchMenu, showNearby } from "../search/userSearch.js";
 import type { Composer } from "grammy";
 import { env } from "../../config/env.js";
 import type { NavaContext } from "../../bot-context.js";
-import { matchMainMenuAction, MENU_CALLBACKS } from "./mainMenu.js";
+import { matchMainMenuAction, matchCustomButton, MENU_CALLBACKS } from "./mainMenu.js";
+import { emojiSyntaxToHtml } from "../../services/emojiSyntax.js";
 import { sendGuide, sendFeedbackInfo } from "./guide.js";
 import { sendMyAnonymousLink } from "../anonMessages/index.js";
 import { enterAnonymousMatching } from "../matching/entry.js";
@@ -37,7 +38,13 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
     if (ctx.dbUser?.activeChatSessionId) return next(); // in-chat text must always go to registerChatRelay
 
     const action = matchMainMenuAction(ctx.message.text);
-    if (!action) return next();
+    if (!action) {
+      // v1.31.0: a button the owner made in «طراحی داخلی ربات» — answer with the text he wrote
+      const custom = matchCustomButton(ctx.message.text);
+      if (!custom || !custom.reply) return next();
+      await ctx.reply(emojiSyntaxToHtml(custom.reply), { parse_mode: "HTML" });
+      return;
+    }
 
     switch (action) {
       case "connectAnonymous": {

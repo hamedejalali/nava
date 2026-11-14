@@ -22,7 +22,7 @@ export async function buildSupportButton(label: string): Promise<GlassCallbackBu
 
 export function registerRulesCommand(composer: Composer<NavaContext>) {
   composer.command("ghavanin", async (ctx) => {
-    const text = await getContent("rules", DEFAULT_RULES);
+    const text = await getContent("rules", DEFAULT_RULES, ctx.userLang);
     await ctx.reply(text);
   });
 }

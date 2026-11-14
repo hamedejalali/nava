@@ -16,12 +16,14 @@ import { registerEmojiAdmin } from "./emojiAdmin.js";
 import { registerShopAdmin } from "./shopAdmin.js";
 import { registerVarsAdmin } from "./varsAdmin.js";
 import { registerPermissionGate } from "./permGate.js";
+import { registerInnerDesign } from "./innerDesign.js";
 import { registerAdminCategories, registerAdminVersionButton } from "./menu.js";
 
 export function registerAdmin(composer: Composer<NavaContext>) {
   registerAdminVersionButton(composer);
   registerPermissionGate(composer);
   registerAdminCategories(composer);
+  registerInnerDesign(composer);
   registerSeedsBatch(composer);
   registerOfficialAdmin(composer);
   registerSeedsAdmin(composer);

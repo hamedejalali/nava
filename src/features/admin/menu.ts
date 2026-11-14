@@ -51,7 +51,8 @@ export const ADMIN_MENU_LABELS = {
   wallet: "🔌 اتصال ولت",
   shop: "🛒 منوی خرید",
   channels: "📡 کانال‌ها",
-  emojis: "✨ ایموجی‌ها",
+  emojis: "✨ ایموجی پریمیوم‌ها",
+  innerDesign: "🎨 طراحی داخلی ربات",
   adminAccess: "🔑 دسترسی ادمین‌ها",
   vars: "🧩 متغیرها و تصاویر",
   texts: "📝 متن‌ها",
@@ -84,6 +85,7 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.ownerProfile,
   ADMIN_MENU_LABELS.wallet,
   ADMIN_MENU_LABELS.emojis,
+  ADMIN_MENU_LABELS.innerDesign,
   ADMIN_MENU_LABELS.vars,
   ADMIN_MENU_LABELS.adminAccess,
   ADMIN_MENU_LABELS.officialAdd,
@@ -151,7 +153,6 @@ const ADMIN_CATEGORIES: Record<CategoryId, Entry[]> = {
     { label: ADMIN_MENU_LABELS.stats, icon: () => buttonIcon("STATS") },
     { label: ADMIN_MENU_LABELS.wallet },
     { label: ADMIN_MENU_LABELS.reactionGate },
-    { label: ADMIN_MENU_LABELS.emojis },
     { label: ADMIN_MENU_LABELS.vars },
     { label: ADMIN_CATEGORY_LABELS.data },
     { label: ADMIN_CATEGORY_LABELS.staff },
@@ -179,14 +180,14 @@ function pairRows(items: Array<{ label: string; icon?: IconInput }>) {
 }
 
 /** the buttons that sit directly on the main panel besides the topics (one tap each, no sub-menu) */
-const MAIN_PANEL_TOOLS: Entry[] = [{ label: ADMIN_MENU_LABELS.channels }, { label: ADMIN_MENU_LABELS.texts }];
+const MAIN_PANEL_TOOLS: Entry[] = [{ label: ADMIN_MENU_LABELS.channels }, { label: ADMIN_MENU_LABELS.innerDesign }];
 
 export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const cats = TOP.filter((id) => visibleEntries(ctx, id).length > 0);
   const need = labelPermissions(ADMIN_MENU_LABELS as unknown as Record<string, string>);
   const items: Array<{ label: string; icon?: IconInput }> = cats.map((id) => ({ label: ADMIN_CATEGORY_LABELS[id] }));
   for (const e of MAIN_PANEL_TOOLS.filter((t) => isOwner(ctx) || (!OWNER_ONLY.includes(t.label) && (!need[t.label] || canAdmin(ctx, need[t.label]!))))) items.push({ label: e.label, icon: e.icon?.() });
-  // keep «ordered»: topics first, then channels + texts (they pair up on one row)
+  // keep «ordered»: topics first, then channels + the owner's design hub (they pair up on one row)
   const rows = pairRows(items);
   // Version button: does nothing when tapped (see registerAdminVersionButton)
   // — it only exists to show which build is deployed.

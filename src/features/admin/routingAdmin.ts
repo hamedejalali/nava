@@ -14,9 +14,11 @@ import { isOwner, isAdmin } from "./constants.js";
 import { CHANNEL_ADMIN_CALLBACKS } from "./channels.js";
 import { NG_CB } from "./navagramAdmin.js";
 import { getAppVar, setAppVar } from "../../services/appVars.js";
+import { channelRefFromMessage, CHANNEL_REF_HELP } from "./channelRef.js";
 
 /** «📡 کانال‌ها و مسیر پیام‌ها» — one screen: the management channel + where every kind of staff message goes. */
 const P = "adm:route:";
+const chatTitle = (chat: any): string => String(chat?.title ?? "");
 const FLOW = "route";
 const DEST_LABEL: Record<RouteDest, string> = { mgmt: "📡 کانال مدیریت", dm: "👤 چت مالک", off: "⛔ خاموش" };
 const NEXT: Record<RouteDest, RouteDest> = { mgmt: "dm", dm: "off", off: "mgmt" };
@@ -35,10 +37,10 @@ async function view() {
   }
   const text =
     "📡 <b>کانال‌ها</b> — همه‌ی کانال‌های ربات از همین‌جا تنظیم میشن\n\n" +
-    `<b>کانال مدیریت:</b> ${mgmt !== undefined ? `<code>${mgmt}</code>${s.managementChannelTitle ? " — " + escapeHtml(s.managementChannelTitle) : ""}${s.managementChannelId === undefined ? " (از متغیر قدیمی MODERATION_LOG_CHAT_ID)" : ""}` : "تنظیم نشده (پیام‌ها به چت مالک میرن)"}\n` +
-    `<b>کانال اصلی (کپی پست‌ها):</b> ${mini.postsChannelId ? `<code>${mini.postsChannelId}</code>` : "تنظیم نشده"} — پست‌های مویاگرام\n` +
-    `<b>کانال بک‌آپ (خروجی اکسل):</b> ${backup ? `<code>${backup}</code>` : "تنظیم نشده"}\n` +
-    `<b>کانال حراج و قرعه‌کشی:</b> ${mini.eventsChannelId ? `<code>${mini.eventsChannelId}</code>` : "تنظیم نشده"}\n` +
+    `<b>کانال مدیریت:</b> ${mgmt !== undefined ? `${s.managementChannelTitle ? escapeHtml(s.managementChannelTitle) : "✅ تنظیم شده"}${s.managementChannelId === undefined ? " (از متغیر قدیمی MODERATION_LOG_CHAT_ID)" : ""}` : "تنظیم نشده (پیام‌ها به چت مالک میرن)"}\n` +
+    `<b>کانال اصلی (کپی پست‌ها):</b> ${mini.postsChannelId ? "✅ تنظیم شده" : "تنظیم نشده"} — پست‌های مویاگرام\n` +
+    `<b>کانال بک‌آپ (خروجی اکسل):</b> ${backup ? escapeHtml((await getAppVar("BACKUP_CHANNEL_TITLE")) || "✅ تنظیم شده") : "تنظیم نشده"}\n` +
+    `<b>کانال حراج و قرعه‌کشی:</b> ${mini.eventsChannelId ? "✅ تنظیم شده" : "تنظیم نشده"}\n` +
     "\n" +
     "هر نوع پیام رو بزن تا بین «کانال مدیریت ← چت مالک ← خاموش» عوض بشه:\n\n" + lines;
   return {
@@ -68,8 +70,8 @@ async function show(ctx: NavaContext, edit: boolean) {
 }
 
 export function registerRoutingAdmin(composer: Composer<NavaContext>) {
-  composer.on("message:text", async (ctx, next) => {
-    const text = ctx.message.text.trim();
+  composer.on("message", async (ctx, next) => {
+    const text = (ctx.message.text ?? ctx.message.caption ?? "").trim();
     if (text === ADMIN_MENU_LABELS.channels && isAdmin(ctx) && !isOwner(ctx)) {
       await setAdminFlow(ctx.from!.id, null);
       await ctx.reply("📡 کانال‌ها", { reply_markup: inlineKeyboard([[glassButton("📢 کانال‌های جوین اجباری", CHANNEL_ADMIN_CALLBACKS.open, "primary")]]) });
@@ -90,14 +92,15 @@ export function registerRoutingAdmin(composer: Composer<NavaContext>) {
       return;
     }
     if (flow.stage === "backup") {
-      const bref = /^-?\d{5,20}$/.test(text) ? text : /^@[A-Za-z0-9_]{4,}$/.test(text) ? text : null;
-      if (!bref) return void (await ctx.reply("آیدی معتبر نیست. مثل -1001234567890 یا @mychannel بفرست.", { reply_markup: cancelKeyboard() }));
+      const bref = channelRefFromMessage(ctx.message);
+      if (!bref) return void (await ctx.reply(CHANNEL_REF_HELP, { reply_markup: cancelKeyboard() }));
       try {
         const chat = await ctx.api.getChat(bref);
         const me = await ctx.api.getChatMember(chat.id, ctx.me.id);
         if (me.status !== "administrator" && me.status !== "creator") throw new Error("not admin");
         await setAppVar("BACKUP_CHANNEL_ID", String(chat.id));
-        await logAdminAction(ctx.from!.id, "backup_channel_set", String(chat.id));
+        await setAppVar("BACKUP_CHANNEL_TITLE", "title" in chat ? (chat.title ?? "") : "");
+        await logAdminAction(ctx.from!.id, "backup_channel_set", chatTitle(chat));
         await setAdminFlow(ctx.from!.id, null);
         await ctx.reply("✅ کانال بک‌آپ ذخیره شد.");
         await show(ctx, false);
@@ -106,8 +109,8 @@ export function registerRoutingAdmin(composer: Composer<NavaContext>) {
       }
       return;
     }
-    const ref = /^-?\d{5,20}$/.test(text) ? text : /^@[A-Za-z0-9_]{4,}$/.test(text) ? text : null;
-    if (!ref) return void (await ctx.reply("آیدی معتبر نیست. مثل -1001234567890 یا @mychannel بفرست.", { reply_markup: cancelKeyboard() }));
+    const ref = channelRefFromMessage(ctx.message);
+    if (!ref) return void (await ctx.reply(CHANNEL_REF_HELP, { reply_markup: cancelKeyboard() }));
     try {
       const chat = await ctx.api.getChat(ref);
       const me = await ctx.api.getChatMember(chat.id, ctx.me.id);
@@ -117,7 +120,7 @@ export function registerRoutingAdmin(composer: Composer<NavaContext>) {
         return void (await ctx.reply("این کانال همون کانال اصلی/حراجه. برای مدیریت یه کانال جدا بفرست.", { reply_markup: cancelKeyboard() }));
       }
       await patchBotSettings({ managementChannelId: chat.id, managementChannelTitle: "title" in chat ? (chat.title ?? "") : "" });
-      await logAdminAction(ctx.from!.id, "mgmt_channel_set", String(chat.id));
+      await logAdminAction(ctx.from!.id, "mgmt_channel_set", chatTitle(chat));
       await setAdminFlow(ctx.from!.id, null);
       await ctx.reply("✅ کانال مدیریت ذخیره شد.");
       await show(ctx, false);
@@ -136,14 +139,14 @@ export function registerRoutingAdmin(composer: Composer<NavaContext>) {
     if (!(await guard(ctx))) return;
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "channel" });
-    await ctx.reply("آیدی عددی کانال مدیریت (مثل -1001234567890) یا @یوزرنیمش رو بفرست. ربات باید داخلش ادمین باشه.", { reply_markup: cancelKeyboard() });
+    await ctx.reply(CHANNEL_REF_HELP, { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(`${P}bk`, async (ctx) => {
     if (!(await guard(ctx))) return;
     await ctx.answerCallbackQuery();
     await setAdminFlow(ctx.from!.id, { flow: FLOW, stage: "backup" });
-    await ctx.reply("آیدی عددی کانال بک‌آپ (مثل -1001234567890) یا @یوزرنیمش رو بفرست. ربات باید داخلش ادمین باشه.", { reply_markup: cancelKeyboard() });
+    await ctx.reply(CHANNEL_REF_HELP, { reply_markup: cancelKeyboard() });
   });
 
   composer.callbackQuery(`${P}bkc`, async (ctx) => {

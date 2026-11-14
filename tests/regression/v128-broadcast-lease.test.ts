@@ -11,8 +11,9 @@ bp.BROADCAST_PACE.ms = 0;
 
 function fakeApi(fail: (id: number) => any = () => null) {
   const sent: number[] = [];
-  const api: any = { async sendMessage(id: number) { const f = fail(id); if (f) throw f; await new Promise((r) => setImmediate(r)); sent.push(id); return {}; } };
-  return { api, sent };
+  const logs: number[] = [];
+  const api: any = { async sendMessage(id: number) { const f = fail(id); if (f) throw f; await new Promise((r) => setImmediate(r)); if (id >= 1000) sent.push(id); else logs.push(id); return {}; } };
+  return { api, sent, logs };
 }
 beforeEach(() => {
   resetState();
@@ -21,10 +22,11 @@ beforeEach(() => {
 
 test("L1. two workers at once: every user gets the message exactly once", async () => {
   const job = await M.createBroadcastJob("hello", 1);
-  const { api, sent } = fakeApi();
+  const { api, sent, logs } = fakeApi();
   await Promise.all([bp.processBroadcastBatch(api, job), bp.processBroadcastBatch(api, job), bp.processBroadcastBatch(api, job)]);
   assert.equal(sent.length, new Set(sent).size, "no user twice");
   assert.equal(sent.length, 100);
+  assert.equal(logs.length, 1, "exactly ONE final log message, even with three workers");
   const j = await M.getBroadcastJob(job._id);
   assert.equal(j!.done, true);
   assert.equal(j!.sentCount, 100);

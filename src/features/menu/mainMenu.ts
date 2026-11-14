@@ -1,6 +1,8 @@
 import { dictionary, requireLocked, type Language } from "../../i18n/index.js";
 import { glassButton, inlineKeyboard, glassReplyButton, replyKeyboard } from "../../ui/keyboard.js";
 import { buttonIcon } from "../../config/emojis.js";
+import { builtinOverride, customButtons, type BtnStyle } from "../../db/models/uiConfig.js";
+import { renderButtonLabel, labelTapForms } from "../../services/emojiSyntax.js";
 
 /** Callback data for each main-menu button. Handlers for these are
  *  intentionally NOT implemented yet — per Feature 04, only the buttons and
@@ -53,29 +55,46 @@ export function buildMainMenuKeyboard(lang: Language) {
  * is exactly the button's label, which `registerMainMenuRouter` below
  * matches back to an action across all 3 supported languages.
  */
+/** The owner-designed look of one built-in button (v1.31.0 «طراحی داخلی ربات»): label / colour / hidden, falling back to the defaults. */
+function designed(key: MenuAction, label: string, style: "success" | "primary" | "danger", icon: ReturnType<typeof buttonIcon>) {
+  const o = builtinOverride(key);
+  if (o?.hidden) return null;
+  const st: BtnStyle = o?.style ?? style;
+  const real = st === "default" ? undefined : st;
+  if (o?.label) {
+    const r = renderButtonLabel(o.label);
+    const nb = glassReplyButton(r.text, real as any, r.iconId);
+    if (st === "default") delete (nb as any).style;
+    return nb;
+  }
+  const b = glassReplyButton(label, real as any, icon);
+  if (st === "default") delete (b as any).style;
+  return b;
+}
+
 export function buildMainMenuReplyKeyboard(lang: Language) {
   const t = dictionary(lang);
   const m = t.mainMenu;
   const label = (key: keyof typeof m, path: string) => requireLocked(lang, path, m[key]);
-
-  return replyKeyboard([
-    [glassReplyButton(label("connectAnonymous", "mainMenu.connectAnonymous"), "success", buttonIcon("ANONYMOUS"))],
-    [
-      glassReplyButton(label("nearbyPeople", "mainMenu.nearbyPeople"), "primary", buttonIcon("LOCATION")),
-      glassReplyButton(label("contacts", "mainMenu.contacts"), "primary", buttonIcon("CONTACTS")),
-      glassReplyButton(label("searchUsers", "mainMenu.searchUsers"), "primary", buttonIcon("SEARCH")),
-    ],
-    [
-      glassReplyButton(label("guide", "mainMenu.guide"), "primary", buttonIcon("GUIDE")),
-      glassReplyButton(label("profile", "mainMenu.profile"), "danger", buttonIcon("PROFILE")),
-      glassReplyButton(label("relicCoin", "mainMenu.relicCoin"), "primary", buttonIcon("CROWN")),
-    ],
-    [
-      glassReplyButton(label("feedback", "mainMenu.feedback"), "primary", buttonIcon("MAILBOX")),
-      glassReplyButton(label("myAnonymousLink", "mainMenu.myAnonymousLink"), "primary", buttonIcon("LETTER")),
-    ],
-    [glassReplyButton(label("inviteFriends", "mainMenu.inviteFriends"), "primary", buttonIcon("INVITE"))],
-  ]);
+  const B = (key: MenuAction, style: "success" | "primary" | "danger", icon: ReturnType<typeof buttonIcon>) => designed(key, label(key, `mainMenu.${key}`), style, icon);
+  const rows = [
+    [B("connectAnonymous", "success", buttonIcon("ANONYMOUS"))],
+    [B("nearbyPeople", "primary", buttonIcon("LOCATION")), B("contacts", "primary", buttonIcon("CONTACTS")), B("searchUsers", "primary", buttonIcon("SEARCH"))],
+    [B("guide", "primary", buttonIcon("GUIDE")), B("profile", "danger", buttonIcon("PROFILE")), B("relicCoin", "primary", buttonIcon("CROWN"))],
+    [B("feedback", "primary", buttonIcon("MAILBOX")), B("myAnonymousLink", "primary", buttonIcon("LETTER"))],
+    [B("inviteFriends", "primary", buttonIcon("INVITE"))],
+  ]
+    .map((r) => r.filter((b): b is NonNullable<typeof b> => !!b))
+    .filter((r) => r.length > 0);
+  // owner-made buttons: two per row, after the built-in ones
+  const extra = customButtons().map((c) => {
+    const r = renderButtonLabel(c.label ?? "—");
+    const b = glassReplyButton(r.text, (c.style === "default" ? undefined : c.style) as any, r.iconId);
+    if (c.style === "default") delete (b as any).style;
+    return b;
+  });
+  for (let i = 0; i < extra.length; i += 2) rows.push(extra.slice(i, i + 2));
+  return replyKeyboard(rows);
 }
 
 type MenuAction = keyof typeof MENU_CALLBACKS;
@@ -105,5 +124,20 @@ function stripLeadingSymbols(text: string): string {
 }
 
 export function matchMainMenuAction(text: string): MenuAction | undefined {
-  return LABEL_TO_ACTION.get(text) ?? LABEL_TO_ACTION.get(stripLeadingSymbols(text));
+  const base = LABEL_TO_ACTION.get(text) ?? LABEL_TO_ACTION.get(stripLeadingSymbols(text));
+  if (base) return base;
+  // the owner renamed a built-in button: its new label routes to the same action
+  for (const key of Object.keys(MENU_CALLBACKS) as MenuAction[]) {
+    const o = builtinOverride(key);
+    if (o?.label && !o.hidden && (labelTapForms(o.label).includes(text) || labelTapForms(o.label).includes(stripLeadingSymbols(text)))) return key;
+  }
+  return undefined;
+}
+
+/** A tap on an owner-made button -> the message to send back (raw text, rendered by the caller with the emoji syntax). */
+export function matchCustomButton(text: string): { id: string; reply: string } | undefined {
+  for (const c of customButtons()) {
+    if (c.label && (labelTapForms(c.label).includes(text) || labelTapForms(c.label).includes(stripLeadingSymbols(text)))) return { id: c._id, reply: c.reply ?? "" };
+  }
+  return undefined;
 }

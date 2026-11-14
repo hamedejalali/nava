@@ -15,6 +15,9 @@ export interface BroadcastJobDoc {
   /** v1.28.0: only ONE worker (admin button / cron) may send at a time. The lease expires by itself if the worker dies. */
   leaseOwner?: string;
   leaseUntil?: Date;
+  /** v1.31.0: why sends failed (blocked / deactivated / chat_not_found / other) and whether the ONE final log message was posted */
+  failReasons?: Record<string, number>;
+  logSent?: boolean;
 }
 
 async function col(): Promise<Collection<BroadcastJobDoc>> {
@@ -66,4 +69,16 @@ export async function advanceBroadcast(id: string, owner: string, fromCursor: nu
 
 export async function releaseBroadcastLease(id: string, owner: string): Promise<void> {
   await (await col()).updateOne({ _id: id, leaseOwner: owner }, { $unset: { leaseOwner: "", leaseUntil: "" } });
+}
+
+export async function addBroadcastFailReason(id: string, reason: string): Promise<void> {
+  await (await col()).updateOne({ _id: id }, { $inc: { [`failReasons.${reason}`]: 1 } });
+}
+
+/** Claims the right to post the single final log message (exactly once, even with two workers). */
+export async function claimBroadcastLog(id: string): Promise<BroadcastJobDoc | null> {
+  return (await col()).findOneAndUpdate({ _id: id, done: true, logSent: { $ne: true } }, { $set: { logSent: true } }, { returnDocument: "after" });
+}
+export async function unclaimBroadcastLog(id: string): Promise<void> {
+  await (await col()).updateOne({ _id: id }, { $set: { logSent: false } });
 }

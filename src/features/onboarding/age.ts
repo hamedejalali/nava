@@ -35,7 +35,7 @@ export function buildAgeReplyKeyboard() {
 export async function showGuide1AndAge(ctx: NavaContext, lang: Language) {
   const t = dictionary(lang);
 
-  const guide1 = await getContent("guide1", requireLocked(lang, "onboarding.guide1", t.onboarding.guide1));
+  const guide1 = await getContent("guide1", requireLocked(lang, "onboarding.guide1", t.onboarding.guide1), lang);
   await ctx.reply(guide1, { parse_mode: "HTML" });
 
   const userId = ctx.from!.id;

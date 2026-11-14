@@ -45,7 +45,7 @@ export async function sendInviteScreen(ctx: NavaContext): Promise<void> {
   if (!user) return;
 
   const link = `https://t.me/${botUsername()}?start=${user.anonId}`;
-  const template = await getContent("inviteMessage", defaultInviteMessageTemplate());
+  const template = await getContent("inviteMessage", defaultInviteMessageTemplate(), ctx.userLang);
   const inviteText = template.split("{{link}}").join(link);
 
   // (premium emoji tags inside inviteText are turned into real HTML by

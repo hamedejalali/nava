@@ -180,8 +180,15 @@ let allowedIdsCache: Set<string> | null = null;
  *  Used as a WHITELIST by the outgoing-message sanitizer: a `<tg-emoji>`
  *  tag whose ID is not configured anymore (or was typed by a user / stored
  *  in an old DB text) is silently downgraded to its plain emoji. */
+/** v1.31.0: ids the OWNER wrote with the `-😌 -id-` syntax (never user input) — allowed through the outgoing sanitizer like configured ones */
+export const ownerSyntaxIds = new Set<string>();
+
 export function allowedPremiumIds(): Set<string> {
   if (!premiumEnabled()) return new Set();
+  if (ownerSyntaxIds.size) return new Set([...baseAllowedIds(), ...ownerSyntaxIds]);
+  return baseAllowedIds();
+}
+function baseAllowedIds(): Set<string> {
   if (!allowedIdsCache) {
     const set = new Set<string>();
     for (const key of Object.keys(DEFAULT_EMOJI) as EmojiKey[]) {
