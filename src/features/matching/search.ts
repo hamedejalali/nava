@@ -15,6 +15,8 @@ import { sendTimeoutNotice, settleNotice } from "./searchNotices.js";
 import { requireChannelMembership } from "../forcejoin/guard.js";
 import { glassButton, inlineKeyboard } from "../../ui/keyboard.js";
 import { buildMainMenuReplyKeyboard } from "../menu/mainMenu.js";
+import { startSearchTimer } from "./searchSteps.js";
+import { qstashEnabled, scheduleSearchSteps } from "../../services/qstash.js";
 import { runSeedScript, SEED_SEARCH_LEAD_MS, trySeedMatch } from "./seedMatch.js";
 
 const TYPE_BY_CALLBACK: Record<string, SearchType> = {
@@ -49,7 +51,7 @@ function labelFor(lang: Language, searchType: SearchType): string {
   return requireLocked(lang, path, value);
 }
 
-function countdownKeyboard(lang: Language, elapsedSeconds: number) {
+export function countdownKeyboard(lang: Language, elapsedSeconds: number) {
   const t = dictionary(lang);
   const cancelLabel = requireLocked(lang, "matching.cancelSearchButton", t.matching.cancelSearchButton);
   return inlineKeyboard([
@@ -69,7 +71,7 @@ export { isUnreachableError, isPermanentSendError };
  *  independently and in parallel (see matchDelivery.ts): a transient failure for one is retried later from
  *  the durable record (webhook traffic / cron) without touching the chat or the money; a person who can never
  *  be reached (blocked the bot) gets the match undone ATOMICALLY with both Relic refunded. */
-async function announceMatch(api: NavaContext["api"], user: { _id: number }, _lang: Language, result: Extract<MatchAttemptResult, { status: "matched" }>, ownStatus?: { chatId: number; messageId: number }) {
+export async function announceMatch(api: NavaContext["api"], user: { _id: number }, _lang: Language, result: Extract<MatchAttemptResult, { status: "matched" }>, ownStatus?: { chatId: number; messageId: number }) {
   try {
     if (ownStatus) await api.deleteMessage(ownStatus.chatId, ownStatus.messageId).catch(() => {});
     if (result.partnerStatusMessageId) await api.deleteMessage(result.partnerId, result.partnerStatusMessageId).catch(() => {});
@@ -92,7 +94,7 @@ export interface CountdownOptions {
 
 /** A default-member chat is played out inside this invocation, but Vercel stops a function at ~60 s: after this
  *  much time from the countdown's start the invocation stops waiting and the sweep ends the chat later. */
-const SEED_SCRIPT_BUDGET_MS = 55_000;
+export const SEED_SCRIPT_BUDGET_MS = 55_000;
 
 /**
  * Search countdown (rewritten v1.12.0). It is driven by the WALL CLOCK, not by "N sleeps of 1 s":
@@ -204,26 +206,31 @@ export async function runCountdown(
     return;
   }
 
-  // Deadline reached: exactly one party gets to remove the entry; only that party declares the timeout.
+  await finishSearchTimeout(api, user._id, chatId, statusMessageId, lang, new Date(startedAt));
+}
+
+/** The deadline step shared by the in-process countdown and the QStash «expire» step: exactly one party claims the queue
+ *  entry (or the armed notice) and only that party declares the timeout. Idempotent and safe to call late or twice. */
+export async function finishSearchTimeout(api: NavaContext["api"], userId: number, chatId: number, statusMessageId: number, lang: Language, createdBefore: Date): Promise<void> {
+  const dropOwnStatus = () => api.deleteMessage(chatId, statusMessageId).catch(() => {});
   let claimed;
   try {
-    claimed = await claimQueueEntry(user._id, { createdBefore: new Date(startedAt), forTimeout: true });
+    claimed = await claimQueueEntry(userId, { createdBefore, forTimeout: true });
   } catch (err) {
     console.error("[search] timeout claim failed (daily cron will clean up):", err instanceof Error ? err.name : "unknown");
     return;
   }
-  // The durable notice record decides who delivers: if the recovery pass already took it, we stay silent.
   let notice: Awaited<ReturnType<typeof claimSearchNotice>> = { status: "none" };
   try {
-    if (claimed) notice = await claimSearchNotice(user._id, claimed.createdAt);
-    else notice = await claimArmedSearchNoticeFor(user._id, new Date(startedAt)); // entry already swept by the TTL: the armed notice still proves the search timed out
+    if (claimed) notice = await claimSearchNotice(userId, claimed.createdAt);
+    else notice = await claimArmedSearchNoticeFor(userId, createdBefore);
   } catch (err) {
     console.error("[search] could not claim timeout notice (sending without it):", err instanceof Error ? err.name : "unknown");
   }
-  if (!claimed && notice.status !== "claimed") return; // matched / cancelled / handled by someone else
+  if (!claimed && notice.status !== "claimed") return;
   await dropOwnStatus();
   if (notice.status === "taken") return;
-  const res = await sendTimeoutNotice(api, user._id, lang);
+  const res = await sendTimeoutNotice(api, userId, lang);
   if (notice.status === "claimed") await settleNotice(notice.notice, res).catch(() => {});
 }
 
@@ -323,15 +330,19 @@ export function registerSearch(composer: Composer<NavaContext>) {
       return;
     }
 
-    const countdown = runCountdown(ctx.api, user, ctx.chat!.id, sent.message_id, ctx.userLang, searchType, { searchStartedAt: pressedAt }).catch((err) => {
-      console.error("[search] runCountdown crashed (background task):", err instanceof Error ? err.name : "unknown");
+    // v1.33.0: with QStash configured the 40 s clock is EXTERNAL (nothing stays alive); otherwise / on any schedule failure the old countdown runs
+    await startSearchTimer({
+      api: ctx.api,
+      user,
+      chatId: ctx.chat!.id,
+      statusMessageId: sent.message_id,
+      lang: ctx.userLang,
+      searchType,
+      pressedAt,
+      enabled: qstashEnabled(),
+      scheduler: scheduleSearchSteps,
+      fallback: (run) => waitUntil(run),
     });
-    // Outside a real Vercel request (local `node`/tests, another host)
-    // `waitUntil` is simply a no-op — the promise above still runs to
-    // completion on Node's own event loop regardless, it just isn't
-    // specially protected against the process being frozen right after
-    // the response is sent, which only Vercel's runtime ever does.
-    waitUntil(countdown);
   });
 
   composer.callbackQuery(SEARCH_CALLBACKS.cancel, async (ctx) => {

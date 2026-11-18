@@ -56,6 +56,20 @@ export const env = {
   get CRON_SECRET() {
     return optional("CRON_SECRET");
   },
+  /** v1.33.0 — Upstash QStash: the EXTERNAL timer that drives the 40 s search (no function is kept alive). All four must be set to switch it on. */
+  get QSTASH_TOKEN() {
+    return optional("QSTASH_TOKEN")?.trim();
+  },
+  get QSTASH_CURRENT_SIGNING_KEY() {
+    return optional("QSTASH_CURRENT_SIGNING_KEY")?.trim();
+  },
+  get QSTASH_NEXT_SIGNING_KEY() {
+    return optional("QSTASH_NEXT_SIGNING_KEY")?.trim();
+  },
+  /** Public https base of this deployment (no trailing slash); QStash calls <base>/api/search-step. Defaults to PUBLIC_URL. */
+  get APP_BASE_URL(): string | undefined {
+    return (optional("APP_BASE_URL") ?? optional("PUBLIC_URL"))?.trim().replace(/\/+$/, "");
+  },
   /** URL of the Nava user Mini App (public/miniapp). Defaults to
    *  PUBLIC_URL + "/miniapp/". */
   get NAVA_MINIAPP_URL(): string | undefined {

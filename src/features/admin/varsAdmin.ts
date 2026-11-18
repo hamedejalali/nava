@@ -60,7 +60,8 @@ const GROUPS: Array<{ id: string; title: string; vars: VarDef[] }> = [
     ],
   },
 ];
-export const IMAGE_VARS = GROUPS.find((g) => g.id === "img")!.vars;
+/** the photo variables (used by «🎨 طراحی داخلی ربات → ویرایش عکس‌ها») */
+export const IMAGE_VARS: VarDef[] = GROUPS.find((g) => g.id === "img")!.vars;
 const ALL = GROUPS.flatMap((g) => g.vars);
 const find = (k: string) => ALL.find((v) => v.key === k);
 const P = "adm:vars:";
@@ -80,7 +81,7 @@ async function home(ctx: NavaContext, edit = false) {
     (migrated > 0 ? `\n⏳ ${migrated} متغیر قدیمی هنوز منتقل نشده؛ با «⬇️ انتقال از env» همین الان منتقل میشن.\n` : "\n✅ هیچ متغیر قدیمی منتقل‌نشده‌ای نمونده.\n") +
     "\nیک گروه رو انتخاب کن:";
   const kb = inlineKeyboard([
-    ...GROUPS.map((g) => [glassButton(g.title, `${P}g:${g.id}`, "primary")]),
+    ...GROUPS.filter((g) => g.id !== "img").map((g) => [glassButton(g.title, `${P}g:${g.id}`, "primary")]),
     [glassButton("⬇️ انتقال همه‌ی متغیرهای env به پنل", `${P}mig`, "success")],
   ]);
   await render(ctx, text, kb, edit);

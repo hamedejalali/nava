@@ -33,11 +33,3 @@ test("E2. master switch from the panel beats the env default", async () => {
   assert.equal(premiumId("HOME"), "5416041192905265756");
 });
 
-test("E3. owner sees the panel; the toggle callback flips the switch", async () => {
-  await h.text(1, "✨ ایموجی پریمیوم‌ها");
-  await h.settle();
-  assert.ok(h.of("sendMessage", 1).some((c) => /ایموجی‌ها/.test(c.payload.text)));
-  await h.callback(1, "adm:emo:tg", 10);
-  await h.settle();
-  assert.equal(premiumEnabled(), false);
-});

@@ -45,7 +45,7 @@ test("K3. an old inline button (no handler) answers with a hint instead of a sil
 
 test("K4. an admin with no recorded keyboard who taps a panel button gets the ADMIN panel back, not the user menu", async () => {
   user(900, { isAdmin: true });
-  await h.text(900, "📝 متن‌ها");
+  await h.text(900, "📡 کانال‌ها");
   await h.settle();
   const r = refreshes(900);
   assert.equal(r.length, 1);

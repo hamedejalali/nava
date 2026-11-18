@@ -2,6 +2,7 @@ import type { Transformer } from "grammy";
 import { allowedPremiumIds, premiumEnabled } from "../config/emojis.js";
 import { env } from "../config/env.js";
 import { escapeHtml } from "../utils/html.js";
+import { applyMarkup, applyText } from "../services/uiApply.js";
 
 /**
  * OUTGOING-REQUEST SAFETY NET (installed once in src/bot.ts).
@@ -113,7 +114,16 @@ export const telegramSafetyTransformer: Transformer = (prev, method, payload, si
 
   const next: any = { ...data };
 
+  // v1.32.0: the owner's edits of texts / buttons («طراحی داخلی ربات»); the hub's own screens opt out with no_ui_override
+  const skipOverrides = next.no_ui_override === true;
+  delete next.no_ui_override;
   const field = TEXT_FIELD_BY_METHOD[method];
+  if (!skipOverrides) {
+    if (field && typeof next[field] === "string" && !next.entities && !next.caption_entities) next[field] = applyText(next[field], next.parse_mode);
+    else if (method === "answerCallbackQuery" && typeof next.text === "string") next.text = applyText(next.text);
+    if (next.reply_markup) next.reply_markup = applyMarkup(next.reply_markup);
+  }
+
   if (field && typeof next[field] === "string" && !next.entities && !next.caption_entities && HAS_TAG.test(next[field])) {
     const mode = next.parse_mode;
     if (mode === undefined) {

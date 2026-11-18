@@ -60,9 +60,11 @@ import { telegramSafetyTransformer } from "./ui/telegramSafety.js";
 import { telegramRetryTransformer } from "./ui/telegramRetry.js";
 import { rememberBotUsername } from "./config/botInfo.js";
 import { reportUnhandled, sendErrorCopy, updateKind } from "./services/errorReport.js";
+import { inboundOriginal } from "./db/models/uiOverrides.js";
 import { loadEmojiConfig, noteOwnerPremium } from "./db/models/emojiConfig.js";
 import { resumeIfBroken } from "./features/onboarding/repair.js";
 import { enforceEnglishName } from "./features/onboarding/englishName.js";
+import { registerOwnerInline } from "./features/admin/innerDesign.js";
 import { registerInviteStart, registerInlineGames } from "./features/games/inviteStart.js";
 import { keyboardStateTransformer, restoreKeyboardIfDone } from "./features/common/keyboardState.js";
 import { registerGameShareStart } from "./features/games/shareStart.js";
@@ -133,6 +135,7 @@ export function createBot(): Bot<NavaContext> {
 
   // v1.30.0: «@bot » → the games list. Registered BEFORE the context enrichment on purpose: typing in an inline box must not create an
   // account (or a «new user» notice to the admins); it only READS the user (ban / maintenance) and answers.
+  registerOwnerInline(bot); // v1.32.0: the owner's «طراحی داخلی» inline list (only «t:/b:» queries; everything else falls through)
   registerInlineGames(bot);
 
   // ---- Context enrichment ----
@@ -244,8 +247,14 @@ export function createBot(): Bot<NavaContext> {
     rememberBotUsername(ctx.me?.username);
     await next();
   });
-  bot.use(async (_ctx, next) => {
+  bot.use(async (ctx, next) => {
     await loadEmojiConfig();
+    // v1.32.0: a tap on a button the owner RENAMED arrives with the new name → give the handlers the original label they know
+    const m = ctx.message;
+    if (m?.text) {
+      const original = inboundOriginal(m.text);
+      if (original) (m as { text: string }).text = original;
+    }
     await next();
   });
 

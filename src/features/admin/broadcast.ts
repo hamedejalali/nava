@@ -8,7 +8,7 @@ import { isAdmin } from "./constants.js";
 import { setAdminFlow, getAdminFlow, isFlowCancelSignal } from "./flowState.js";
 import { logAdminAction } from "../../db/models/adminLog.js";
 import { ADMIN_MENU_LABELS } from "./menu.js";
-import { emojiSyntaxToHtml } from "../../services/emojiSyntax.js";
+import { emojiSyntaxToHtml, entitiesToSyntax } from "../../services/emojiSyntax.js";
 
 const CB = { confirm: "admin:broadcast:confirm", cancel: "admin:broadcast:cancel" };
 
@@ -33,10 +33,12 @@ export function registerAdminBroadcast(composer: Composer<NavaContext>) {
       return;
     }
 
-    await setAdminFlow(ctx.from!.id, { flow: "broadcast", stage: "confirm", data: { message: text } });
+    // v1.32.0: owner-sent premium emoji (entities) become the stored «simple + premium» syntax
+    const stored = entitiesToSyntax(ctx.message.text, ctx.message.entities as any);
+    await setAdminFlow(ctx.from!.id, { flow: "broadcast", stage: "confirm", data: { message: stored } });
 
     // v1.31.0: the PREVIEW is the message itself exactly as users will see it (emoji syntax + real newlines), with the confirmation under it
-    await ctx.reply(emojiSyntaxToHtml(text), {
+    await ctx.reply(emojiSyntaxToHtml(stored), {
       parse_mode: "HTML",
       reply_markup: inlineKeyboard([
         [glassButton("✅ تأیید و ارسال برای همه", CB.confirm, "success"), glassButton("❌ لغو", CB.cancel, "danger")],

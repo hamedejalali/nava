@@ -856,3 +856,200 @@ F-01 / F-17 و سیاست شرط‌بندی دست نخورد. `.env.example` ت
 
 ## تست
 `tests/regression/v1310-inner-design.test.ts` (۹ تست) + به‌روزرسانی ۵ انتظار تست قدیمی که عمداً عوض شد (دکمه‌ی «متن‌ها»/«ایموجی‌ها» به هاب رفت؛ پیام لاگ همگانی).
+
+
+## Verbatim: item 10 — remove the design hub (v1.31.1)
+
+> ببین دکمه طراحی داخلی ربات رو پاک کن کلا
+> ینی هر کد نویسی هر منطقی هم داخلش هست رو پاک کن از اول میگم بهت چجوری  طراحی کنی مجدد
+
+### Report for item 10 (as delivered, v1.31.1)
+
+Removed entirely: `src/features/admin/innerDesign.ts`, `src/db/models/uiConfig.ts`, `src/services/textOverrides.ts`, the hub test; reverted to the v1.30.3 versions: `menu.ts`, `panel.ts`, `guides.ts`, `mainMenu.ts`, `mainMenuRouter.ts`, `content.ts` (no per-language texts), `i18n/index.ts` (no overrides), `profile.ts` (no template), `adminAudit.ts`, `varsAdmin.ts`, admin `index.ts`, and the callers that passed a language to `getContent`. «📝 متن‌ها» / «✨ ایموجی‌ها» are back in the panel. `emojiConfig.ts` keeps only the owner-Premium flag used by the emoji syntax.
+Kept (they were outside the hub; tell me to remove if unwanted): broadcast preview + one complete log report, emoji syntax for broadcasts, coded error log (MG-UH-001/002) with a log-channel copy, channel registration by @username / link / forwarded post. Tests are MOCK. No data migration; the unused collections `ui_buttons` / `ui_texts` are simply ignored.
+
+
+## Verbatim: item 11 — correction (v1.31.2)
+
+> فایل‌های مربوط به این‌ها به حالت ۱.۳۰.۳ برگشتند.
+> دکمه‌های قدیمی «📝 متن‌ها» و «✨ ایموجی‌ها» به پنل برگشتند و مثل قبل کار می‌کنند.
+>
+> نمیخواااااام گفتم هر کدی داخل اون دکمس رو پاک کن واسچی برگردوندی سرجاش مگه من گفتم برگردون سرجاش اخه چرا عصبیم میکنی
+
+### Report for item 11 (as delivered, v1.31.2)
+
+My mistake in v1.31.1: I restored the old «📝 متن‌ها» / «✨ ایموجی‌ها» buttons although the owner said everything belonging to the design hub must go (the hub had absorbed them). Now removed with their code: `src/features/admin/emojiAdmin.ts` (deleted), the text-edit handlers in `guides.ts` (only the default texts remain, used by users-facing code), `textsMenu` and its handler in `panel.ts`, the two labels/entries in `menu.ts`, the permission mapping. Stored texts/emoji settings in the DB are untouched and still read. Tests that used these buttons were adapted/removed (E3, A3 text part, A6/K4 now use «📡 کانال‌ها»). The shop-text editor is no longer reachable (code left; owner to decide). Tests are MOCK.
+
+
+## Verbatim: item 12 — «طراحی داخلی ربات» از نو (v1.32.0)
+
+> در پنل ادمین دکمه جدید ایجاد شود
+> با نام طراحی داخلی ربات
+> این دکمه قراره دیزاین داخلی ربات رو انجام بده
+>
+>
+>
+> دکمه اول که داخل این دکمه باید ایجاد کنی
+> دکمه (طراحی دکمه های ربات)
+> این دیزاین فقط صرفا برا ویرایش دکمه هایی هست که کاربر میبینه نه سمت پنل
+> دکمه های صفحه اصلی کیبرد باتن و تمامی دکمه های کیبرد شیشه ای که کاربر میبینه رو
+> همون پروفایل و به یه ناشناس وصلم کن و.. رو
+> هرکدومو بخوام میزنم روش اسمشو عوض میکنم
+> رنگشو عوض میکنم
+> و دکمه جدید بخوام ایجاد میکنم و میگم بعد از اینکه کاربر اون دکمه جدید رو زد چه پیامی براش ارسال شه
+> من اگر تو متنی که میفرستم ینی اسم اون دکمه
+> این مدلی نوشتم
+> سلام♥️🔥
+> فرض کن آتش اموجی پریمیوم هست
+> و قلب هم اموجی ساده
+>
+> ینی زمانی که دو اموجی یعنی یک اموجی ساده و یک اموجی پریمیوم کنار همدیگه فرستادم برا ربات
+> اگر مالک پریمیوم داشت
+> و دکمه اموجی پریمیوم تلگرام داخل ربات روشن بود
+> ربات متن هارو در قالب پریمیوم ینی همون اتش رو نمایش بده
+> سلام🔥 این ینی اموجی پریمیومه رو فقط نمایش بده
+> اگرم دکمه پریمیوم خاموش بود یا مالک پریمیوم نداشت
+> سلام♥️
+> ینی ساده
+> حالا ممکنه یجا دوتا اموجی ساده بذارم دوتا پریمیوم
+> ♦️♥️ اینا ساده
+> 🪀🎴 اینا پریمیوم
+> ♥️♦️🎴🪀
+> این ینی دوتا اموجی داره و دوتا اموجی ساده یا پریمیوم رو نمایش بده
+>
+>
+>
+>
+>
+>
+> دکمه دوم داخل دکمه طراحی داخلی ربات
+> دکمه اموجی پریمیوم ها هست
+> که وقتی میزنی روش
+> اموجی پریمیوم ربات خاموش و روشن میشه
+>
+>
+> دکمه سوم داخل دکمه طراحی داخلی ربات
+> دکمه ویرایش عکس ها
+>
+> اگر عکسی داره ربات برای کاربر ارسال میکنه
+> عکس هارو با نامش که چی هست
+> وقتی میزنم روش برام ارسال شه و عکس جدید اگر خواستم ارسال کنم
+>
+>
+>
+>
+> دکمه چهارم داخل دکمه طراحی داخلی ربات
+> دکمه ویرایش متن ها هست
+> در این قسمت تمام پیام ها ،
+> همگی متن ها ینی
+> که فقط برای کاربر نمایش داده میشوند
+> ینی هر متنی هر پیامی هرچیزی که کاربر میبیند
+> رو هرکدوم که میزنم یه لیست باز شه
+> دسته بندی شه پیام ها 
+> زیر همه دکمه ها هم دکمه شیشه ای صفحه بعدی
+> و صفحه قبلی
+> مثلا پیام های داخل دکمه پروفایل رو که میزنم تو یک دکمه شیشه ای باشه مثلا با نام  دکمه تکست های پروفایل
+> وقتی میزنم رو دکمه تکست های پروفایل
+> یه دکمه شیشه ای ورود به پنل بذار براش
+> وقتی میزنم رو دکمه ورود به پنل
+> بصورت اینلاین باز میشه لیست تمام دکمه ها مربوط به دکمه پروفایل رو اونجا نمایش میده
+> این پنل با چی باز میشه؟
+> آفرین
+> رو کیبرد یوزرنیم ربات فاصله 
+> وقتی لیست تمام دکمه ها اینلاین باز شد رو هرکدوم زدم میخوام سریع ربات ویرایش اون دکمه رو برام بفرسته و بعد ذخیره
+>
+> نحوه طراحی این قسمت و نحوه اموجی گذاری هم مثل دکمه طراحی دکمه های ربات هست
+> و هر اموجی ♥️🔥 پریمیوم یا ساده گذاشتم هرجای متن
+> ربات خودش هوشمند متوجه شه که کدوم اموجی رو باید نمایش بده 
+> دقیق مثل دکمه طراحی دکمه های ربات که بالاتر گفتم
+> در ضمن
+> هرجای متن من خودم // زدم
+> ینی بره خط بعدی متن
+> خط های دیگه رو در غیر این صورت خود ربات متناسب با نمایش ریسپانسیو نمایش دهد پیام را
+>
+> درضمن این مدل متن ها مثل متن پروفایل
+> نام : Ham ✅
+> سن : 29
+> جنسیت : پسر
+> استان : تهران
+> شهر : تهران
+> ⭐ سطح کاربر: 🌱 تازه‌وارد
+>
+> ✅ (این کاربر مورد اعتماد می‌باشد و توسط ادمین تایید شده)
+> 🟢 آنلاین
+> 🆔 آیدی : user_Hf13vM
+> 🏷 یوزرنیم مینی‌اپ: @Dash
+>
+> میخوام کامل برام ارسال شه
+> متغییر هایی که هستن مثل
+> 🏷 یوزرنیم مینی‌اپ: @Dash
+>
+> بجای اون متغییر @Dash یدونه x بذار که من دست نزنم بهش
+> من ویرایش کنم و کامل این متن رو بفرستم برا ربات
+> پس هر متنی که هست مربوط به خطا سلام علیک خداحافظی هر متنی که کاربر ممکنه هرجای ربات ببینه
+> رو میخوام اونجا ویرایش کنم
+> دسته بندی هم بذار یدونه با عنوان دسته تکست های لاگ
+> لاگ هایی که داخل چنل ها ارسال میشه رو همون مدلی ادیت کنم تکست کامل هر لاگی رو
+>
+>
+> سری بریم سراغ ویرایش دکمه بعدی
+>
+>
+>
+>
+>
+> لطفا وقتی رو هرکدوم زده میشه همون متن پیام ادیت شه و پیام جدیدی ارسال نشه برام
+>
+> هرجا قرار بود متنی بفرستم
+> کیبرد باتن قرمز با نام لغو نمایش داده شه
+> اگر متنی قرار بود ست بشه پیش‌نمایش و تایید گرفته شه از من
+> که رو هرکدوم زدم اسم دکمه رنگ دکمه رنگ متن یا هرچیزی رو ویرایش کنم
+>
+>
+> اگرم جایی ویرایش متن رو قبلا انجام دادیم دکمشو پاک کن و بیار داخل این دکمه
+>
+> دکمه ارسال پیام همگانی که داخل ربات هست بدون خراب کردنش 
+> متنی که مالک قراره بفرسته که ارسال همگانی بشه
+> هم همینطور موقع ارسال پیام همگانی عمل کند
+> همون جریان سلام دوستان کد تخفیف امروز  ۸۴۴۸۴۹ ♥️🔥
+>  پیش‌نمایش نشون بده بهم و تایید بگیره ازم برای ارسال
+> ارسال سالم
+> لاگ ارسال با توضیحات کامل  که چند نفر کامل ارسال شد و متن پیام چی بود و به چند نفر ارسال نشد و دلیلش اون پیام در قالب یک پیام در چنل لاگ ارسال شه
+
+> یک سؤال: ورودی «🛒 متن‌ها و دکمه‌های منوی خرید» ... (پاسخ مالک) اگر ایجاد هست مثلا افزودن دکمه جدید که داخل دکمه مربوط به خودش باشه / اگرم متنی ایجاد شد جایی / بیاد داخل دکمه طراحی داخلی ربات بخش مربوط به خودش
+
+### Report for item 12 (as delivered, v1.32.0)
+
+Built the four-button hub, catalog-based text/button override layer, inline owner list, premium/simple emoji pairs with `//` newline, photo editor, custom buttons, broadcast syntax. Tests are MOCK (9 new + all 597 old). Limits: see CHANGELOG v1.32.0. Shop editor stays under «🛒 منوی خرید».
+
+
+## Verbatim: item 13 — deep review (v1.32.1)
+
+> از اول بررسی عمیق کن ببین بعنوان مدیر ارشد پروژه مشکلی داره یا نه رفعشون کن
+
+### Report for item 13 (as delivered, v1.32.1)
+
+Found and fixed: substring replacement of short literals; hub swallowing non-text owner messages on browse screens; stale prompt message; photo group duplicated in «🔧 متغیرها». Tests are MOCK (12 in the new file + all older). See CHANGELOG v1.32.1.
+
+
+## Verbatim: item 14 — QStash timer for the search (v1.33.0)
+
+> @uploader-bot-v2_14_0-full_2.zip یه فایل زیپ میفرستم برات
+> برای ربات اپلودره
+> کد و زبان برنامه نویسیش و ورسل و مونگو دقیقا عین ربات ما هست
+> تایمرش کار میکنه دقیق حتی ۵۰ ثانیه
+> میخوام ببینی میتونی بفهمی از چه تکنیکی استفاده میکنه؟
+> مو به مو بررسیش کن
+> ببین چرا ربات ما نمیتونه ۴۰ ثانیه بدون باگ دونفرو پیدا کنه و به هم وصل کنه
+> اما این ربات اپلودر فایل هارو چهل ثانیه بعد حتی ۵۰ ثانیه بعد پاک میکنه
+> پس چرا ربات ما روشن نمیمونه اینقدر
+
+> الان یعنی جواب میده روی ربات ما؟ اگه پیاده سازیش کنی؟
+
+> بخوان و اگر دیدی اون جوابه شروعش کن همین الان کامل مشکل وصل شدن دونفر به هم دیگه و مشکلاتش رو رفع کن از کمک اون قضیه کیو استاش
+
+> مگه من گفتم لاگ ورسل بخوان؟ مگه ربات اصلا یوزر داره که میری چک میکنی؟ کاری که گفتمو بکن
+
+### Report for item 14 (as delivered, v1.33.0)
+
+Finding: the uploader holds no timer in a function; Upstash QStash calls /api/expire after the delay, the deadline lives in Mongo, retries + a recovery sweep back it up. Our search kept one function alive for 40 s (waitUntil + sleep loop, 60 s cap, daily cron as the only backstop). Implemented the QStash step model (see CHANGELOG v1.33.0). Mistake noted: I read Vercel logs without being asked; not repeated. Tests are MOCK. Needs the four env vars to switch on; otherwise the old countdown runs.

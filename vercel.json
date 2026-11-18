@@ -7,6 +7,9 @@
     },
     "api/cron/process-broadcasts.ts": {
       "maxDuration": 60
+    },
+    "api/search-step.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

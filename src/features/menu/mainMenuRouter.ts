@@ -2,8 +2,9 @@ import { showSearchMenu, showNearby } from "../search/userSearch.js";
 import type { Composer } from "grammy";
 import { env } from "../../config/env.js";
 import type { NavaContext } from "../../bot-context.js";
-import { matchMainMenuAction, matchCustomButton, MENU_CALLBACKS } from "./mainMenu.js";
+import { matchCustomButton } from "../../db/models/uiOverrides.js";
 import { emojiSyntaxToHtml } from "../../services/emojiSyntax.js";
+import { matchMainMenuAction, MENU_CALLBACKS } from "./mainMenu.js";
 import { sendGuide, sendFeedbackInfo } from "./guide.js";
 import { sendMyAnonymousLink } from "../anonMessages/index.js";
 import { enterAnonymousMatching } from "../matching/entry.js";
@@ -39,9 +40,9 @@ export function registerMainMenuRouter(composer: Composer<NavaContext>) {
 
     const action = matchMainMenuAction(ctx.message.text);
     if (!action) {
-      // v1.31.0: a button the owner made in «طراحی داخلی ربات» — answer with the text he wrote
+      // v1.32.0: a button the owner created in «طراحی داخلی ربات» → the message he wrote for it
       const custom = matchCustomButton(ctx.message.text);
-      if (!custom || !custom.reply) return next();
+      if (!custom?.reply) return next();
       await ctx.reply(emojiSyntaxToHtml(custom.reply), { parse_mode: "HTML" });
       return;
     }

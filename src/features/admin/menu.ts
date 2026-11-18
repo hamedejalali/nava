@@ -50,12 +50,10 @@ export const ADMIN_MENU_LABELS = {
   ownerProfile: "👑 اکانت مالک (مویا)",
   wallet: "🔌 اتصال ولت",
   shop: "🛒 منوی خرید",
-  channels: "📡 کانال‌ها",
-  emojis: "✨ ایموجی پریمیوم‌ها",
   innerDesign: "🎨 طراحی داخلی ربات",
+  channels: "📡 کانال‌ها",
   adminAccess: "🔑 دسترسی ادمین‌ها",
   vars: "🧩 متغیرها و تصاویر",
-  texts: "📝 متن‌ها",
   close: "❌ بستن پنل",
 } as const;
 
@@ -74,6 +72,7 @@ export function registerAdminVersionButton(composer: Composer<NavaContext>) {
  *  user levels, and fully wiping a user's profile — all irreversible or
  *  security-sensitive enough to keep away from regular admins). */
 const OWNER_ONLY: string[] = [
+  ADMIN_MENU_LABELS.innerDesign,
   ADMIN_MENU_LABELS.moderators,
   ADMIN_MENU_LABELS.level,
   ADMIN_MENU_LABELS.resetUser,
@@ -84,8 +83,6 @@ const OWNER_ONLY: string[] = [
   ADMIN_MENU_LABELS.ngShortNames,
   ADMIN_MENU_LABELS.ownerProfile,
   ADMIN_MENU_LABELS.wallet,
-  ADMIN_MENU_LABELS.emojis,
-  ADMIN_MENU_LABELS.innerDesign,
   ADMIN_MENU_LABELS.vars,
   ADMIN_MENU_LABELS.adminAccess,
   ADMIN_MENU_LABELS.officialAdd,
@@ -187,7 +184,7 @@ export function buildAdminReplyKeyboard(ctx: NavaContext) {
   const need = labelPermissions(ADMIN_MENU_LABELS as unknown as Record<string, string>);
   const items: Array<{ label: string; icon?: IconInput }> = cats.map((id) => ({ label: ADMIN_CATEGORY_LABELS[id] }));
   for (const e of MAIN_PANEL_TOOLS.filter((t) => isOwner(ctx) || (!OWNER_ONLY.includes(t.label) && (!need[t.label] || canAdmin(ctx, need[t.label]!))))) items.push({ label: e.label, icon: e.icon?.() });
-  // keep «ordered»: topics first, then channels + the owner's design hub (they pair up on one row)
+  // keep «ordered»: topics first, then channels + texts (they pair up on one row)
   const rows = pairRows(items);
   // Version button: does nothing when tapped (see registerAdminVersionButton)
   // — it only exists to show which build is deployed.

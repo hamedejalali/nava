@@ -20,5 +20,4 @@ export function registerAdminPanel(composer: Composer<NavaContext>) {
     if (!url) return void (await ctx.reply("آدرس مانیتورینگ تنظیم نشده است (PUBLIC_URL یا MONITOR_MINIAPP_URL)."));
     await ctx.reply("📊 مانیتورینگ مویا:", { reply_markup: { inline_keyboard: [[{ text: "📊 باز کردن مانیتورینگ", web_app: { url } }]] } });
   });
-
 }

@@ -84,7 +84,7 @@ export function labelPermissions(L: Record<string, string>): Record<string, Perm
   put([L.relic!], "jeton");
   put([L.pricing!, L.shop!], "pricing");
   put([L.reactionGate!], "reactionGate");
-  put([L.texts!, L.channels!], "guides");
+  put([L.channels!], "guides");
   put([L.maintenance!], "settings");
   put([L.stats!], "stats");
   put([L.activityLog!], "activityLog");
